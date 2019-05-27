@@ -687,7 +687,7 @@ ClassContexts = dict()
 class ClassContextMeta(ContextMeta):
 
     def __call__(self, ident, base_namespace=None, imported=()):
-        res = ClassContexts.get(ident)
+        res = ClassContexts.get(URIRef(ident))
         if not res:
             res = super(ClassContextMeta, self).__call__(ident=ident,
                     base_namespace=base_namespace, imported=imported)
