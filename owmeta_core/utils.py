@@ -95,3 +95,12 @@ def retrieve_provider(provider_path):
     m = importlib.import_module(module)
     attr_chain = provider.split('.')
     return getattrs(m, attr_chain)
+
+
+def ellipsize(s, max_length):
+    t = s[:max_length]
+    if t != s:
+        if len(t) <= 1:
+            return t
+        return t[:-1] + '⋯'
+    return t
