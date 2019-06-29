@@ -5,8 +5,8 @@ DataSource with the values from an instance conforming to the schema
 from os.path import join as p, dirname
 import json
 
-from PyOpenWorm.json_schema import Creator, DataSourceTypeCreator
-from PyOpenWorm.context import Context, ClassContext
+from owmeta_core.json_schema import Creator, DataSourceTypeCreator
+from owmeta_core.context import Context, ClassContext
 
 
 with open(p(dirname(__file__), 'wcon_schema.json'), 'r') as f:
@@ -21,7 +21,7 @@ with open(data_path, 'r') as f:
 # classes created *unless* the schema definitions have an "$id", in which case the value
 # of the "$id" field takes precedence
 def_ctx = ClassContext(ident='http://openworm.org/tracker-commons')
-annotated_schema = DataSourceTypeCreator('WCONDataSource', schema, context=def_ctx).annotate()
+annotated_schema = DataSourceTypeCreator('WCONDataSource', context=def_ctx).annotate(schema)
 
 # The context of the Creator determines the context in which statements are made by the
 # creator
