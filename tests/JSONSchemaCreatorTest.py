@@ -181,11 +181,59 @@ class ObjectTypeCheck(unittest.TestCase):
         cut.create({'duck': 'sauce'})
         self.assertTrue(called[0])
 
-    def test_additionalProperties(self):
-        pass
+    def test_additionalProperties_fail(self):
+        class C(Creator):
+            pass
 
-    def test_patternProperties(self):
-        pass
+        cut = C({
+            'type': 'object',
+            '_pow_type': 'whatever',
+            'additionalProperties': {
+                'type': 'integer'
+            }
+        })
+        with self.assertRaises(AssignmentValidationException):
+            cut.create({'duck': 'sauce'})
+
+    def test_additionalProperties_success(self):
+        class A(object):
+            pass
+
+        called = [False]
+
+        class C(Creator):
+            def make_instance(self, pt):
+                return A()
+
+            def assign(self, obj, name, val):
+                called[0] = True
+
+        cut = C({
+            'type': 'object',
+            '_pow_type': 'whatever',
+            'additionalProperties': {
+                'type': 'integer'
+            }
+        })
+        cut.create({'duck': 12, 'smee': 3})
+        self.assertTrue(called[0])
+
+    def test_patternProperties_match_type_error(self):
+
+        class C(Creator):
+            pass
+
+        cut = C({
+            'type': 'object',
+            '_pow_type': 'whatever',
+            'patternProperties': {
+                r'ab+': {
+                    'type': 'integer'
+                }
+            }
+        })
+        with self.assertRaises(AssignmentValidationException):
+            cut.create({'abbbb': 'bad'})
 
     def test_properties(self):
         pass
