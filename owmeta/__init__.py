@@ -84,7 +84,6 @@ import yarom
 __all__ = [
     "get_data",
     "loadConfig",
-    "loadData",
     "disconnect",
     "connect",
     "config",
@@ -102,18 +101,6 @@ RDFS_CONTEXT = Context(ident='http://www.w3.org/2000/01/rdf-schema',
 BASE_CONTEXT = Context(imported=(RDFS_CONTEXT,),
                        ident=BASE_SCHEMA_URL,
                        base_namespace=BASE_SCHEMA_URL + '#')
-
-SCI_CTX = Context(imported=(BASE_CONTEXT,),
-                  ident=BASE_SCHEMA_URL + '/sci',
-                  base_namespace=BASE_SCHEMA_URL + '/sci#')
-
-SCI_BIO_CTX = Context(imported=(SCI_CTX,),
-                      ident=BASE_SCHEMA_URL + '/sci/bio',
-                      base_namespace=BASE_SCHEMA_URL + '/sci/bio#')
-
-CONTEXT = Context(imported=(SCI_BIO_CTX,),
-                  ident=BASE_SCHEMA_URL + '/bio',
-                  base_namespace=BASE_SCHEMA_URL + '/bio#')
 
 
 def get_data(path):
@@ -194,40 +181,6 @@ def disconnect(c=False):
         c.disconnect()
 
 
-def loadData(
-        conf,
-        data='OpenWormData/WormData.n3',
-        dataFormat='n3',
-        skipIfNewer=False):
-    """
-    Load data into the underlying database of this library.
-
-    XXX: This is only guaranteed to work with the ZODB database.
-
-    :param data: (Optional) Specify the file to load into the library
-    :param dataFormat: (Optional) Specify the file format to load into the library.  Currently n3 is supported
-    :param skipIfNewer: (Optional) Skips loading of data if the database file is newer
-                        than the data to be loaded in. This is determined by the modified time on the main
-                        database file compared to the modified time on the data file.
-    """
-    if not os.path.isfile(data):
-        raise Exception("No such data file: " + data)
-
-    if skipIfNewer:
-        try:
-            db_file_name = conf['rdf.store.conf']
-            if os.path.isfile(db_file_name):
-                data_file_time = os.path.getmtime(data)
-                db_file_time = os.path.getmtime(conf['rdf.store_conf'])
-                if data_file_time < db_file_time:
-                    return
-        except Exception as e:
-            logging.exception("Failed to determine if the serialized data file is older than the binary database."
-                              " The data file will be reloaded. Reason: {}".format(e.message))
-    sys.stderr.write("[owmeta] Loading data into the graph; this may take several minutes!!\n")
-    conf['rdf.graph'].parse(data, format=dataFormat)
-
-
 class ConnectionFailError(Exception):
     def __init__(self, cause, *args):
         if args:
@@ -238,7 +191,6 @@ class ConnectionFailError(Exception):
 
 def connect(configFile=None,
             conf=None,
-            data=False,
             dataFormat='n3'):
     """
     Load desired configuration and open the database
@@ -248,7 +200,7 @@ def connect(configFile=None,
     :param data: (Optional) specify the file to load into the library
     :param dataFormat: (Optional) file format of `data`. Currently n3 is supported
     """
-    from .data import Data, ZODBSourceOpenFailError, DatabaseConflict
+    from .data import Data, DatabaseConflict
 
     if configFile is not None and not isinstance(configFile, str):
         conf = configFile
@@ -260,30 +212,16 @@ def connect(configFile=None,
     elif configFile:
         conf = Data.open(configFile)
     else:
-        conf = Data({
-            "rdf.source": "ZODB",
-            "rdf.store": "ZODB",
-            "rdf.store_conf": get_data('worm.db'),
-            "rdf.upload_block_statement_count": 50
-        })
+        conf = Data({"rdf.source": "default"})
 
     try:
         conf.init_database()
-    except ZODBSourceOpenFailError as e:
-        # Special handling for a common user error with owm which, nonetheless,
-        # may be encontered when *not* using owm
-        if e.openstr.endswith('.owm/worm.db'):
-            raise ConnectionFailError(e, 'Perhaps you need to do a `owm clone`?')
-        raise ConnectionFailError(e)
     except DatabaseConflict as e:
         raise ConnectionFailError(e, "It looks like a connection is already opened by a living process")
     except Exception as e:
         raise ConnectionFailError(e)
 
     logging.getLogger('owmeta').info("Connected to database")
-
-    if data:
-        loadData(conf, data, dataFormat)
 
     # Base class names is empty because we won't be adding any objects to the
     # context automatically

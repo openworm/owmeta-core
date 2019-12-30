@@ -12,8 +12,6 @@ from yarom.graphObject import IdentifierMissingException
 
 from owmeta.data import DataUser
 from owmeta.dataObject import DataObject, ObjectProperty, DatatypeProperty, _partial_property
-from owmeta.neuron import Neuron
-from owmeta.connection import Connection
 from owmeta.context import Context
 from owmeta.rdf_query_util import get_most_specific_rdf_type
 from owmeta import BASE_CONTEXT

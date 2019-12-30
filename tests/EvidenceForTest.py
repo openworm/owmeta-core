@@ -7,11 +7,16 @@ import itertools
 from .TestUtilities import xfail_without_db
 import owmeta
 from owmeta.context import Context
-from owmeta.neuron import Neuron
+from owmeta.dataObject import DataObject, ObjectProperty
 from owmeta.evidence import Evidence
 from owmeta.evidence import evidence_for
 from owmeta import connect, disconnect
 from .DataTestTemplate import _DataTest
+
+
+class Neuron(DataObject):
+    innexin = ObjectProperty()
+
 
 class EvidenceForTest(_DataTest):
     ''' Tests for statements having an associated Evidence object '''
