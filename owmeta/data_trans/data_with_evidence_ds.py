@@ -2,7 +2,7 @@ from rdflib.namespace import Namespace
 from ..context import Context
 from ..contextDataObject import ContextDataObject
 from ..datasource import Informational, DataSource
-from .. import CONTEXT
+from .. import BASE_CONTEXT
 from .common_data import DS_NS
 from .context_datasource import VariableIdentifierContext
 
@@ -33,10 +33,10 @@ class DataWithEvidenceDataSource(DataSource):
         self.__ad_hoc_contexts = dict()
 
         self.data_context = _DataContext.contextualize(self.context)(maker=self,
-                                                                     imported=(CONTEXT,))
+                                                                     imported=(BASE_CONTEXT,))
 
         self.evidence_context = _EvidenceContext.contextualize(self.context)(maker=self,
-                                                                             imported=(CONTEXT,))
+                                                                             imported=(BASE_CONTEXT,))
 
         self.combined_context = _CombinedContext.contextualize(self.context)(maker=self,
                                                                              imported=(self.data_context,
