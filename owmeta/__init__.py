@@ -78,7 +78,7 @@ def install_module_import_wrapper():
 install_module_import_wrapper()
 ModuleRecorder.add_listener(BASE_MAPPER)
 from .configure import Configureable
-from .context import Context
+from .context import Context, ClassContext
 import yarom
 
 __all__ = [
@@ -91,14 +91,14 @@ __all__ = [
 
 DEF_CTX = Context()
 
-RDF_CONTEXT = Context(ident='http://www.w3.org/1999/02/22-rdf-syntax-ns',
+RDF_CONTEXT = ClassContext(ident='http://www.w3.org/1999/02/22-rdf-syntax-ns',
                       base_namespace='http://www.w3.org/1999/02/22-rdf-syntax-ns#')
 
-RDFS_CONTEXT = Context(ident='http://www.w3.org/2000/01/rdf-schema',
+RDFS_CONTEXT = ClassContext(ident='http://www.w3.org/2000/01/rdf-schema',
                        imported=(RDF_CONTEXT,),
                        base_namespace='http://www.w3.org/2000/01/rdf-schema#')
 
-BASE_CONTEXT = Context(imported=(RDFS_CONTEXT,),
+BASE_CONTEXT = ClassContext(imported=(RDFS_CONTEXT,),
                        ident=BASE_SCHEMA_URL,
                        base_namespace=BASE_SCHEMA_URL + '#')
 
@@ -134,12 +134,30 @@ class Connection(object):
     def __init__(self, conf):
         self.conf = conf
 
+        self._context = Context(conf=self.conf)
+
         self.identifier = str(uuid.uuid4())
         '''
         Identifier for this connection.
 
         Primarily, so that this Connection can be passed to contextualize for a Context
         '''
+
+    @property
+    def transaction_manager(self):
+        return self.__transaction_manager
+
+    @transaction_manager.setter
+    def transaction_manager(self, transaction_manager):
+        self.__transaction_manager = transaction_manager
+
+    @property
+    def mapper(self):
+        return self.conf['mapper']
+
+    @property
+    def rdf(self):
+        return self.conf['rdf.graph']
 
     def disconnect(self):
         self.conf.closeDatabase()
@@ -151,13 +169,15 @@ class Connection(object):
     def __exit__(self, *args):
         self.disconnect()
 
+    def _context(self):
+        return Context(conf=self.conf)
+
     def __call__(self, target):
         '''
         Contextualize the given `Context`
         '''
-        # XXX: May be able to loosen th
         if target is not None and issubclass(target, Context):
-            return target.contextualize(self)
+            return target.contextualize(self._context)
         else:
             raise TypeError('Connections can only contextualize owmeta.context.Context'
                     ' or subclasses thereof. Received %s' % target)

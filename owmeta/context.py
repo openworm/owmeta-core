@@ -153,6 +153,12 @@ class Context(six.with_metaclass(ContextMeta, ImportContextualizer,
         for x in self._imported_contexts:
             yield x
 
+    def transitive_imports(self):
+        for x in self._imported_contexts:
+            yield x
+            for y in x.transitive_imports():
+                yield y
+
     def save_imports(self, context=None, *args, **kwargs):
         if not context:
             ctx_key = self.conf[IMPORTS_CONTEXT_KEY]
@@ -192,7 +198,8 @@ class Context(six.with_metaclass(ContextMeta, ImportContextualizer,
 
         if inline_imports:
             for ctx in self._imported_contexts:
-                ctx.save_context(graph, inline_imports, False, saved_contexts)
+                ctx.save_context(graph, inline_imports, autocommit=False,
+                        saved_contexts=saved_contexts)
 
         if hasattr(graph, 'bind') and self.mapper is not None:
             for c in self.mapper.mapped_classes():
@@ -200,15 +207,13 @@ class Context(six.with_metaclass(ContextMeta, ImportContextualizer,
                     try:
                         graph.bind(c.__name__, c.rdf_namespace)
                     except Exception as e:
-                        L.warn('Failed to bind RDF namespace for %s to %s', c.__name__,
+                        L.warning('Failed to bind RDF namespace for %s to %s', c.__name__,
                                c.rdf_namespace, exc_info=True)
         if isinstance(graph, set):
             graph.update(self._save_context_triples())
         else:
             ctx_graph = self.get_target_graph(graph)
-            ctx_graph.addN((s, p, o, ctx_graph)
-                           for s, p, o
-                           in self._save_context_triples())
+            ctx_graph.addN((s, p, o, ctx_graph) for s, p, o in self._save_context_triples())
 
         if autocommit and hasattr(graph, 'commit'):
             graph.commit()
@@ -267,6 +272,7 @@ class Context(six.with_metaclass(ContextMeta, ImportContextualizer,
 
     def __bool__(self):
         return True
+
     __nonzero__ = __bool__
 
     def __len__(self):
@@ -314,7 +320,12 @@ class Context(six.with_metaclass(ContextMeta, ImportContextualizer,
                                 store=RDFContextStore(self, include_imports=False))
 
     def load_graph_from_configured_store(self):
-        return ConjunctiveGraph(identifier=self.identifier, store=RDFContextStore(self))
+        return ConjunctiveGraph(identifier=self.identifier,
+                store=RDFContextStore(self, imports_graph=self._imports_graph()))
+
+    def _imports_graph(self):
+        ctxid = self.conf.get(IMPORTS_CONTEXT_KEY, None)
+        return ctxid and self.rdf.get_context(URIRef(ctxid))
 
     def rdf_graph(self):
         if self._graph is None:
@@ -323,7 +334,8 @@ class Context(six.with_metaclass(ContextMeta, ImportContextualizer,
 
     def load_mixed_graph(self):
         return ConjunctiveGraph(identifier=self.identifier,
-                                store=ContextStore(context=self, include_stored=True))
+                                store=ContextStore(context=self, include_stored=True,
+                                    imports_graph=self._imports_graph()))
 
     def load_staged_graph(self):
         return ConjunctiveGraph(identifier=self.identifier, store=ContextStore(context=self))
@@ -368,6 +380,7 @@ class Context(six.with_metaclass(ContextMeta, ImportContextualizer,
         if self.mapper is None:
             return None
         c = self.mapper.RDFTypeTable.get(uri)
+
         if c is None:
             # otherwise, attempt to load into the cache by
             # reading the RDF graph.
@@ -377,6 +390,7 @@ class Context(six.with_metaclass(ContextMeta, ImportContextualizer,
             re.rdf_class(uri)
             cd = self(PythonClassDescription)()
             re.class_description(cd)
+
             for cd_l in cd.load():
                 class_name = cd_l.name()
                 moddo = cd_l.module()
@@ -390,7 +404,7 @@ class Context(six.with_metaclass(ContextMeta, ImportContextualizer,
                         if matching_classes:
                             c = matching_classes[0]
                         if len(matching_classes) > 1:
-                            L.warn('More than one class has the same name in'
+                            L.warning('More than one class has the same name in'
                             ' __yarom_mapped_classes__ for {}, so we are picking the'
                             ' first one as the resolved class among {}'.format(mod, ymc))
                 break
@@ -411,10 +425,16 @@ ClassContexts = dict()
 
 class ClassContextMeta(ContextMeta):
 
-    def __call__(self, ident):
+    def __call__(self, ident, base_namespace=None, imported=()):
         res = ClassContexts.get(ident)
         if not res:
-            res = super(ClassContextMeta, self).__call__(ident=ident)
+            res = super(ClassContextMeta, self).__call__(ident=ident,
+                    base_namespace=base_namespace, imported=imported)
+            ClassContexts[URIRef(ident)] = res
+        else:
+            if base_namespace or imported:
+                raise Exception('Arguments can only be provided to a ClassContext on'
+                                ' first creation')
         return res
 
 

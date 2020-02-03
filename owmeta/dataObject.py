@@ -8,12 +8,14 @@ import hashlib
 
 from importlib import import_module
 import owmeta  # noqa
-from . import BASE_SCHEMA_URL, DEF_CTX
+from . import BASE_SCHEMA_URL, DEF_CTX, __version__ as OWMETA_VERSION
 from .contextualize import (Contextualizable,
                             ContextualizableClass,
                             contextualize_helper,
                             decontextualize_helper)
-from .context import ClassContext, ContextualizableDataUserMixin
+from .context import ContextualizableDataUserMixin
+from .contextMappedClassUtil import find_class_context, find_base_namespace
+from .mapper import mapped
 
 from yarom.graphObject import (GraphObject,
                                ComponentTripler,
@@ -135,6 +137,7 @@ def UnionProperty(*args, **kwargs):
     return APThunk('UnionProperty', args, kwargs)
 
 
+@mapped
 class RDFSClass(GraphObject):
 
     """ The GraphObject corresponding to rdfs:Class """
@@ -160,7 +163,7 @@ TypeDataObject = None
 class ContextMappedClass(MappedClass, ContextualizableClass):
     def __init__(self, name, bases, dct):
         super(ContextMappedClass, self).__init__(name, bases, dct)
-        ctx = ContextMappedClass._find_class_context(dct, bases)
+        ctx = find_class_context(dct, bases)
 
         if ctx is not None:
             self.__context = ctx
@@ -168,7 +171,7 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             self.__context = None
 
         if not hasattr(self, 'base_namespace') or self.base_namespace is None:
-            self.base_namespace = ContextMappedClass._find_base_namespace(dct, bases)
+            self.base_namespace = find_base_namespace(dct, bases)
 
         self._property_classes = dict()
         for b in bases:
@@ -218,35 +221,6 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
 
         self.__query_form = None
 
-    @classmethod
-    def _find_class_context(cls, dct, bases):
-        ctx_or_ctx_uri = dct.get('class_context', None)
-        if ctx_or_ctx_uri is None:
-            for b in bases:
-                pctx = getattr(b, 'definition_context', None)
-                if pctx is not None:
-                    ctx = pctx
-                    break
-        else:
-            if not isinstance(ctx_or_ctx_uri, URIRef) \
-               and isinstance(ctx_or_ctx_uri, (str, six.text_type)):
-                ctx_or_ctx_uri = URIRef(ctx_or_ctx_uri)
-            if isinstance(ctx_or_ctx_uri, (str, six.text_type)):
-                ctx = ClassContext(ctx_or_ctx_uri)
-            else:
-                ctx = ctx_or_ctx_uri
-        return ctx
-
-    @classmethod
-    def _find_base_namespace(cls, dct, bases):
-        base_ns = dct.get('base_namespace', None)
-        if base_ns is None:
-            for b in bases:
-                if hasattr(b, 'base_namespace') and b.base_namespace is not None:
-                    base_ns = b.base_namespace
-                    break
-        return base_ns
-
     def contextualize_class_augment(self, context):
         '''
         For MappedClass, rdf_type and rdf_namespace have special behavior where they can
@@ -294,7 +268,6 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
         return self.__query_form
 
     def _init_rdf_type_object(self):
-
         if not hasattr(self, 'rdf_type_object') or \
                 self.rdf_type_object is not None and self.rdf_type_object.identifier != self.rdf_type:
             if self.definition_context is None:
@@ -329,6 +302,18 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
 
         mo = PythonModule.contextualize(self.definition_context)()
         mo.name(self.__module__)
+
+        my_module = import_module(self.__module__)
+        distro = getattr(my_module, '__distribution__', None)
+        if isinstance(distro, dict):
+            dist_name = distro.get('name')
+            dist_version = distro.get('version')
+            if dist_name and dist_version:
+                pkg = PythonPackage.contextualize(self.definition_context)(
+                    name=dist_name,
+                    version=dist_version
+                )
+                mo.package(pkg)
 
         cd.module(mo)
         cd.name(self.__name__)
@@ -440,6 +425,7 @@ class ContextFilteringList(Contextualizable, list):
         return list(super(ContextFilteringList, self).__iter__())
 
 
+@mapped
 class BaseDataObject(six.with_metaclass(ContextMappedClass,
                                         IdMixin(hashfunc=hashlib.md5),
                                         GraphObject,
@@ -878,7 +864,9 @@ class RDFTypeProperty(SP.ObjectProperty):
     lazy = False
 
 
+@mapped
 class RDFSSubClassOfProperty(SP.ObjectProperty):
+    class_context = 'http://www.w3.org/2000/01/rdf-schema'
     link = R.RDFS.subClassOf
     linkName = 'rdfs_subclassof_property'
     value_type = RDFSClass
@@ -887,6 +875,7 @@ class RDFSSubClassOfProperty(SP.ObjectProperty):
     lazy = False
 
 
+@mapped
 class TypeDataObject(BaseDataObject):
     class_context = URIRef(BASE_SCHEMA_URL)
 
@@ -917,17 +906,19 @@ class DataObjectSingleton(six.with_metaclass(DataObjectSingletonMeta, BaseDataOb
         return cls.instance
 
 
+@mapped
 class PropertyDataObject(BaseDataObject):
-
     """ A PropertyDataObject represents the property-as-object.
 
     Try not to confuse this with the Property class
     """
     rdf_type = R.RDF['Property']
-    class_context = URIRef(BASE_SCHEMA_URL)
+    class_context = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#'
 
 
+@mapped
 class RDFSCommentProperty(SP.DatatypeProperty):
+    class_context = 'http://www.w3.org/2000/01/rdf-schema'
     link = R.RDFS['comment']
     linkName = 'rdfs_comment'
     owner_type = BaseDataObject
@@ -935,7 +926,9 @@ class RDFSCommentProperty(SP.DatatypeProperty):
     lazy = True
 
 
+@mapped
 class RDFSLabelProperty(SP.DatatypeProperty):
+    class_context = 'http://www.w3.org/2000/01/rdf-schema'
     link = R.RDFS['label']
     linkName = 'rdfs_label'
     owner_type = BaseDataObject
@@ -943,13 +936,14 @@ class RDFSLabelProperty(SP.DatatypeProperty):
     lazy = True
 
 
+@mapped
 class DataObject(BaseDataObject):
     rdfs_comment = CPThunk(RDFSCommentProperty)
     rdfs_label = CPThunk(RDFSLabelProperty)
 
 
+@mapped
 class RDFProperty(DataObjectSingleton):
-
     """ The DataObject corresponding to rdf:Property """
     rdf_type = R.RDF['Property']
     class_context = URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns')
@@ -965,16 +959,8 @@ def disconnect():
     PropertyTypes.clear()
 
 
-class Module(DataObject):
-    '''
-    Represents a module of code
-
-    Most modern programming languages organize code into importable modules of one kind or another. This is basically
-    the nearest level above a *class* in the language.
-    '''
-
-
-class ModuleAccess(DataObject):
+@mapped
+class ModuleAccessor(DataObject):
     '''
     Describes how to access a module.
 
@@ -983,6 +969,36 @@ class ModuleAccess(DataObject):
     '''
 
 
+@mapped
+class Package(DataObject):
+    ''' Describes an idealized software package identifiable by a name and version number '''
+
+    name = DatatypeProperty()
+    ''' The standard name of the package '''
+
+    version = DatatypeProperty()
+    ''' The version of the package '''
+
+
+@mapped
+class Module(DataObject):
+    '''
+    Represents a module of code
+
+    Most modern programming languages organize code into importable modules of one kind or another. This is basically
+    the nearest level above a *class* in the language.
+
+    Modules are accessable by one or more ModuleAccess
+    '''
+
+    accessors = ObjectProperty(multiple=True, value_type=ModuleAccessor)
+    ''' Ways to get the module '''
+
+    package = ObjectProperty(value_type=Package)
+    ''' Package that provides the module '''
+
+
+@mapped
 class ClassDescription(DataObject):
     '''
     Describes a class in the programming language
@@ -992,6 +1008,7 @@ class ClassDescription(DataObject):
     ''' The module the class belongs to '''
 
 
+@mapped
 class RegistryEntry(DataObject):
 
     '''
@@ -1004,7 +1021,12 @@ class RegistryEntry(DataObject):
     ''' The description of the class '''
 
     rdf_class = DatatypeProperty()
-    ''' The RDF type for the class '''
+    '''
+    The RDF type for the class
+
+    We use rdf_type for the type of a DataObject (RegistryEntry.rdf_type in this case), so
+    we call this rdf_class to avoid the conflict
+    '''
 
     def defined_augment(self):
         return self.class_description.has_defined_value() and self.rdf_class.has_defined_value()
@@ -1014,31 +1036,39 @@ class RegistryEntry(DataObject):
                                     self.rdf_class.defined_values[0].identifier.n3())
 
 
+@mapped
+class PythonPackage(Package):
+    ''' A python package '''
+    key_properties = ('name', 'version')
+
+
+@mapped
 class PythonModule(Module):
     '''
     A Python module
     '''
 
-    name = DatatypeProperty(multiple=False)
+    name = DatatypeProperty()
     ''' The full name of the module '''
 
-    def defined_augment(self):
-        return self.name.has_defined_value()
+    package = ObjectProperty(value_type=PythonPackage)
+    ''' The Python package '''
 
-    def identifier_augment(self):
-        return self.make_identifier_direct(str(self.name.defined_values[0].identifier))
+    key_properties = (name, package)
 
 
-class PyPIPackage(ModuleAccess):
-
+@mapped
+class PIPInstall(ModuleAccessor):
     '''
-    Describes a package hosted on the Python Package Index (PyPI)
+    Describes a `pip install` command line
     '''
 
     name = DatatypeProperty()
+
     version = DatatypeProperty()
 
 
+@mapped
 class PythonClassDescription(ClassDescription):
     name = DatatypeProperty()
     ''' Local name of the class (i.e., relative to the module name) '''
@@ -1051,9 +1081,4 @@ class PythonClassDescription(ClassDescription):
                                     self.module.defined_values[0].identifier.n3())
 
 
-CR_TYPES = frozenset((RegistryEntry, PythonClassDescription, PythonModule))
-
-__yarom_mapped_classes__ = (BaseDataObject, DataObject, RDFSClass, TypeDataObject,
-                            RDFProperty, RDFSSubClassOfProperty, PropertyDataObject,
-                            RegistryEntry, ModuleAccess, ClassDescription, Module,
-                            PythonModule, PyPIPackage, PythonClassDescription)
+__distribution__ = dict(name='owmeta', version=OWMETA_VERSION)

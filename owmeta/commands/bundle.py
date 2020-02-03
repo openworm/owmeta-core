@@ -16,7 +16,9 @@ from ..bundle import (Descriptor,
                       Remote,
                       Fetcher,
                       Cache,
+                      Unarchiver,
                       retrieve_remotes,
+                      fmt_bundle_directory,
                       NoBundleLoader as _NoBundleLoader)
 
 import hashlib
@@ -50,7 +52,7 @@ class OWMBundleRemote(object):
             try:
                 mkdir(remotes_dir)
             except Exception:
-                L.warn('Could not crerate directory for storage of remote configurations', exc_info=True)
+                L.warning('Could not crerate directory for storage of remote configurations', exc_info=True)
                 raise GenericUserError('Could not create directory for storage of remote configurations')
 
         fname = self._remote_fname(r.name)
@@ -155,6 +157,7 @@ class OWMBundle(object):
         input_file_name : str
             The source file of the bundle
         '''
+        Unarchiver(bundles_directory=self._bundles_directory()).unpack(input_file_name)
 
     def save(self, bundle_id, output):
         '''
@@ -362,7 +365,7 @@ class NoBundleLoader(GenericUserError):
     def __init__(self, bundle_id, bundle_version=None):
         super(NoBundleLoader, self).__init__(
             'No loader could be found for "%s"%s' % (bundle_id,
-                (' at version ' + bundle_version) if bundle_version is not None else ''))
+                (' at version ' + str(bundle_version)) if bundle_version is not None else ''))
 
 
 class BundleNotFound(GenericUserError):

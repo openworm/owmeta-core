@@ -19,6 +19,7 @@ from .contextualize import (Contextualizable, ContextualizableClass,
                             contextualize_helper,
                             decontextualize_helper)
 from .context import Context
+from .contextMappedClassUtil import find_class_context, find_base_namespace
 from .statement import Statement
 from .inverse_property import InversePropertyMixin
 from .rdf_query_util import goq_hop_scorer, load
@@ -31,19 +32,56 @@ L = logging.getLogger(__name__)
 
 
 class ContextMappedPropertyClass(MappedPropertyClass, ContextualizableClass):
-    def __init__(self, *args, **kwargs):
-        super(ContextMappedPropertyClass, self).__init__(*args, **kwargs)
-        self._cmpc_context = None
+    def __init__(self, name, bases, dct):
+        super(ContextMappedPropertyClass, self).__init__(name, bases, dct)
+        ctx = find_class_context(dct, bases)
+
+        if ctx is not None:
+            self.__definition_context = ctx
+        else:
+            self.__definition_context = None
+
+        if not hasattr(self, 'base_namespace') or self.base_namespace is None:
+            self.base_namespace = find_base_namespace(dct, bases)
 
     @property
     def context(self):
-        return object.__getattribute__(self, '_cmpc_context')
+        try:
+            return object.__getattribute__(self, '_cmpc_context')
+        except AttributeError:
+            return None
 
     @context.setter
     def context(self, newc):
         if self._cmpc_context is not None and self._cmpc_context != newc:
             raise Exception('Contexts cannot be reassigned for a class')
         self._cmpc_context = newc
+
+    @property
+    def definition_context(self):
+        return self.__definition_context
+
+    def after_mapper_module_load(self, mapper):
+        '''
+        Called after the module has been loaded. See :class:`owmeta.mapper.Mapper`
+        '''
+        self.init_python_class_registry_entries()
+
+    def init_python_class_registry_entries(self):
+        #self._check_is_good_class_registry()
+        from owmeta.dataObject import (RegistryEntry, PythonClassDescription,
+                                       PythonModule)
+        re = RegistryEntry.contextualize(self.definition_context)()
+        cd = PythonClassDescription.contextualize(self.definition_context)()
+
+        mo = PythonModule.contextualize(self.definition_context)()
+        mo.name(self.__module__)
+
+        cd.module(mo)
+        cd.name(self.__name__)
+
+        re.rdf_class(self.rdf_type)
+        re.class_description(cd)
 
 
 class ContextualizedPropertyValue(PropertyValue):
@@ -200,11 +238,10 @@ class RealSimpleProperty(with_metaclass(ContextMappedPropertyClass,
         results = None
         owner = self.owner
         if owner.defined:
-            self._ensure_fresh_po_cache()
             results = set()
-            for pred, obj in owner.po_cache.cache:
-                if pred == self.link:
-                    results.add(obj)
+            ident = owner.identifier
+            for s, p, o in self.rdf.triples((ident, self.link, None)):
+                results.add(o)
         else:
             v = Variable("var" + str(id(self)))
             self._insert_value(v)
@@ -231,14 +268,6 @@ class RealSimpleProperty(with_metaclass(ContextMappedPropertyClass,
         self._hdf[self.context] = None
         v.owner_properties.remove(self)
         self._v.remove(Statement(self.owner, self, v, self.context))
-
-    def _ensure_fresh_po_cache(self):
-        owner = self.owner
-        ident = owner.identifier
-        graph_index = self.conf.get('rdf.graph.change_counter', None)
-
-        if graph_index is None or owner.po_cache is None or owner.po_cache.cache_index != graph_index:
-            owner.po_cache = POCache(graph_index, frozenset(self.rdf.predicate_objects(ident)))
 
     def unset(self, v):
         self._remove_value(v)
@@ -273,19 +302,6 @@ class RealSimpleProperty(with_metaclass(ContextMappedPropertyClass,
     @property
     def statements(self):
         return self.rdf.quads((self.owner.idl, self.link, None, None))
-
-
-class POCache(tuple):
-
-    """ The predicate-object cache object """
-
-    _map = dict(cache_index=0, cache=1)
-
-    def __new__(cls, cache_index, cache):
-        return super(POCache, cls).__new__(cls, (cache_index, cache))
-
-    def __getattr__(self, n):
-        return self[POCache._map[n]]
 
 
 class _ContextualizingPropertySetMixin(object):

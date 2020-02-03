@@ -7,22 +7,26 @@ from .common_data import DS_NS
 from .context_datasource import VariableIdentifierContext
 
 
+@mapped
 class DataWithEvidenceDataSource(DataSource):
     evidence_context_property = Informational(display_name='Evidence context',
                                               property_name='evidence_context',
                                               property_type='ObjectProperty',
+                                              multiple=False,
                                               description='The context in which evidence'
                                                           ' for the "Data context" is defined')
 
     data_context_property = Informational(display_name='Data context',
                                           property_name='data_context',
                                           property_type='ObjectProperty',
+                                          multiple=False,
                                           description='The context in which primary data'
                                                       ' for this data source is defined')
 
     combined_context_property = Informational(display_name='Combined context',
                                               property_name='combined_context',
                                               property_type='ObjectProperty',
+                                              multiple=False,
                                               description='Context importing both the data and evidence contexts')
 
     rdf_namespace = Namespace(DS_NS['DataWithEvidenceDataSource#'])
@@ -42,9 +46,14 @@ class DataWithEvidenceDataSource(DataSource):
                                                                              imported=(self.data_context,
                                                                                        self.evidence_context))
         if not type(self).query_mode:
-            self.data_context_property(self.data_context.rdf_object)
-            self.evidence_context_property(self.evidence_context.rdf_object)
-            self.combined_context_property(self.combined_context.rdf_object)
+            if not self.data_context_property.has_defined_value():
+                self.data_context_property(self.data_context.rdf_object)
+
+            if not self.evidence_context_property.has_defined_value():
+                self.evidence_context_property(self.evidence_context.rdf_object)
+
+            if not self.combined_context_property.has_defined_value():
+                self.combined_context_property(self.combined_context.rdf_object)
 
     def data_context_for(self, **kwargs):
         ctx = self.context_for(**kwargs)
@@ -64,9 +73,7 @@ class DataWithEvidenceDataSource(DataSource):
         return res
 
     def commit_augment(self):
-        saved_contexts = set([])
-        self.data_context.save_context(inline_imports=True, saved_contexts=saved_contexts)
-        self.evidence_context.save_context(inline_imports=True, saved_contexts=saved_contexts)
+        self.combined_context.save(inline_imports=True)
         self.combined_context.save_imports()
 
 
@@ -92,6 +99,3 @@ class _DataContext(VariableIdentifierContext):
             return self.maker.identifier + '-data'
         else:
             return None
-
-
-__yarom_mapped_classes__ = (DataWithEvidenceDataSource,)

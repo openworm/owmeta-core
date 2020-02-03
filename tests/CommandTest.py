@@ -1,9 +1,6 @@
 from __future__ import print_function
 import unittest
-try:
-    from unittest.mock import MagicMock, Mock, ANY, patch
-except ImportError:
-    from mock import MagicMock, Mock, ANY, patch
+from unittest.mock import MagicMock, Mock, ANY, patch
 import re
 import tempfile
 import os
@@ -462,8 +459,7 @@ class OWMTest(BaseTest):
         c = []
         self._init_conf({DEFAULT_CONTEXT_KEY: a})
         with patch('importlib.import_module') as im, \
-                patch('owmeta.command.Context'), \
-                patch('owmeta.context.Context'):
+                patch('owmeta.command.Context'):
             def f(ctx):
                 c.append(ctx.new_context(b))
 
@@ -1046,17 +1042,21 @@ class OWMDSDLoaderMissingDSD(unittest.TestCase):
     def test_dir_missing_load(self):
         cut = OWMDirDataSourceDirLoader(self.testdir)
         with self.assertRaises(LoadFailed):
-            cut.load('dsdid1')
+            data_source = Mock()
+            data_source.identifier = 'dsdid1'
+            cut.load(data_source)
 
     def test_dir_removed_load_no_raise(self):
         '''
         The load method doesn't take responsibility for the directory existing, in general
         '''
         os.mkdir(p(self.testdir, 'dir1'))
+        data_source = Mock()
+        data_source.identifier = 'dsdid1'
         cut = OWMDirDataSourceDirLoader(self.testdir)
-        cut.load('dsdid1')
+        cut.load(data_source)
         os.rmdir(p(self.testdir, 'dir1'))
-        cut.load('dsdid1')
+        cut.load(data_source)
 
 
 class TorrentFileDSD(unittest.TestCase):

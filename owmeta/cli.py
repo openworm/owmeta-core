@@ -120,9 +120,6 @@ def main():
             # In case someone forgets to add a helpful message for their user error
             s = 'Received error: ' + FCN(type(e))
         die(s)
-    if environ.get('OWM_CLI_PROFILE'):
-        profiler.disable()
-        profiler.dump_stats(environ['OWM_CLI_PROFILE'])
     output_mode = ns_handler.output_mode
     text_field_separator = ns_handler.text_field_separator
     text_record_separator = ns_handler.text_record_separator
@@ -180,9 +177,9 @@ def main():
                                         columns=[lambda x: x],
                                         header=out.header)
                 selected_columns = [0]
+            elif ns_handler.columns:
+                die('The given list of columns is not valid for this command')
             else:
-                if ns_handler.columns:
-                    die('The given list of columns is not valid for this command')
                 out = GeneratorWithData(out,
                                         columns=[lambda x: x],
                                         header=['Value'])
@@ -216,6 +213,10 @@ def main():
                             print(out.text_format(x), end=text_record_separator)
                         else:
                             print(x, end=text_record_separator)
+
+    if environ.get('OWM_CLI_PROFILE'):
+        profiler.disable()
+        profiler.dump_stats(environ['OWM_CLI_PROFILE'])
 
 
 if __name__ == '__main__':

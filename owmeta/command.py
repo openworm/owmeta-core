@@ -11,42 +11,29 @@ from os.path import (exists,
         relpath,
         expanduser)
 
-try:
-    from os import scandir
-except ImportError:
-    from scandir import scandir as _scandir
-
-    @contextmanager
-    def scandir(directory):
-        sd = _scandir(directory)
-        try:
-            yield sd
-        finally:
-            del sd
-from os import makedirs, mkdir, listdir, rename, unlink, stat
+from os import makedirs, mkdir, listdir, rename, unlink, scandir
 
 import shutil
 import json
 import logging
 import errno
 from collections import namedtuple
+from textwrap import dedent
 from yarom.rdfUtils import BatchAddGraph
 from yarom.utils import FCN
 
-try:
-    from tempfile import TemporaryDirectory
-except ImportError:
-    from backports.tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory
 
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
                            DEFAULT_OWM_DIR)
 from .commands.bundle import OWMBundle
+from .commands.biology import CellCmd
 from .context import Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY
 from .capability import provide
 from .capabilities import FilePathProvider
-from .data import ContextChangedEvent
 from .datasource_loader import DataSourceDirLoader, LoadFailed
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
+from .dataObject import DataObject
 
 
 L = logging.getLogger(__name__)
@@ -193,16 +180,24 @@ class OWMSource(object):
         uri = self._parent._den3(data_source)
         ctx = self._parent._default_ctx.stored
         source = ctx(DataSource)(ident=uri)
-        return self._derivs(ctx, source)
+
+        def text_format(dat):
+            source, derived = dat
+            return '{} → {}'.format(source.identifier, derived.identifier)
+
+        return GeneratorWithData(self._derivs(ctx, source),
+                                 text_format=text_format,
+                                 header=("Source", "Derived"),
+                                 columns=(lambda x: x[0], lambda x: x[1]))
 
     def _derivs(self, ctx, source):
         from owmeta.datasource import DataSource
         derived = ctx(DataSource).query()
         derived.source(source)
-        res = dict()
+        res = []
         for x in derived.load():
-            print(x)
-            res[x.identifier] = self._derivs(ctx, x)
+            res.append((source, x))
+            res += self._derivs(ctx, x)
         return res
 
     def show(self, *data_source):
@@ -273,11 +268,14 @@ class OWMTranslator(object):
             ctx = self._parent._default_ctx
         dt = ctx.stored(DataTranslator)(conf=conf)
         nm = conf['rdf.graph'].namespace_manager
-        for x in dt.load():
+
+        def id_fmt(trans):
             if full:
-                yield x.identifier
+                return str(trans.identifier)
             else:
-                yield nm.normalizeUri(x.identifier)
+                return nm.normalizeUri(trans.identifier)
+
+        return GeneratorWithData(dt.load(), header=('ID',), columns=(id_fmt,))
 
     def show(self, translator):
         '''
@@ -295,6 +293,36 @@ class OWMTranslator(object):
         for x in dt.load():
             self._parent.message(x)
             return
+
+    def create(self, translator_class):
+        '''
+        Creates an instance of the given translator class and adds it to the graph
+
+        Parameters
+        ----------
+        translator_class : str
+            Fully qualified access path for the translator class in the form::
+
+                {module_name}.{class_name}
+        '''
+        import importlib as IM
+        import transaction
+
+        ctx = self._parent._default_ctx
+        module_name, class_name = translator_class.rsplit('.', 1)
+
+        connection = self._parent.connect()
+        module = connection.mapper.load_module(module_name)
+        try:
+            translator_type = getattr(module, class_name)
+        except AttributeError:
+            raise GenericUserError('Unable to find the given class name, "%s", in the'
+                                   ' module, "%s"' % (class_name, module_name))
+        with transaction.manager:
+            ctx(translator_type)()
+            ctx.add_import(translator_type.definition_context)
+            ctx.save(inline_imports=True)
+            ctx.save_imports()
 
 
 class OWMNamespace(object):
@@ -564,7 +592,7 @@ class OWMContexts(object):
         from subprocess import call
         if context is None:
             ctx = self._parent._default_ctx
-            ctxid = self._parent._conf()[DEFAULT_CONTEXT_KEY]
+            ctxid = self._parent._conf(DEFAULT_CONTEXT_KEY)
         else:
             ctx = Context(ident=context, conf=self._parent._conf())
             ctxid = context
@@ -616,6 +644,62 @@ class OWMContexts(object):
         return self._parent._changed_contexts_set()
 
 
+class OWMRegistry(object):
+    '''
+    Commands for dealing with the class registry, a mapping of RDF types to classes in
+    imperative programming languages
+    '''
+
+    def __init__(self, parent):
+        self._parent = parent
+
+    def list(self):
+        '''
+        List registered classes
+        '''
+        from .dataObject import RegistryEntry, PythonClassDescription, PythonModule
+        ctx = self._parent._default_ctx
+
+        def registry_entries():
+            for re in ctx.stored(RegistryEntry)().load():
+                ident = re.identifier
+                cd = re.class_description()
+                rdf_type = re.namespace_manager.normalizeUri(re.rdf_class())
+                if not isinstance(cd, PythonClassDescription):
+                    continue
+                module = cd.module()
+                if re.namespace_manager:
+                    ident = re.namespace_manager.normalizeUri(ident)
+                if hasattr(module, 'name'):
+                    module_name = module.name()
+                package = None
+                if hasattr(module, 'package'):
+                    package = module.package()
+                    package_name = None
+                    package_version = None
+                    if package:
+                        package_name = package.name()
+                        package_version = package.version()
+
+                yield (ident, rdf_type, cd.name(), module_name, package, package_name,
+                       package_version)
+
+        def fmt_text(entry):
+            return dedent('''\
+            {0}:
+                RDF Type: {1}
+                Module Name: {3}
+                Class Name: {2}
+                Package: {4}\n''').format(*entry)
+
+        return GeneratorWithData(registry_entries(),
+                header=('ID', 'RDF Type', 'Class Name', 'Module Name', 'Package',
+                        'Package Name', 'Package Version'),
+                columns=tuple,
+                default_columns=('ID', 'RDF Type', 'Class Name', 'Module Name', 'Package'),
+                text_format=fmt_text)
+
+
 class OWM(object):
     """
     High-level commands for working with owmeta data
@@ -648,6 +732,10 @@ class OWM(object):
     evidence = SubCommand(OWMEvidence)
 
     bundle = SubCommand(OWMBundle)
+
+    registry = SubCommand(OWMRegistry)
+
+    cell = SubCommand(CellCmd)
 
     def __init__(self, owmdir=None):
         self.progress_reporter = default_progress_reporter
@@ -889,7 +977,6 @@ class OWM(object):
                 default['rdf.store_conf'] = pth_join('$OWM',
                         relpath(abspath(self.store_name), abspath(self.owmdir)))
 
-                default['rdf.graph.context_changed_listeners'] = [FCN(ContextChangedTracker)]
                 write_config(default, of)
 
     def _init_repository(self):
@@ -1008,16 +1095,6 @@ class OWM(object):
 
     _init_store = _conf
 
-    @property
-    def _context_changed_times(self):
-        if self._context_change_tracker is None:
-            listeners = self._conf().event_listeners[ContextChangedEvent]
-            for l in listeners:
-                if isinstance(l, ContextChangedTracker):
-                    self._context_change_tracker = l
-                    break
-        return self._context_change_tracker.context_changed_times
-
     def clone(self, url=None, update_existing_config=False, branch=None):
         """Clone a data store
 
@@ -1043,9 +1120,11 @@ class OWM(object):
             self.message('Deserializing...', file=sys.stderr)
             self._regenerate_database()
             self.message('Done!', file=sys.stderr)
-        except BaseException as e:
+        except FileExistsError:
+            raise
+        except BaseException:
             self._ensure_no_owmdir()
-            raise e
+            raise
 
     def git(self, *args):
         '''
@@ -1070,12 +1149,11 @@ class OWM(object):
         from glob import glob
         for g in glob(self.store_name + '*'):
             self.message('unlink', g)
-            unlink(g)
+            try:
+                unlink(g)
+            except IsADirectoryError:
+                shutil.rmtree(g)
 
-        ccfile = pth_join(self.owmdir, 'changed_contexts')
-        for g in glob(ccfile + '*'):
-            self.message('unlink', g)
-            os.unlink(g)
         self._regenerate_database()
 
     def _regenerate_database(self):
@@ -1099,18 +1177,17 @@ class OWM(object):
                 index_file.seek(0)
                 progress.total = cnt
                 with transaction.manager:
+                    bag = BatchAddGraph(dest, batchsize=10000)
                     for l in index_file:
                         fname, ctx = l.strip().split(' ')
                         parser = plugin.get('nt', Parser)()
                         graph_fname = pth_join(self.owmdir, 'graphs', fname)
-                        with open(graph_fname, 'rb') as f, \
-                                BatchAddGraph(dest.get_context(ctx), batchsize=4000) as g:
+                        with open(graph_fname, 'rb') as f, bag.get_context(ctx) as g:
                             parser.parse(create_input_source(f), g)
 
                         progress.update(1)
-                        triples_read += g.count
-                        trip_prog.update(g.count)
-                        self._context_changed_times[URIRef(ctx)] = stat(graph_fname).st_mtime
+                        trip_prog.update(bag.count - triples_read)
+                        triples_read = g.count
                     progress.write('Finalizing writes to database...')
         progress.write('Loaded {:,} triples'.format(triples_read))
 
@@ -1328,7 +1405,7 @@ class OWM(object):
 
     @property
     def rdf(self):
-        return self._conf()['rdf.graph']
+        return self._conf('rdf.graph')
 
     def commit(self, message):
         '''
@@ -1345,19 +1422,9 @@ class OWM(object):
 
     def _changed_contexts_set(self):
         from rdflib.term import URIRef
-        changed = set()
-        cckeys = set()
         gf_index = {URIRef(y): x for x, y in self._graphs_index()}
         gfkeys = set(gf_index.keys())
-        for ctx, mtime in self._context_changed_times.items():
-            cckeys.add(ctx)
-            g_fname = gf_index.get(ctx)
-            g_fname = None if g_fname is None else pth_join(self.owmdir, 'graphs', g_fname)
-            if not g_fname or stat(g_fname).st_mtime != mtime:
-                changed.add(ctx)
-        deleted = gfkeys - cckeys
-        added = cckeys - gfkeys
-        return changed | deleted | added
+        return gfkeys
 
     def _serialize_graphs(self, ignore_change_cache=False):
         import transaction
@@ -1404,7 +1471,6 @@ class OWM(object):
                     # N.B. We *overwrite* changes to the serialized graphs -- the source of truth is what's in the
                     # RDFLib graph unless we regenerate the database
                     write_canonical_to_file(context, fname)
-                self._context_changed_times[ident] = stat(fname).st_mtime
                 ctx_data.append((relpath(fname, graphs_base), ident))
                 files.append(fname)
                 deleted_contexts.pop(str(ident), None)
@@ -1499,13 +1565,20 @@ class OWM(object):
 
     def _colorize_diff(self, lines):
         from termcolor import colored
+        import re
+        hunk_line_numbers_pattern = re.compile(r'^@@[0-9 +,-]+@@')
         for l in lines:
-            if l.startswith('+'):
-                yield colored(l, 'green')
+            l = l.strip()
+            if l.startswith('+++') or l.startswith('---'):
+                l = colored(l, attrs=['bold'])
+            elif hunk_line_numbers_pattern.match(l):
+                l = colored(l, 'cyan')
+            elif l.startswith('+'):
+                l = colored(l, 'green')
             elif l.startswith('-'):
-                yield colored(l, 'red')
-            else:
-                yield l
+                l = colored(l, 'red')
+            l += os.linesep
+            yield l
 
     def merge(self):
         """
@@ -1613,10 +1686,10 @@ class SaveValidationFailureRecord(namedtuple('SaveValidationFailureRecord', ['us
 
 
 class _DSD(object):
-    def __init__(self, ds_dict, base_directory, loaders):
+    def __init__(self, ds_dict, base_directory, loader_classes):
         self._dsdict = ds_dict
-        self._base_directory = base_directory
-        self._loaders = self._init_loaders(loaders)
+        self.base_directory = base_directory
+        self._loader_classes = self._init_loaders(loader_classes)
 
     def __getitem__(self, data_source):
         dsid = str(data_source.identifier)
@@ -1632,20 +1705,20 @@ class _DSD(object):
     def put(self, data_source_ident, directory):
         self._dsdict[str(data_source_ident)] = directory
 
-    def _init_loaders(self, loaders):
+    def _init_loaders(self, loader_classes):
         res = []
-        for loader in loaders:
-            nd = pth_join(self._base_directory, loader.directory_key)
+        for loader_class in loader_classes:
+            nd = pth_join(self.base_directory, loader_class.directory_key)
             if not exists(nd):
                 makedirs(nd)
-            loader.base_directory = nd
-            res.append(loader)
+            loader_class.base_directory = nd
+            res.append(loader_class)
         return res
 
     def _load_data_source(self, data_source):
-        for loader in self._loaders:
-            if loader.can_load(data_source):
-                return loader(data_source)
+        for loader_class in self._loader_classes:
+            if loader_class.can_load(data_source):
+                return loader_class(data_source)
 
 
 class DataSourceDirectoryProvider(FilePathProvider):
@@ -1670,28 +1743,23 @@ class _DSDP(FilePathProvider):
 
 
 class OWMDirDataSourceDirLoader(DataSourceDirLoader):
-    def __init__(self, basedir=None):
-        super(OWMDirDataSourceDirLoader, self).__init__()
+    def __init__(self, *args, **kwargs):
+        super(OWMDirDataSourceDirLoader, self).__init__(*args, **kwargs)
         self._index = dict()
-        self.base_directory = basedir
 
     @property
-    def base_directory(self):
-        return self._base_directory
-
-    @base_directory.setter
-    def base_directory(self, val):
-        if val:
-            self._base_directory = val
-            self._idx_fname = pth_join(val, 'index')
+    def _idx_fname(self):
+        if self.base_directory:
+            return pth_join(self.base_directory, 'index')
+        else:
+            return None
 
     def _load_index(self):
-        with scandir(self._base_directory) as dirents:
+        with scandir(self.base_directory) as dirents:
             dentdict = {de.name: de for de in dirents}
             with open(self._idx_fname) as f:
                 for l in f:
-                    dsid, dname = l.split(' ')
-                    dname = dname.strip()
+                    dsid, dname = l.strip().split(' ')
                     if self._index_dir_entry_is_bad(dname, dentdict.get(dname)):
                         continue
 
@@ -1700,12 +1768,12 @@ class OWMDirDataSourceDirLoader(DataSourceDirLoader):
     def _index_dir_entry_is_bad(self, dname, de):
         if not de:
             msg = "There is no directory entry for {} in {}"
-            L.warn(msg.format(dname, self._base_directory), exc_info=True)
+            L.warning(msg.format(dname, self.base_directory), exc_info=True)
             return True
 
         if not de.is_dir():
             msg = "The directory entry for {} in {} is not a directory"
-            L.warn(msg.format(dname, self._base_directory))
+            L.warning(msg.format(dname, self.base_directory))
             return True
 
         return False
@@ -1727,16 +1795,17 @@ class OWMDirDataSourceDirLoader(DataSourceDirLoader):
             raise
         return str(data_source.identifier) in self._index
 
-    def load(self, ident):
+    def load(self, data_source):
         try:
             self._ensure_index_loaded()
         except Exception as e:
-            raise LoadFailed(ident, self, "Failed to load the index: " + str(e))
+            raise LoadFailed(data_source, self, "Failed to load the index: " + str(e))
 
         try:
-            return self._index[ident]
+            res = self._index[str(data_source.identifier)]
+            return res
         except KeyError:
-            raise LoadFailed(ident, self, 'The given identifier is not in the index')
+            raise LoadFailed(data_source, self, 'The given identifier is not in the index')
 
 
 class OWMSaveNamespace(object):
@@ -1791,45 +1860,6 @@ class OWMSaveNamespace(object):
         self.context.save_imports(*args, **kwargs)
 
         return self.context.save_context(*args, **kwargs)
-
-
-class ContextChangedTracker(object):
-    '''
-    Tracks changes to an RDFLib ConjunctiveGraph
-    '''
-
-    def __init__(self, conf):
-        self.conf = conf
-        self._changed_contexts = None
-        self._clock = time
-
-    def __call__(self, event):
-        from rdflib.term import URIRef
-        self.context_changed_times[URIRef(event.context)] = self._clock()
-
-    @property
-    def context_changed_times(self):
-        if self._changed_contexts is None:
-            import ZODB
-            from ZODB.FileStorage import FileStorage
-            import BTrees
-            ccfile = pth_join(self.conf['owm.directory'], 'changed_contexts')
-            all_changed = False
-            if not exists(ccfile):
-                all_changed = True
-            try:
-                fs = FileStorage(ccfile)
-            except IOError:
-                L.exception("Failed to create a FileStorage")
-                raise Exception("Failed to open", ccfile)
-
-            _cc_zdb = ZODB.DB(fs, cache_size=1600)
-            _cc_conn = _cc_zdb.open()
-            root = _cc_conn.root()
-            if 'ccmap' not in root:
-                root['ccmap'] = BTrees.family32.OO.BTree()
-            self._changed_contexts = root['ccmap']
-        return self._changed_contexts
 
 
 class UnimportedContextRecord(namedtuple('UnimportedContextRecord', ['context', 'node_index', 'statement'])):

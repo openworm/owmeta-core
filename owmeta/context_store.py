@@ -2,6 +2,7 @@ from itertools import chain
 from rdflib.store import Store, VALID_STORE, NO_STORE
 from rdflib.plugins.memory import IOMemory
 from rdflib.term import Variable
+from time import time
 import rdflib
 from yarom.rdfUtils import transitive_lookup
 
@@ -15,7 +16,7 @@ class ContextStoreException(Exception):
 class ContextStore(Store):
     context_aware = True
 
-    def __init__(self, context=None, include_stored=False, **kwargs):
+    def __init__(self, context=None, include_stored=False, imports_graph=None, **kwargs):
         """
         Parameters
         ----------
@@ -26,6 +27,7 @@ class ContextStore(Store):
         super(ContextStore, self).__init__(**kwargs)
         self._memory_store = None
         self._include_stored = include_stored
+        self._imports_graph = imports_graph
         if context is not None:
             self._init_store(context)
 
@@ -39,7 +41,7 @@ class ContextStore(Store):
         self.ctx = ctx
 
         if self._include_stored:
-            self._store_store = RDFContextStore(ctx)
+            self._store_store = RDFContextStore(ctx, imports_graph=self._imports_graph)
         else:
             self._store_store = None
 
@@ -146,44 +148,46 @@ class RDFContextStore(Store):
 
     def __init_contexts(self):
         if self.__store is not None and self.__context_transitive_imports is None:
-            if self.__include_imports:
+            if not self.__context or self.__context.identifier is None:
+                self.__context_transitive_imports = {getattr(x, 'identifier', x)
+                                                     for x in self.__store.contexts()}
+            elif self.__include_imports:
                 imports = transitive_lookup(self.__store,
                                             self.__context.identifier,
                                             CONTEXT_IMPORTS,
                                             self.__imports_graph)
                 self.__context_transitive_imports = imports
             else:
+                # XXX we should maybe check that the provided context actually exists in
+                # the backing graph -- at this point, it's more-or-less assumed in this
+                # case though if self.__include_imports is True, we could have an empty
+                # set of imports => we query against everything
                 self.__context_transitive_imports = set([self.__context.identifier])
 
     def triples(self, pattern, context=None):
         self.__init_contexts()
-        for t in self.__store.triples(pattern, context):
+
+        ctx = None if context is None else self.__graph.get_context(context)
+        for t in self.__store.triples(pattern, ctx):
             contexts = set(getattr(c, 'identifier', c) for c in t[1])
             if self.__context_transitive_imports:
                 inter = self.__context_transitive_imports & contexts
             else:
-                # Note that our own identifier is also included in the
-                # transitive imports, so if we don't have *any* imports then we
-                # fall back to querying across all contexts => we don't filter
-                # based on contexts. This is in line with rdflib ConjuctiveGraph
-                # semantics
                 inter = contexts
             if inter:
                 yield t[0], inter
 
     def triples_choices(self, pattern, context=None):
         self.__init_contexts()
-        for t in self.__store.triples_choices(pattern, context):
+
+        ctx = None if context is None else self.__graph.get_context(context)
+        for t in self.__store.triples_choices(pattern, ctx):
             contexts = set(getattr(c, 'identifier', c) for c in t[1])
             if self.__context_transitive_imports:
                 inter = self.__context_transitive_imports & contexts
             else:
-                # Note that our own identifier is also included in the
-                # transitive imports, so if we don't have *any* imports then we
-                # fall back to querying across all contexts => we don't filter
-                # based on contexts. This is in line with rdflib ConjuctiveGraph
-                # semantics
                 inter = contexts
+
             if inter:
                 yield t[0], inter
 

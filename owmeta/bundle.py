@@ -1,7 +1,8 @@
 import re
 import tempfile
-from os.path import join as p, exists, relpath, expanduser, isdir, isfile
+from os.path import join as p, exists, relpath, realpath, abspath, expanduser, isdir, isfile
 from os import makedirs, rename, scandir, listdir
+from contextlib import contextmanager
 import logging
 import hashlib
 import shutil
@@ -10,11 +11,12 @@ import io
 from struct import pack
 import json
 from itertools import chain
+import tarfile
+import http.client
 
 import six
-import yaml
 from rdflib.term import URIRef
-import http.client
+import yaml
 from yarom.utils import FCN
 from yarom.rdfUtils import transitive_lookup, BatchAddGraph
 
@@ -27,9 +29,10 @@ from .file_lock import lock_file
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
 
 try:
-    from urllib.parse import quote as urlquote, unquote as urlunquote
+    from urllib.parse import quote as urlquote, unquote as urlunquote, urlparse
 except ImportError:
     from urllib import quote as urlquote, unquote as urlunquote
+    from urlparse import urlparse
 
 L = logging.getLogger(__name__)
 
@@ -64,14 +67,22 @@ class Remote(object):
         ''' Name of the remote '''
 
         self.accessor_configs = list(accessor_configs)
-        ''' Configs for how you access the remote. Probably just URLs '''
+        '''
+        Configs for how you access the remote.
+
+        One might configure mirrors or replicas for a given bundle repository as multiple
+        accessor configs
+        '''
 
     def add_config(self, accessor_config):
         self.accessor_configs.append(accessor_config)
 
     def generate_loaders(self):
         '''
-        Generate the bundle loaders for this remote
+        Generate the bundle loaders for this remote.
+
+        Loaders are generated from `accessor_configs` and `LOADER_CLASSES` according with
+        which type of `Loader` can load a type of accessor
         '''
         for ac in self.accessor_configs:
             for lc in LOADER_CLASSES:
@@ -242,7 +253,7 @@ class Bundle(object):
             bundles_directory = expanduser(p('~', '.owmeta', 'bundles'))
         self.bundles_directory = bundles_directory
         if not conf:
-            conf = {'rdf.source': 'sqlite'}
+            conf = {'rdf.source': 'zodb'}
         self.version = version
         self.remotes = remotes
         self._given_conf = conf
@@ -258,6 +269,7 @@ class Bundle(object):
             bundle_directory = self._get_bundle_directory()
         except BundleNotFound:
             # If there's a .owm directory, then get the remotes from there
+            remotes = None
             if self.remotes:
                 remotes = self.remotes
 
@@ -380,6 +392,48 @@ class Bundle(object):
         return None
 
 
+def validate_manifest(bundle_path, manifest_data):
+    '''
+    Validate manifest data in a `dict`
+
+    Parameters
+    ----------
+    bundle_path : str
+        The path to the bundle directory or archive. Used in the exception message if the
+        manifest data is invalid
+    manifest_data : dict
+        The data from a manifest file
+
+    Raises
+    ------
+    NotABundlePath
+        Thrown in one of these conditions:
+        - `manifest_data` lacks a `manifest_version`
+        - `manifest_data` has a `manifest_version` > BUNDLE_MANIFEST_VERSION
+        - `manifest_data` has a `manifest_version` <= 0
+        - `manifest_data` lacks a `version`
+        - `manifest_data` lacks an `id`
+    '''
+    manifest_version = manifest_data.get('manifest_version')
+    if not manifest_version:
+        raise NotABundlePath(bundle_path,
+                'the bundle manifest has no manifest version')
+
+    if manifest_version > BUNDLE_MANIFEST_VERSION or manifest_version <= 0:
+        raise NotABundlePath(bundle_path,
+                'the bundle manifest has an invalid manifest version')
+
+    version = manifest_data.get('version')
+    if not version:
+        raise NotABundlePath(bundle_path,
+                'the bundle manifest has no bundle version')
+
+    ident = manifest_data.get('id')
+    if not ident:
+        raise NotABundlePath(bundle_path,
+                'the bundle manifest has no bundle id')
+
+
 def find_bundle_directory(bundles_directory, ident, version=None):
     # - look up the bundle in the bundle cache
     # - generate a config based on the current config load the config
@@ -465,7 +519,6 @@ class _RemoteHandlerMixin(object):
                     additional_remotes.append(r)
         else:
             instance_remotes = self.remotes
-        print('self.remotes', self.remotes)
         has_remote = False
         for rem in chain(additional_remotes, instance_remotes):
             has_remote = True
@@ -527,7 +580,7 @@ class Fetcher(_RemoteHandlerMixin):
                 loader(bundle_id, bundle_version)
                 return bdir
             except Exception:
-                L.warn("Failed to load bundle %s with %s", bundle_id, loader, exc_info=True)
+                L.warning("Failed to load bundle %s with %s", bundle_id, loader, exc_info=True)
         else:  # no break
             raise NoBundleLoader(bundle_id, bundle_version)
 
@@ -576,33 +629,13 @@ class Deployer(_RemoteHandlerMixin):
                 if e.errno == errno.EISDIR: # IsADirectoryError
                     raise NotABundlePath(bundle_path, 'manifest is not a regular file')
                 raise
-            self._validate_manifest(bundle_path, manifest_data)
+            validate_manifest(bundle_path, manifest_data)
         elif isfile(bundle_path):
             # TODO: Handle bundle archives
             pass
 
         for uploader in self._get_bundle_uploaders(bundle_path, remotes=remotes):
             uploader(bundle_path)
-
-    def _validate_manifest(self, bundle_path, manifest_data):
-        manifest_version = manifest_data.get('manifest_version')
-        if not manifest_version:
-            raise NotABundlePath(bundle_path,
-                    'the bundle manifest has no manifest version')
-
-        if manifest_version > BUNDLE_MANIFEST_VERSION or manifest_version < 0:
-            raise NotABundlePath(bundle_path,
-                    'the bundle manifest has an invalid manifest version')
-
-        version = manifest_data.get('version')
-        if not version:
-            raise NotABundlePath(bundle_path,
-                    'the bundle manifest has no bundle version')
-
-        ident = manifest_data.get('id')
-        if not ident:
-            raise NotABundlePath(bundle_path,
-                    'the bundle manifest has no bundle id')
 
     def _get_bundle_uploaders(self, bundle_directory, remotes=None):
         for rem in self._get_remotes(remotes):
@@ -708,12 +741,12 @@ class Cache(object):
                             bd_version = int(version_directory.name)
                             if (bd_id != manifest_data.get('id') or
                                     bd_version != manifest_data.get('version')):
-                                L.warn('Bundle manifest at %s does not match bundle'
+                                L.warning('Bundle manifest at %s does not match bundle'
                                 ' directory', manifest_fname)
                                 continue
                             yield manifest_data
                         except json.decoder.JSONDecodeError:
-                            L.warn("Bundle manifest at %s is malformed",
+                            L.warning("Bundle manifest at %s is malformed",
                                    manifest_fname)
                 except (OSError, IOError) as e:
                     if e.errno != errno.ENOENT:
@@ -761,7 +794,14 @@ class Loader(object):
         return False
 
     def can_load(self, bundle_id, bundle_version=None):
-        ''' Returns True if the bundle named `bundle_id` is supported '''
+        '''
+        Returns True if the bundle named `bundle_id` is available.
+
+        This method is for loaders to determine that they probably can or cannot load the
+        bundle, such as by checking repository metadata. Other loaders that return `True`
+        from `can_load` should be tried if a given loader fails, but a warning should be
+        recorded for the loader that failed.
+        '''
         return False
 
     def bundle_versions(self, bundle_id):
@@ -837,7 +877,6 @@ class HTTPBundleUploader(Uploader):
                     accessor_config.url.startswith('http://')))
 
     def upload(self, bundle_path):
-        import tarfile
         archive_path = bundle_path
 
         with tempfile.TemporaryDirectory() as tempdir:
@@ -896,6 +935,9 @@ class HTTPBundleLoader(Loader):
         self.cachedir = cachedir
         self._index = None
 
+    def __repr__(self):
+        return '{}({})'.format(FCN(type(self)), repr(self.index_url))
+
     def _setup_index(self):
         import requests
         if self._index is None:
@@ -909,14 +951,45 @@ class HTTPBundleLoader(Loader):
                     ac.url.startswith('http://')))
 
     def can_load(self, bundle_id, bundle_version=None):
+        '''
+        Check the index for an entry for the bundle.
+
+        - If a version is given and the index has an entry for the bundle at that version
+          and that entry gives a URL for the bundle, then we return `True`.
+
+        - If no version is given and the index has an entry for the bundle at any version
+          and that entry gives a URL for the bundle, then we return `True`.
+
+        - Otherwise, we return `False`
+        '''
         self._setup_index()
         binfo = self._index.get(bundle_id)
         if binfo:
             if bundle_version is None:
-                return True
+                for binfo_version, binfo_url in binfo.items():
+                    try:
+                        int(binfo_version)
+                    except ValueError:
+                        L.warning("Got unexpected non-version-number key '%s' in bundle index info", binfo_version)
+                        continue
+                    if self._bundle_url_is_ok(binfo_url):
+                        return True
+                return False
             if not isinstance(binfo, dict):
                 return False
-            return bundle_version in binfo
+
+            binfo_url = binfo.get(str(bundle_version))
+            return self._bundle_url_is_ok(binfo_url)
+
+    def _bundle_url_is_ok(self, bundle_url):
+        try:
+            parsed_url = urlparse(bundle_url)
+        except Exception:
+            L.warning("Failed while parsing bundle URL", bundle_url)
+            return False
+        if parsed_url.scheme in ('http', 'https') and parsed_url.netloc:
+            return True
+        return False
 
     def bundle_versions(self, bundle_id):
         self._setup_index()
@@ -956,11 +1029,13 @@ class HTTPBundleLoader(Loader):
                 else:
                     if max_vn < val:
                         max_vn = val
+            if not max_vn:
+                raise LoadFailed(bundle_id, self, 'No releases found')
             bundle_version = max_vn
         bundle_url = binfo.get(str(bundle_version))
-        if bundle_url is None:
-            raise LoadFailed(bundle_id, self, 'Did not find a URL for "%s" at'
-                    ' version %s', bundle_id, bundle_version)
+        if not self._bundle_url_is_ok(bundle_url):
+            raise LoadFailed(bundle_id, self, 'Did not find a valid URL for "%s" at'
+                    ' version %s' % (bundle_id, bundle_version))
         response = requests.get(bundle_url, stream=True)
         if self.cachedir is not None:
             bfn = urlquote(bundle_id)
@@ -968,17 +1043,197 @@ class HTTPBundleLoader(Loader):
                 for chunk in response.iter_content(chunk_size=1024):
                     f.write(chunk)
             with open(p(self.cachedir, bfn), 'r') as f:
-                self._unpack(f)
+                Unarchiver().unpack(f, self.base_directory)
         else:
+            # XXX Does this work?
             bio = io.BytesIO()
             bio.write(response.raw.read())
             bio.seek(0)
-            self._unpack(bio)
+            Unarchiver().unpack(bio, self.base_directory)
 
-    def _unpack(self, f):
-        import tarfile
+
+class Unarchiver(object):
+    '''
+    Unpacks an archive file (e.g., a `tar.gz`) of a bundle
+    '''
+    def __init__(self, bundles_directory=None):
+        self.bundles_directory = bundles_directory
+
+    def unpack(self, input_file, target_directory=None):
+        '''
+        Unpack the archive file
+
+        If `target_directory` is provided, and `bundles_directory` is provided at
+        initialization, then if the bundle manifest doesn't match the expected archive
+        path, then an exception is raised.
+
+        Paramaters
+        ----------
+        input_file : str or :term:`file object`
+            The archive file
+        target_directory : str
+            The path where the archive should be unpacked. optional
+
+        Raises
+        ------
+        NotABundlePath
+            Thrown in one of these conditions:
+            - If the `input_file` is not an expected format (lzma-zipped TAR file)
+            - If the `input_file` does not have a "manifest" file
+            - If the `input_file` manifest file is invalid or is not a regular file (see
+              `validate_manifest` for further details)
+            - If the `input_file` is a file path and the corresponding file is not found
+        '''
+        # - If we were given a target directory, just unpack there...no complications
+        #
+        # - If we weren't given a target directory, then we have to extract the manifest,
+        # read the version and name, then create the target directory
+        if not self.bundles_directory and not target_directory:
+            # TODO: Devise a better exception here
+            raise UnarchiveFailed('Neither a bundles_directory nor a target_directory was'
+                    ' provided. Cannot determine where to extract %s archive to.' %
+                    input_file)
+        try:
+            self._unpack(input_file, target_directory)
+        except tarfile.ReadError:
+            raise NotABundlePath(self._bundle_file_name(input_file),
+                'Unable to read archive file')
+
+    def _bundle_file_name(self, input_file):
+        '''
+        Try to extract the bundle file name from `input_file`
+        '''
+        if isinstance(input_file, str):
+            file_name = input_file
+        elif hasattr(input_file, 'name'):
+            file_name = input_file.name
+        else:
+            file_name = 'bundle archive file'
+
+        return file_name
+
+    def _unpack(self, input_file, target_directory):
+        with self._to_tarfile(input_file) as ba:
+            expected_target_directory = self._process_manifest(input_file, ba)
+
+            if (target_directory and expected_target_directory and
+                    expected_target_directory != target_directory):
+                raise TargetDirectoryMismatch(target_directory, expected_target_directory)
+            elif not target_directory:
+                target_directory = expected_target_directory
+
+            L.debug('extracting %s to %s', input_file, target_directory)
+            target_directory_empty = True
+            try:
+                for _ in scandir(target_directory):
+                    target_directory_empty = False
+                    break
+            except FileNotFoundError:
+                pass
+            if not target_directory_empty:
+                raise UnarchiveFailed('Target directory, "%s", is not empty' %
+                        target_directory)
+            try:
+                ArchiveExtractor(target_directory, ba).extract()
+            except _BadArchiveFilePath:
+                shutil.rmtree(target_directory)
+                file_name = self._bundle_file_name(input_file)
+                raise NotABundlePath(file_name, 'Archive contains files that point'
+                    ' outside of the target directory')
+
+    def _process_manifest(self, input_file, ba):
+        try:
+            ef = ba.extractfile('./manifest')
+        except KeyError:
+            file_name = self._bundle_file_name(input_file)
+            raise NotABundlePath(file_name, 'archive has no manifest')
+
+        with ef as manifest:
+            file_name = self._bundle_file_name(input_file)
+            if manifest is None:
+                raise NotABundlePath(file_name, 'archive manifest is not a regular file')
+            manifest_data = json.load(manifest)
+            validate_manifest(file_name, manifest_data)
+            bundle_id = manifest_data['id']
+            bundle_version = manifest_data['version']
+            if self.bundles_directory:
+                return fmt_bundle_directory(self.bundles_directory, bundle_id, bundle_version)
+
+    def __call__(self, *args, **kwargs):
+        '''
+        Unpack the archive file
+        '''
+        return self.unpack(*args, **kwargs)
+
+    @contextmanager
+    def _to_tarfile(self, input_file):
+        if isinstance(input_file, str):
+            try:
+                archive_file = open(input_file, 'rb')
+            except FileNotFoundError:
+                file_name = self._bundle_file_name(input_file)
+                raise NotABundlePath(input_file, 'file not found')
+
+            with archive_file as f, self._to_tarfile0(f) as ba:
+                yield ba
+        else:
+            if hasattr(input_file, 'read'):
+                with self._to_tarfile0(input_file) as ba:
+                    yield ba
+
+    @contextmanager
+    def _to_tarfile0(self, f):
         with tarfile.open(mode='r:xz', fileobj=f) as ba:
-            ba.extractall(self.base_directory)
+            yield ba
+
+
+class ArchiveExtractor(object):
+    def __init__(self, targetdir, tarfile):
+        self._targetdir = targetdir
+        self._tarfile = tarfile
+
+    def extract(self):
+        self._tarfile.extractall(self._targetdir, members=self._safemembers())
+
+    def _realpath(self, path):
+        return realpath(abspath(path))
+
+    def _badpath(self, path, base=None):
+        # joinpath will ignore base if path is absolute
+        if base is None:
+            base = self._targetdir
+        return not self._realpath(p(self._targetdir, path)).startswith(base)
+
+    def _badlink(self, info):
+        # Links are interpreted relative to the directory containing the link
+        tip = self._realpath(p(self._targetdir, dirname(info.name)))
+        return self._badpath(info.linkname, base=tip)
+
+    def _safemembers(self):
+        for finfo in self._tarfile.members:
+            if self._badpath(finfo.name):
+                raise _BadArchiveFilePath(finfo.name, 'Path is outside of base path "%s"' % self._targetdir)
+            elif finfo.issym() and self._badlink(finfo):
+                raise _BadArchiveFilePath(finfo.name,
+                        'Hard link points to "%s", outside of base path "%s"' % (finfo.linkname, self._targetdir))
+            elif finfo.islnk() and self._badlink(finfo):
+                raise _BadArchiveFilePath(finfo.name,
+                        'Symlink points to "%s", outside of "%s"' % (finfo.linkname,
+                            self._targetdir))
+            else:
+                yield finfo
+
+
+class _BadArchiveFilePath(Exception):
+    '''
+    Thrown when an archive file path points outside of a given base directory
+    '''
+    def __init__(self, archive_file_path, error):
+        super(_BadArchiveFilePath, self).__init__(
+                'Disallowed archive file %s: %s' %
+                (archive_file_path, error))
+        self.archive_file_path = archive_file_path
+        self.error = error
 
 
 class Archiver(object):
@@ -987,22 +1242,6 @@ class Archiver(object):
     '''
     def __init__(self):
         pass
-
-
-class DirectoryLoader(Loader):
-    '''
-    Loads a bundle into a directory.
-
-    Created from a remote to actually get the bundle
-    '''
-    def __init__(self, base_directory=None):
-        self.base_directory = base_directory
-
-    def load(self, bundle_id):
-        '''
-        Loads a bundle into the given base directory
-        '''
-        super(DirectoryLoader, self).load(bundle_id)
 
 
 class Installer(object):
@@ -1255,7 +1494,7 @@ class URIIncludeFunc(object):
         return hash(self.include)
 
     def __call__(self, uri):
-        return uri == self.include
+        return URIRef(uri.strip()) == self.include
 
     def __str__(self):
         return '{}({})'.format(FCN(type(self)), repr(self.include))
@@ -1385,7 +1624,7 @@ class NoBundleLoader(FetchFailed):
     def __init__(self, bundle_id, bundle_version=None):
         super(NoBundleLoader, self).__init__(
             'No loader could be found for "%s"%s' % (bundle_id,
-                (' at version ' + bundle_version) if bundle_version is not None else ''))
+                (' at version ' + str(bundle_version)) if bundle_version is not None else ''))
         self.bundle_id = bundle_id
         self.bundle_version = bundle_version
 
@@ -1405,3 +1644,22 @@ class NoRemoteAvailable(Exception):
     '''
     Thrown when we need a remote and we don't have one
     '''
+
+
+class UnarchiveFailed(Exception):
+    '''
+    Thrown when an `Unarchiver` fails for some reason not covered by other
+    '''
+
+
+class TargetDirectoryMismatch(UnarchiveFailed):
+    '''
+    Thrown when the target path doesn't agree with the bundle manifest
+    '''
+    def __init__(self, target_directory, expected_target_directory):
+        super(TargetDirectoryMismatch, self).__init__(
+                'Target directory "%s" does not match expected directory "%s" for the'
+                ' bundle manifest.'
+                % (target_directory, expected_target_directory))
+        self.target_directory = target_directory
+        self.expected_target_directory = expected_target_directory

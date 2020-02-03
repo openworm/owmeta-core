@@ -135,6 +135,11 @@ CLI_HINTS = {
                 'names': ['data_source'],
             },
         },
+        'derivs': {
+            (METHOD_NAMED_ARG, 'data_source'): {
+                'names': ['data_source'],
+            },
+        },
     },
     'owmeta.command.OWMSourceData': {
         'retrieve': {
@@ -177,6 +182,13 @@ CLI_HINTS = {
         'delete': {
             (METHOD_NAMED_ARG, 'key'): {
                 'names': ['key'],
+            },
+        },
+    },
+    'owmeta.commands.biology.CellCmd': {
+        'show': {
+            (METHOD_NAMED_ARG, 'cell_name_or_id'): {
+                'names': ['cell_name_or_id'],
             },
         },
     },

@@ -212,8 +212,8 @@ class ClassRegistryTest(_DataTest):
             - resolving subclasses from superclasses
         '''
         from owmeta.dataObject import (PythonModule,
-                                           PythonClassDescription,
-                                           RegistryEntry)
+                                       PythonClassDescription,
+                                       RegistryEntry)
 
         ident = R.URIRef('http://openworm.org/entities/TDO01')
         rdftype = R.RDF['type']
@@ -305,9 +305,10 @@ class ClassRegistryTest(_DataTest):
             rdf_type = R.URIRef('http://example.org/A')
 
         # given
+        mod = import_module('tests.DataObjectTest')
+        mod.__distribution__ = dict(name='example', version=4)
         self.context.mapper.process_class(A)
 
-        mod = import_module('tests.DataObjectTest')
         mod.__yarom_mapped_classes__ = (A,)
 
         # when
@@ -318,6 +319,7 @@ class ClassRegistryTest(_DataTest):
             self.assertIsNotNone(res)
         finally:
             delattr(mod, '__yarom_mapped_classes__')
+            delattr(mod, '__distribution__')
 
     def test_resolve_class_not_in_ymc(self):
         class A(DataObject):
@@ -342,9 +344,10 @@ class ClassRegistryTest(_DataTest):
 
         with captured_logging() as logs:
             # given
+            mod = import_module('tests.DataObjectTest')
+            mod.__distribution__ = dict(name='example', version=4)
             self.context.mapper.process_class(A)
 
-            mod = import_module('tests.DataObjectTest')
             mod.__yarom_mapped_classes__ = (A, A)
 
             # when
@@ -355,6 +358,7 @@ class ClassRegistryTest(_DataTest):
                 self.assertRegexpMatches(logs.getvalue(), r'More than one.*__yarom_mapped_classes__')
             finally:
                 delattr(mod, '__yarom_mapped_classes__')
+                delattr(mod, '__distribution__')
 
 
 class KeyPropertiesTest(_DataTest):

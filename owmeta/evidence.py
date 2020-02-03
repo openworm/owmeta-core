@@ -1,11 +1,11 @@
 import logging
 
-from owmeta.dataObject import DataObject, ObjectProperty
-from owmeta.contextDataObject import ContextDataObject
-from owmeta.context import Context
+from .dataObject import DataObject, ObjectProperty
+from .contextDataObject import ContextDataObject
+from .context import Context
+from .mapper import mapped
 
 logger = logging.getLogger(__name__)
-
 
 
 class EvidenceError(Exception):
@@ -20,6 +20,7 @@ class ContextToDataObjectMixin(object):
         return super(ContextToDataObjectMixin, self).set(v)
 
 
+@mapped
 class Evidence(DataObject):
 
     """
@@ -114,7 +115,7 @@ def evidence_for(qctx, ctx, evctx=None):
     evctx : Context
         if the Evidence.supports statements should be looked for somewhere other
         than `ctx`, that can be specified in evctx. optional
-"""
+    """
     if not evctx:
         evctx = ctx
     ctxs = query_context(ctx.rdf_graph(), qctx)
@@ -125,6 +126,7 @@ def evidence_for(qctx, ctx, evctx=None):
         for x in ev.load():
             ev_objs.append(x)
     return ev_objs
+
 
 def query_context(graph, qctx):
     '''
@@ -147,6 +149,3 @@ def query_context(graph, qctx):
             if len(lctx) == 0:
                 return lctx
     return frozenset() if lctx is None else lctx
-
-
-__yarom_mapped_classes__ = (Evidence,)

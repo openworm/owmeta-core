@@ -40,31 +40,25 @@ def excludes(base):
     return res
 
 
-def py2_only(*args):
-    return [x + ' ; python_version < "3.0"' for x in args]
-
-
 setup(
     name='owmeta',
     zip_safe=False,
     setup_requires=['pytest-runner'],
     tests_require=[
-        'pytest<5.0.0 ; python_version < "3.0"',
-        'pytest>=3.4.0 ; python_version >= "3.0"',
+        'pytest>=3.4.0',
         'pytest-cov>=2.5.1',
         'discover==0.4.0',
         'requests',
-        'mock==2.0.0 ; python_version < "3.0"',
-        'pytest-parallel ; python_version >= "3.0"'
+        'pytest-parallel'
     ],
     install_requires=[
         'bibtexparser~=1.1.0',
-        'BTrees==4.0.8',
+        'BTrees>=4.0.8',
         'gitpython>=2.1.1',
         'lazy-object-proxy==1.2.1',
         'libneuroml',
         'numpydoc>=0.7.0',
-        'persistent==4.0.8',
+        'persistent>=4.0.8',
         'Pint==0.8.1',
         'pow-store-zodb==0.0.7',
         'rdflib>=4.1.2',
@@ -77,14 +71,10 @@ setup(
         'zc.lockfile',
         'ZConfig==3.0.4',
         'zdaemon==4.0.0',
-        'zodb==4.1.0',
+        'zodb>=4.1.0',
         'rdflib-sqlalchemy~=0.4.0',
         'pyyaml',
-    ] + py2_only('zodbpickle==1.0',
-        'Sphinx<1.8.4',
-        'backports.tempfile==1.0',
-        'scandir',
-        'docutils<0.15'),
+    ],
     extras_require={
         # SQL source support
         'mysql_source_mysql_connector': [
@@ -111,15 +101,18 @@ setup(
     license='MIT',
     url='https://pyopenworm.readthedocs.io/en/latest/',
     download_url='https://github.com/openworm/owmeta/archive/master.zip',
-    entry_points={'console_scripts': ['owm = owmeta.cli:main']},
+    entry_points={
+        'console_scripts': ['owm = owmeta.cli:main'],
+        'rdf.plugins.store': [
+            'lazy_pickle = owmeta.lazy_deserialization_store:LazyDeserializationStore'
+        ],
+    },
     package_data={'owmeta': ['default.conf']},
     classifiers=[
         'Intended Audience :: Science/Research',
         'License :: OSI Approved :: BSD License',
         'Natural Language :: English',
         'Operating System :: OS Independent',
-        'Programming Language :: Python :: 2.6',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
