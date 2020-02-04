@@ -2,33 +2,28 @@
 
 Making data objects
 ====================
-To make a new object type like :py:class:`~owmeta.neuron.Neuron` or
-:py:class:`owmeta.worm.Worm`, for the most part, you just need to make a
-Python class.
+To make a new object type like you just need to make a subclass of
+`~owmeta.dataObject.DataObject` with the appropriate.
 
 Say, for example, that I want to record some information about drug reactions
-in C. elegans. I make ``Drug`` and ``Experiment`` classes to describe C.
-elegans reactions::
+in dogs. I make ``Drug``, ``Experiment``, and ``Dog`` classes to describe drug
+reactions::
 
     >>> from owmeta.dataObject import (DataObject,
-    ...                                    DatatypeProperty,
-    ...                                    ObjectProperty,
-    ...                                    Alias)
-    >>> from owmeta.worm import Worm
-    >>> from owmeta.evidence import Evidence
-    >>> from owmeta.document import Document
+    ...                                DatatypeProperty,
+    ...                                ObjectProperty,
+    ...                                Alias)
     >>> from owmeta.context import Context
     >>> from owmeta.mapper import Mapper
     >>> from owmeta import connect, ModuleRecorder
 
+    >>> class Dog(DataObject):
+    ...     breed = DatatypeProperty()
+    
     >>> class Drug(DataObject):
     ...     name = DatatypeProperty()
     ...     drug_name = Alias(name)
-    ...     def identifier_augment(self):
-    ...         return self.make_identifier_direct(self.name.onedef())
-    ...
-    ...     def defined_augment(self):
-    ...         return self.name.has_defined_value()
+    ...     key_property = dict(property='name', type='direct')
     
     >>> class Experiment(DataObject):
     ...     drug = ObjectProperty(value_type=Drug)
@@ -40,7 +35,7 @@ elegans reactions::
     # the scenes. 
     >>> m = Mapper()
     >>> ModuleRecorder.add_listener(m)
-    >>> m.process_classes(Drug, Experiment)
+    >>> m.process_classes(Drug, Experiment, Dog)
 
 So, we have created I can then make a Drug object for moon rocks and describe an experiment by
 Aperture Labs::
@@ -48,7 +43,7 @@ Aperture Labs::
     >>> ctx = Context('http://example.org/experiments', mapper=m)
     >>> d = ctx(Drug)(name='moon rocks')
     >>> e = ctx(Experiment)(key='experiment001')
-    >>> w = ctx(Worm)('C. elegans')
+    >>> w = ctx(Dog)(breed='Affenpinscher')
     >>> e.subject(w)
     owmeta.statement.Statement(...Context(.../experiments"))
 
@@ -59,10 +54,6 @@ Aperture Labs::
     owmeta.statement.Statement(...)
 
     >>> e.reaction('no reaction')
-    owmeta.statement.Statement(...)
-
-    >>> ev = Evidence(key='labresults', reference=Document(author="Aperture Labs"))
-    >>> ev.supports(ctx)
     owmeta.statement.Statement(...)
 
 and save those statements::

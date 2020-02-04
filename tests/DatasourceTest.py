@@ -9,7 +9,6 @@ except ImportError:
 from rdflib.term import URIRef
 
 from owmeta.datasource import Informational, DataSource, DuplicateAlsoException
-from owmeta.data_trans.data_with_evidence_ds import DataWithEvidenceDataSource
 from owmeta.contextDataObject import ContextDataObject
 from .DataTestTemplate import _DataTest
 
@@ -163,15 +162,3 @@ class DataSourceTest(_DataTest):
             q = Informational(also=self.DS1.a, default_value='Q')
         c = C()
         self.assertEqual(c.a.onedef(), 'Q')
-
-
-class DataWithEvidenceDataSourceTest(unittest.TestCase):
-    def test_init_with_args(self):
-        m = ContextDataObject(ident=URIRef('http://example.org/my-evidence'))
-        cut = DataWithEvidenceDataSource(ident=URIRef('http://example.org/dweds6'),
-                                         evidence_context_property=m)
-        self.assertEqual(m, cut.evidence_context_property.onedef())
-
-    def test_init_context_properties(self):
-        cut = DataWithEvidenceDataSource(ident=URIRef('http://example.org/dweds6'))
-        self.assertIsNotNone(cut.evidence_context_property.onedef())

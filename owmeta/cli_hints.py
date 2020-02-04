@@ -158,13 +158,6 @@ CLI_HINTS = {
             },
         },
     },
-    'owmeta.command.OWMEvidence': {
-        'get': {
-            (METHOD_NAMED_ARG, 'identifier'): {
-                'names': ['identifier'],
-            },
-        },
-    },
     'owmeta.command.OWMConfig': {
         'set': {
             (METHOD_NAMED_ARG, 'key'): {
@@ -184,12 +177,5 @@ CLI_HINTS = {
                 'names': ['key'],
             },
         },
-    },
-    'owmeta.commands.biology.CellCmd': {
-        'show': {
-            (METHOD_NAMED_ARG, 'cell_name_or_id'): {
-                'names': ['cell_name_or_id'],
-            },
-        },
-    },
+    }
 }
