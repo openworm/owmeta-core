@@ -51,13 +51,14 @@ class DataObjectTest(_DataTest):
         do = DataObject(ident="http://example.org")
         self.assertEqual(do.identifier, R.URIRef("http://example.org"))
 
-    def test_object_from_id_type_0(self):
-        g = self.ctx.DataObject.object_from_id('http://openworm.org/entities/Neuron')
-        self.assertIsInstance(g, Neuron)
-
-    def test_object_from_id_type_1(self):
-        g = self.ctx.DataObject.object_from_id('http://openworm.org/entities/Connection')
-        self.assertIsInstance(g, Connection)
+    def test_cls_object_from_id_type(self):
+        '''
+        Calling object_from_id on the class should search for the rdf_type
+        '''
+        ctx = Mock()
+        g = \
+            DataObject.contextualize(ctx).object_from_id('http://openworm.org/some_rdf_type')
+        ctx.resolve_class.assert_called()
 
     def test_repr(self):
         self.assertRegexpMatches(repr(DataObject(ident="http://example.com")),

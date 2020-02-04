@@ -53,32 +53,6 @@ class ExampleRunnerTest(unittest.TestCase):
                     out.read()))
         os.unlink(fname)
 
-    def test_run_NeuronBasicInfo(self):
-        self.execfile("NeuronBasicInfo.py")
-
-    def test_run_NetworkInfo(self):
-        # XXX: No `synclass' is given, so all neurons are called `excitatory'
-        self.execfile("NetworkInfo.py")
-
-    def test_run_morpho(self):
-        self.execfile("morpho.py")
-
-    def test_gap_junctions(self):
-        self.execfile("gap_junctions.py")
-
-    def test_add_reference(self):
-        self.execfile("add_reference.py")
-
-    def test_bgp(self):
-        self.execfile("test_bgp.py")
-
-    @unittest.skip("See #102")
-    def test_rmgr(self):
-        self.execfile("rmgr.py")
-
-    def test_extrasyn(self):
-        self.execfile("extrasynaptic_edges.py")
-
     def test_owm_save(self):
         self.exec_("owm save examples.owm_save_example",
                   cwd=self.testdir)
