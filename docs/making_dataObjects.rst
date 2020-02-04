@@ -23,11 +23,11 @@ reactions::
     >>> class Drug(DataObject):
     ...     name = DatatypeProperty()
     ...     drug_name = Alias(name)
-    ...     key_property = dict(property='name', type='direct')
+    ...     key_property = dict(property=name, type='direct')
     
     >>> class Experiment(DataObject):
     ...     drug = ObjectProperty(value_type=Drug)
-    ...     subject = ObjectProperty(value_type=Worm)
+    ...     subject = ObjectProperty(value_type=Dog)
     ...     route_of_entry = DatatypeProperty()
     ...     reaction = DatatypeProperty()
 

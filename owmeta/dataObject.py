@@ -220,41 +220,42 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
         key_property = dct.get('key_property')
 
         def _process_key_property(kp):
-            if kp is not None:
-                if isinstance(kp, PThunk):
-                    for k, p in self._property_classes.items():
-                        if p is kp.result:
-                            new_key_property = {'name': k, 'type': 'hashed'}
-                            break
-                    else:  # no break
-                        raise Exception(("The provided 'key_properties' entry, {},"
-                                " does not appear to be a property").format(kp))
-                elif isinstance(kp, PropertyProperty):
-                    for k, p in self._property_classes.items():
-                        if p is kp._cls:
-                            new_key_property = {'name': k, 'type': 'hashed'}
-                            break
-                    else:
-                        raise Exception(("The provided 'key_properties' entry, {},"
-                                " does not appear to be a property for this class").format(
-                                    kp))
-                elif isinstance(kp, six.string_types):
-                    new_key_property = {'name': kp, 'type': 'hashed'}
-                elif isinstance(kp, dict):
-                    prop = kp.get('property')
-                    if prop:
-                        prockp = _process_key_property(prop)
-                        prockp.update(kp)
-                        new_key_property = prockp
-                    else:
-                        new_key_property = kp
+            if kp is None:
+                return
+            if isinstance(kp, PThunk):
+                for k, p in self._property_classes.items():
+                    if p is kp.result:
+                        new_key_property = {'name': k, 'type': 'hashed'}
+                        break
+                else:  # no break
+                    raise Exception(("The provided 'key_properties' entry, {},"
+                            " does not appear to be a property").format(kp))
+            elif isinstance(kp, PropertyProperty):
+                for k, p in self._property_classes.items():
+                    if p is kp._cls:
+                        new_key_property = {'name': k, 'type': 'hashed'}
+                        break
                 else:
-                    raise Exception("The provided 'key_properties' entry does not appear"
-                            " to be a property")
-            print('new_key_property')
+                    raise Exception(("The provided 'key_properties' entry, {},"
+                            " does not appear to be a property for this class").format(
+                                kp))
+            elif isinstance(kp, six.string_types):
+                new_key_property = {'name': kp, 'type': 'hashed'}
+            elif isinstance(kp, dict):
+                prop = kp.get('property')
+                if prop:
+                    prockp = _process_key_property(prop)
+                    prockp.update(kp)
+                    new_key_property = prockp
+                else:
+                    new_key_property = kp
+            else:
+                raise Exception("The provided 'key_property' entry does not appear"
+                        " to be a property")
             return new_key_property
 
-        self.key_property = _process_key_property(key_property)
+        if key_property is not None:
+            self.key_property = _process_key_property(key_property)
 
         self.init_rdf_type_object()
 
@@ -597,6 +598,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
                     self.key_property))
             if not attr.has_defined_value():
                 return False
+            return True
         else:
             return super(BaseDataObject, self).defined_augment()
 
@@ -607,7 +609,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
             prop = getattr(self, self.key_property.get('name'))
             val = prop.defined_values[0]
             if self.key_property.get('type') == 'direct':
-                return self.make_identifier_direct(val)
+                return self.make_identifier_direct(str(val.value))
             else:
                 return self.make_identifier(val)
         else:
