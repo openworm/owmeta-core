@@ -63,6 +63,9 @@ CLI_HINTS = {
                 'names': ['--format', '-f']
             },
         },
+        'non_interactive': {
+            'names': ['--non-interactive', '-b']
+        },
         'IGNORE': ['message', 'progress_reporter',  'prompt']
     },
     'owmeta_core.command.OWMContexts': {

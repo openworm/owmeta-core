@@ -321,6 +321,7 @@ class CLICommandWrapper(object):
                     type(self)(sub_runner, sub_mapper).parser(subparser)
                 elif isinstance(val, IVar):
                     doc = getattr(val, '__doc__', None)
+                    var_hints = self.hints.get(key) if self.hints else None
                     if val.default_value:
                         if doc:
                             doc += '. Default is ' + repr(val.default_value)
@@ -334,7 +335,10 @@ class CLICommandWrapper(object):
                                       mapper=self.mapper)
                     if val.value_type == bool:
                         arg_kwargs['action'] = CLIStoreTrueAction
-                    parser.add_argument('--' + key, **arg_kwargs)
+                    names = None if var_hints is None else var_hints.get('names')
+                    if names is None:
+                        names = ['--' + key]
+                    parser.add_argument(*names, **arg_kwargs)
 
         return parser
 

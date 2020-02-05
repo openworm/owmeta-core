@@ -104,6 +104,7 @@ def main():
     p.log_level = 'WARN'
     p.message = print
     p.repository_provider = GitRepoProvider()
+    p.non_interactive = False
     ns_handler = NSHandler(p)
     if environ.get('OWM_CLI_PROFILE'):
         from cProfile import Profile

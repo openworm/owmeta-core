@@ -60,7 +60,6 @@ import yarom
 
 __all__ = [
     "get_data",
-    "loadConfig",
     "disconnect",
     "connect",
     "config",
@@ -164,12 +163,6 @@ class Connection(object):
         return 'Connection:{source}:{store_conf}'.format(
                 source=conf.get('rdf.source'),
                 store_conf=conf.get('rdf.store_conf', 'default'))
-
-
-def loadConfig(f):
-    """ Load configuration for the module. """
-    from .data import Data
-    return Data.open(f)
 
 
 def disconnect(c=False):

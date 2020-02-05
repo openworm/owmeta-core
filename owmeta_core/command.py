@@ -634,6 +634,9 @@ class OWM(object):
     repository_provider = IVar(doc='The provider of the repository logic'
                                    ' (cloning, initializing, committing, checkouts)')
 
+    non_interactive = IVar(value_type=bool,
+            doc='If this option is provided, then interactive prompts are not allowed')
+
     # N.B.: Sub-commands are created on-demand when you access the attribute,
     # hence they do not, in any way, store attributes set on them. You must
     # save the instance of the subcommand to a variable in order to make
@@ -661,6 +664,7 @@ class OWM(object):
             print()
             return res
         self.prompt = prompt
+
         self._data_source_directories = None
         self._changed_contexts = None
         self._owm_connection = None
@@ -909,18 +913,18 @@ class OWM(object):
                 default['rdf.store_conf'] = pth_join('$OWM',
                         relpath(abspath(self.store_name), abspath(self.owmdir)))
 
-                if not default_context_id:
+                if not default_context_id and not self.non_interactive:
                     default_context_id = self.prompt(dedent('''\
                     The default context is where statements are placed by default. The URI for this context should use a domain name that you control.
 
                     Please provide the URI of the default context: '''))
 
                 if default_context_id:
-                    default[DEFAULT_CONTEXT_KEY] = default_context_id
+                    default[DEFAULT_CONTEXT_KEY] = str(default_context_id).strip()
                 else:
                     raise GenericUserError("A default context ID is required")
 
-                if not imports_context_id:
+                if not imports_context_id and not self.non_interactive:
                     imports_context_id = self.prompt(dedent('''\
                     The imports context contains import statements between contexts.
                     If a URI is not provided for this context, one will be generated at random.
@@ -931,7 +935,7 @@ class OWM(object):
                     imports_context_id = uuid.uuid4().urn
 
                 if imports_context_id:
-                    default[IMPORTS_CONTEXT_KEY] = imports_context_id
+                    default[IMPORTS_CONTEXT_KEY] = str(imports_context_id).strip()
 
                 write_config(default, of)
 
