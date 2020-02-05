@@ -10,11 +10,11 @@ import warnings
 from yarom.utils import FCN
 from yarom.graphObject import IdentifierMissingException
 
-from owmeta.data import DataUser
-from owmeta.dataObject import DataObject, ObjectProperty, DatatypeProperty, _partial_property
-from owmeta.context import Context
-from owmeta.rdf_query_util import get_most_specific_rdf_type
-from owmeta import BASE_CONTEXT
+from owmeta_core.data import DataUser
+from owmeta_core.dataObject import DataObject, ObjectProperty, DatatypeProperty, _partial_property
+from owmeta_core.context import Context
+from owmeta_core.rdf_query_util import get_most_specific_rdf_type
+from owmeta_core import BASE_CONTEXT
 
 from .GraphDBInit import make_graph
 
@@ -35,7 +35,7 @@ class DataObjectTest(_DataTest):
 
     def setUp(self):
         super(DataObjectTest, self).setUp()
-        self.patcher = patch('owmeta.data', 'ALLOW_UNCONNECTED_DATA_USERS', True)
+        self.patcher = patch('owmeta_core.data', 'ALLOW_UNCONNECTED_DATA_USERS', True)
         self.patcher.start()
 
     def tearDown(self):
@@ -212,7 +212,7 @@ class ClassRegistryTest(_DataTest):
             - loading a module from a ClassDescription
             - resolving subclasses from superclasses
         '''
-        from owmeta.dataObject import (PythonModule,
+        from owmeta_core.dataObject import (PythonModule,
                                        PythonClassDescription,
                                        RegistryEntry)
 

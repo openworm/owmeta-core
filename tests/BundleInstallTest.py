@@ -4,9 +4,9 @@ import rdflib
 import transaction
 from collections import namedtuple
 from rdflib.term import Literal, URIRef
-from owmeta.bundle import (Installer, Descriptor, make_include_func, FilesDescriptor,
+from owmeta_core.bundle import (Installer, Descriptor, make_include_func, FilesDescriptor,
                            UncoveredImports, DependencyDescriptor)
-from owmeta.context_common import CONTEXT_IMPORTS
+from owmeta_core.context_common import CONTEXT_IMPORTS
 from os.path import join as p, isdir, isfile
 from os import listdir
 from unittest.mock import patch
@@ -297,5 +297,5 @@ def test_imports_in_unfetched_dependencies(dirs):
     bi = Installer(*dirs, imports_ctx=imports_ctxid, graph=g, remotes=[remote_class()])
     loader.bi = bi
 
-    with patch('owmeta.bundle.LOADER_CLASSES', (loader_class,)):
+    with patch('owmeta_core.bundle.LOADER_CLASSES', (loader_class,)):
         bi.install(d)

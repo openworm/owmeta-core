@@ -1,5 +1,5 @@
 import unittest
-from owmeta.datasource_loader import DataSourceDirLoader, LoadFailed
+from owmeta_core.datasource_loader import DataSourceDirLoader, LoadFailed
 from os.path import realpath, relpath, join
 from os import getcwd, makedirs, unlink
 from tempfile import TemporaryDirectory

@@ -3,7 +3,7 @@ import tempfile
 from os.path import join as p
 from os import makedirs, chmod
 
-from owmeta.bundle import (Remote, URLConfig, HTTPBundleLoader, Bundle, BundleNotFound,
+from owmeta_core.bundle import (Remote, URLConfig, HTTPBundleLoader, Bundle, BundleNotFound,
                            Descriptor, DependencyDescriptor)
 
 

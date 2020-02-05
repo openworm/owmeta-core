@@ -1,12 +1,12 @@
-.. owmeta documentation master file.
+.. owmeta-core documentation master file.
 
-Welcome to owmeta's documentation!
+Welcome to owmeta-core's documentation!
 ==================================
 
 Our main README is available online on Github. [1]_  This documentation contains
 additional materials beyond what is covered there.
 
-.. [1] http://github.com/openworm/owmeta
+.. [1] http://github.com/openworm/owmeta-core
 
 Contents:
 
@@ -21,7 +21,7 @@ Contents:
 Issues
 ------
 
-.. _github issue: https://github.com/openworm/owmeta/issues
+.. _github issue: https://github.com/openworm/owmeta-core/issues
 
 Indices and tables
 ==================

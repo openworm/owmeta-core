@@ -6,7 +6,7 @@ from .local_file_ds import LocalFileDataSource
 from .http_ds import HTTPFileDataSource
 from ..mapper import mapped
 
-from owmeta.datasource import Informational, DataTranslator
+from owmeta_core.datasource import Informational, DataTranslator
 import csv
 
 

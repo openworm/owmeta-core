@@ -144,7 +144,7 @@ class DataSourceType(type(DataObject)):
 @mapped
 class DataSource(six.with_metaclass(DataSourceType, DataObject)):
     '''
-    A source for data that can get translated into owmeta objects.
+    A source for data that can get translated into owmeta_core objects.
 
     The value for any field can be passed to __init__ by name. Additionally, if
     the sub-class definition of a DataSource assigns a value for that field like::
@@ -374,7 +374,7 @@ class DataTransatorType(type(DataObject)):
 
 @mapped
 class BaseDataTranslator(six.with_metaclass(DataTransatorType, DataObject)):
-    """ Translates from a data source to owmeta objects """
+    """ Translates from a data source to owmeta_core objects """
 
     input_type = DataSource
     output_type = DataSource

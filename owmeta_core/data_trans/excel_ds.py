@@ -1,6 +1,6 @@
 from rdflib.namespace import Namespace
 from ..mapper import mapped
-# from owmeta.datasource import Informational
+# from owmeta_core.datasource import Informational
 from .common_data import DS_NS
 from .http_ds import HTTPFileDataSource
 

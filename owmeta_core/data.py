@@ -421,7 +421,7 @@ class RDFSource(Configureable, ConfigValue):
         self.graph = False
 
     def open(self):
-        """ Called on ``owmeta.connect()`` to set up and return the rdflib graph.
+        """ Called on ``owmeta_core.connect()`` to set up and return the rdflib graph.
         Must be overridden by sub-classes.
         """
         raise NotImplementedError()
@@ -589,9 +589,9 @@ class SQLSource(RDFSource):
         except ImportError:
             raise OpenFailError('The rdflib-sqlalchemy package is not installed.'
                     ' You may need to install one of "sqlite_source", "mysql_source", or'
-                    ' "postgresql_source" extra for owmeta.'
-                    ' For example, change "owmeta" in your setup.py or'
-                    ' requirements.txt to "owmeta[sqlite_source]" and reinstall')
+                    ' "postgresql_source" extra for owmeta_core.'
+                    ' For example, change "owmeta_core" in your setup.py or'
+                    ' requirements.txt to "owmeta_core[sqlite_source]" and reinstall')
         registerplugins()
 
         store = plugin.get("SQLAlchemy", Store)(**self._initargs())

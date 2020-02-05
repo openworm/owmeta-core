@@ -2,7 +2,7 @@
 
 from __future__ import absolute_import
 import unittest
-from owmeta.data import Data
+from owmeta_core.data import Data
 import rdflib as R
 import os
 from os.path import join as p

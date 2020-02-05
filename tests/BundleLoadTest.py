@@ -4,7 +4,7 @@ from os.path import isdir, join as p
 import json
 import tarfile
 
-from owmeta.bundle import (Unarchiver,
+from owmeta_core.bundle import (Unarchiver,
                            NotABundlePath,
                            TargetDirectoryMismatch,
                            UnarchiveFailed,

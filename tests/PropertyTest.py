@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-from owmeta.pProperty import Property
+from owmeta_core.pProperty import Property
 from .DataTestTemplate import _DataTest
 
 

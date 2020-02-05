@@ -1,8 +1,8 @@
 from __future__ import absolute_import
 from six.moves import range
 import unittest
-from owmeta.data import DataUser
-from owmeta.configure import (Configureable, BadConf, Configure)
+from owmeta_core.data import DataUser
+from owmeta_core.configure import (Configureable, BadConf, Configure)
 import rdflib
 import rdflib as R
 
@@ -30,7 +30,7 @@ class DataUserTest(_DataTest):
     def test_init_config_no_Data(self):
         """ Should fail if given a non-Data configuration """
         # XXX: This test touches some machinery in
-        # owmeta/__init__.py. Feel like it's a bad test
+        # owmeta_core/__init__.py. Feel like it's a bad test
         tmp = Configureable.default_config
         Configureable.default_config = Configure()
         with self.assertRaises(BadConf):

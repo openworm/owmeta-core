@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import patch, Mock
 import re
 
-from owmeta.bundle import HTTPBundleLoader, URLConfig, LoadFailed
+from owmeta_core.bundle import HTTPBundleLoader, URLConfig, LoadFailed
 
 
 def test_can_load_from_http():
@@ -145,7 +145,7 @@ def test_load_no_cachedir():
     from io import BytesIO
     cut = HTTPBundleLoader('index_url')
     cut.base_directory = 'bdir'
-    with patch('requests.get') as get, patch('owmeta.bundle.Unarchiver') as Unarchiver:
+    with patch('requests.get') as get, patch('owmeta_core.bundle.Unarchiver') as Unarchiver:
         raw_response = Mock(name='raw_response')
         get().json.return_value = {'test_bundle': {'1': 'http://some_host'}}
         get().raw.read.return_value = b'bytes bytes bytes'

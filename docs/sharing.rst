@@ -11,10 +11,11 @@ When you create a database normally, it will be stored in a format which is opaq
 
 For sharing the serialization, you should first `clone <http://git-scm.com/book/en/Git-Basics-Getting-a-Git-Repository#Cloning-an-Existing-Repository>`_ the repository linked above, read the current serialization into your database (see `below <#loading>`_ for an example of how you would do this), and then write out the serialization::
     
-  import owmeta as P
-  P.connect('path/to/your/config/file')
-  P.config()['rdf.graph'].serialize('out.n3', format='n3')
-  P.disconnect()
+  from owmeta_core import connect, config, disconnect
+
+  connect('path/to/your/config/file')
+  config()['rdf.graph'].serialize('out.n3', format='n3')
+  disconnect()
 
 .. _loading:
 

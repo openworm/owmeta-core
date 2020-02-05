@@ -1,4 +1,4 @@
-from owmeta.bundle import Cache
+from owmeta_core.bundle import Cache
 from os.path import join as p
 from os import makedirs
 

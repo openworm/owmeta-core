@@ -78,7 +78,7 @@ class NSHandler(object):
 class JSONSerializer(object):
     def __call__(self, o):
         from rdflib.graph import Graph
-        from owmeta.context import Context
+        from owmeta_core.context import Context
         if isinstance(o, Graph):
             # eventually, we will use something like JSON-LD
             return []

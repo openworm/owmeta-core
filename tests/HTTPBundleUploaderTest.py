@@ -1,7 +1,7 @@
 from os.path import join as p
 import logging
 
-from owmeta.bundle import HTTPBundleUploader, HTTPSURLConfig, BUNDLE_ARCHIVE_MIME_TYPE
+from owmeta_core.bundle import HTTPBundleUploader, HTTPSURLConfig, BUNDLE_ARCHIVE_MIME_TYPE
 
 
 L = logging.getLogger(__name__)

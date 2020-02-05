@@ -11,18 +11,18 @@ import json
 from rdflib.term import URIRef
 from pytest import mark
 import git
-from owmeta.git_repo import GitRepoProvider, _CloneProgress
-from owmeta.command import (OWM, UnreadableGraphException, GenericUserError, StatementValidationError,
+from owmeta_core.git_repo import GitRepoProvider, _CloneProgress
+from owmeta_core.command import (OWM, UnreadableGraphException, GenericUserError, StatementValidationError,
                             OWMConfig, OWMSource, OWMTranslator,
                             DEFAULT_SAVE_CALLABLE_NAME, OWMDirDataSourceDirLoader, _DSD)
-from owmeta.context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY, Context
-from owmeta.context_common import CONTEXT_IMPORTS
-from owmeta.bittorrent import BitTorrentDataSourceDirLoader
-from owmeta.command_util import IVar, PropertyIVar
-from owmeta.contextDataObject import ContextDataObject
-from owmeta.datasource_loader import LoadFailed
-from owmeta.cli_command_wrapper import CLICommandWrapper
-from owmeta.cli_common import METHOD_NAMED_ARG
+from owmeta_core.context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY, Context
+from owmeta_core.context_common import CONTEXT_IMPORTS
+from owmeta_core.bittorrent import BitTorrentDataSourceDirLoader
+from owmeta_core.command_util import IVar, PropertyIVar
+from owmeta_core.contextDataObject import ContextDataObject
+from owmeta_core.datasource_loader import LoadFailed
+from owmeta_core.cli_command_wrapper import CLICommandWrapper
+from owmeta_core.cli_common import METHOD_NAMED_ARG
 
 from .TestUtilities import noexit, stderr, stdout
 
@@ -234,7 +234,7 @@ class OWMTest(BaseTest):
         a = 'http://example.org/mdc'
         self._init_conf({DEFAULT_CONTEXT_KEY: a})
         with patch('importlib.import_module'):
-            with patch('owmeta.command.Context') as ctxc:
+            with patch('owmeta_core.command.Context') as ctxc:
                 self.cut.save('tests.command_test_module')
                 ctxc.assert_called_with(ident=a, conf=ANY)
                 ctxc().save_context.assert_called()
@@ -345,7 +345,7 @@ class OWMTest(BaseTest):
         k = URIRef('http://example.org/unknown_ctx')
         self._init_conf({DEFAULT_CONTEXT_KEY: a})
         with patch('importlib.import_module') as im:
-            with patch('owmeta.command.Context') as ctxc:
+            with patch('owmeta_core.command.Context') as ctxc:
 
                 default_context = Mock()
                 default_context.identifier = URIRef(a)
@@ -385,7 +385,7 @@ class OWMTest(BaseTest):
         v = URIRef('http://example.org/unknown_context')
         self._init_conf({DEFAULT_CONTEXT_KEY: a})
         with patch('importlib.import_module') as im:
-            with patch('owmeta.command.Context') as ctxc:
+            with patch('owmeta_core.command.Context') as ctxc:
 
                 default_context = Mock()
                 default_context.identifier = URIRef(a)
@@ -433,7 +433,7 @@ class OWMTest(BaseTest):
             self.assertIsNotNone(next(iter(self.cut.save('tests', 'test')), None))
 
     def test_save_returns_context(self):
-        from owmeta.context import Context
+        from owmeta_core.context import Context
         a = 'http://example.org/mdc'
         self._init_conf({DEFAULT_CONTEXT_KEY: a})
         with patch('importlib.import_module'):
@@ -456,7 +456,7 @@ class OWMTest(BaseTest):
         c = []
         self._init_conf({DEFAULT_CONTEXT_KEY: a})
         with patch('importlib.import_module') as im, \
-                patch('owmeta.command.Context'):
+                patch('owmeta_core.command.Context'):
             def f(ctx):
                 c.append(ctx.new_context(b))
 
@@ -492,7 +492,7 @@ class OWMTest(BaseTest):
     def test_save_no_provider_yarom_mapped_classes(self):
         self._init_conf({DEFAULT_CONTEXT_KEY: 'http://example.org/mdc'})
         with patch('importlib.import_module') as im, \
-                patch('owmeta.mapper.Mapper.process_module'):
+                patch('owmeta_core.mapper.Mapper.process_module'):
             module = Mock(spec=['__yarom_mapped_classes__'])
             # must have at least one entry in mapped classes
             module.__yarom_mapped_classes__ = [MagicMock()]

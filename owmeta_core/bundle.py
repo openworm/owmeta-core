@@ -330,7 +330,7 @@ class Bundle(object):
         return self._contexts
 
     def _load_all_graphs(self, bundle_directory, progress=None, trip_prog=None):
-        # This is very similar to the owmeta.command.OWM._load_all_graphs, but is
+        # This is very similar to the owmeta_core.command.OWM._load_all_graphs, but is
         # different enough that it's easier to just keep them separate
         import transaction
         from rdflib import plugin
@@ -755,7 +755,7 @@ class Cache(object):
 
 def retrieve_remotes(owmdir):
     '''
-    Retrieve remotes from a owmeta project directory
+    Retrieve remotes from a owmeta_core project directory
 
     Parameters
     ----------

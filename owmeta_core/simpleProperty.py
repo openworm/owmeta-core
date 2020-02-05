@@ -63,13 +63,13 @@ class ContextMappedPropertyClass(MappedPropertyClass, ContextualizableClass):
 
     def after_mapper_module_load(self, mapper):
         '''
-        Called after the module has been loaded. See :class:`owmeta.mapper.Mapper`
+        Called after the module has been loaded. See :class:`owmeta_core.mapper.Mapper`
         '''
         self.init_python_class_registry_entries()
 
     def init_python_class_registry_entries(self):
         #self._check_is_good_class_registry()
-        from owmeta.dataObject import (RegistryEntry, PythonClassDescription,
+        from owmeta_core.dataObject import (RegistryEntry, PythonClassDescription,
                                        PythonModule)
         re = RegistryEntry.contextualize(self.definition_context)()
         cd = PythonClassDescription.contextualize(self.definition_context)()

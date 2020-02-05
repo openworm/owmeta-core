@@ -3,13 +3,13 @@ try:
     from unittest.mock import patch, Mock
 except ImportError:
     from mock import patch, Mock
-from owmeta.import_override import Overrider
+from owmeta_core.import_override import Overrider
 import pytest
 
 
 class OverriderTest(_DataTest):
     def setUp(self):
-        self.overrider_patch = patch('owmeta.Overrider.instance', None)
+        self.overrider_patch = patch('owmeta_core.Overrider.instance', None)
         self.overrider_patch.start()
 
     def tearDown(self):

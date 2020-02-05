@@ -3,19 +3,19 @@
 Making data objects
 ====================
 To make a new object type like you just need to make a subclass of
-`~owmeta.dataObject.DataObject` with the appropriate.
+`~owmeta_core.dataObject.DataObject` with the appropriate.
 
 Say, for example, that I want to record some information about drug reactions
 in dogs. I make ``Drug``, ``Experiment``, and ``Dog`` classes to describe drug
 reactions::
 
-    >>> from owmeta.dataObject import (DataObject,
-    ...                                DatatypeProperty,
-    ...                                ObjectProperty,
-    ...                                Alias)
-    >>> from owmeta.context import Context
-    >>> from owmeta.mapper import Mapper
-    >>> from owmeta import connect, ModuleRecorder
+    >>> from owmeta_core.dataObject import (DataObject,
+    ...                                     DatatypeProperty,
+    ...                                     ObjectProperty,
+    ...                                     Alias)
+    >>> from owmeta_core.context import Context
+    >>> from owmeta_core.mapper import Mapper
+    >>> from owmeta_core import connect, ModuleRecorder
 
     >>> class Dog(DataObject):
     ...     breed = DatatypeProperty()
@@ -45,16 +45,16 @@ Aperture Labs::
     >>> e = ctx(Experiment)(key='experiment001')
     >>> w = ctx(Dog)(breed='Affenpinscher')
     >>> e.subject(w)
-    owmeta.statement.Statement(...Context(.../experiments"))
+    owmeta_core.statement.Statement(...Context(.../experiments"))
 
     >>> e.drug(d)
-    owmeta.statement.Statement(...)
+    owmeta_core.statement.Statement(...)
 
     >>> e.route_of_entry('ingestion')
-    owmeta.statement.Statement(...)
+    owmeta_core.statement.Statement(...)
 
     >>> e.reaction('no reaction')
-    owmeta.statement.Statement(...)
+    owmeta_core.statement.Statement(...)
 
 and save those statements::
 
@@ -70,7 +70,7 @@ either ObjectProperty or DatatypeProperty on the class::
     __main__.Drug_granularity(owner=Drug(ident=rdflib.term.URIRef(u'http://openworm.org/entities/Drug/moon%20rocks')))
 
     >>> d.granularity('ground up')
-    owmeta.statement.Statement(...Context(.../experiments"))
+    owmeta_core.statement.Statement(...Context(.../experiments"))
 
     >>> do = Drug()
 

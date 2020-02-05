@@ -241,7 +241,7 @@ class FunctionProfile(object):
         self.primitive_calls = json_dict["primitive_calls"]
         self.total_time = json_dict["total_time"]
 
-    def to_codespeed_dict(self, commit="0", branch="dev", environment="Dual Core", executable="Python", project="owmeta"):
+    def to_codespeed_dict(self, commit="0", branch="dev", environment="Dual Core", executable="Python", project="owmeta_core"):
         """
         :param commit: Codespeed current commit argument.
         :param branch: Codespeed current branch argument.

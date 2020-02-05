@@ -1,7 +1,7 @@
 from .cli_common import METHOD_NAMED_ARG
 
 CLI_HINTS = {
-    'owmeta.command.OWM': {
+    'owmeta_core.command.OWM': {
         'commit': {
             (METHOD_NAMED_ARG, 'message'): {
                 'names': ['--message', '-m'],
@@ -65,7 +65,7 @@ CLI_HINTS = {
         },
         'IGNORE': ['message', 'progress_reporter']
     },
-    'owmeta.command.OWMContexts': {
+    'owmeta_core.command.OWMContexts': {
         'edit': {
             (METHOD_NAMED_ARG, 'context'): {
                 'names': ['context'],
@@ -77,7 +77,7 @@ CLI_HINTS = {
             }
         }
     },
-    'owmeta.commands.bundle.OWMBundleRemote': {
+    'owmeta_core.commands.bundle.OWMBundleRemote': {
         'add': {
             (METHOD_NAMED_ARG, 'name'): {
                 'names': ['name'],
@@ -87,7 +87,7 @@ CLI_HINTS = {
             },
         },
     },
-    'owmeta.commands.bundle.OWMBundle': {
+    'owmeta_core.commands.bundle.OWMBundle': {
         'fetch': {
             (METHOD_NAMED_ARG, 'bundle_id'): {
                 'names': ['bundle_id'],
@@ -129,7 +129,7 @@ CLI_HINTS = {
             },
         },
     },
-    'owmeta.command.OWMSource': {
+    'owmeta_core.command.OWMSource': {
         'show': {
             (METHOD_NAMED_ARG, 'data_source'): {
                 'names': ['data_source'],
@@ -141,7 +141,7 @@ CLI_HINTS = {
             },
         },
     },
-    'owmeta.command.OWMSourceData': {
+    'owmeta_core.command.OWMSourceData': {
         'retrieve': {
             (METHOD_NAMED_ARG, 'source'): {
                 'names': ['source'],
@@ -151,14 +151,14 @@ CLI_HINTS = {
             },
         },
     },
-    'owmeta.command.OWMTranslator': {
+    'owmeta_core.command.OWMTranslator': {
         'show': {
             (METHOD_NAMED_ARG, 'translator'): {
                 'names': ['translator'],
             },
         },
     },
-    'owmeta.command.OWMConfig': {
+    'owmeta_core.command.OWMConfig': {
         'set': {
             (METHOD_NAMED_ARG, 'key'): {
                 'names': ['key'],

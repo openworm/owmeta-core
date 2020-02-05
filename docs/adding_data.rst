@@ -7,7 +7,7 @@ Contexts
 --------
 In natural languages, our statements are made in a context that influences how
 they should be interpreted. In |owm|, that kind of context-sensitivity is
-modeled by using :class:`owmeta.context.Context` objects. To see what this
+modeled by using :class:`owmeta_core.context.Context` objects. To see what this
 looks like, let's start with an example.
 
 Basics
@@ -20,7 +20,7 @@ at distinct times or which come from different, possibly conflicting, sources
 is using contexts. The code below shows how to do that::
 
    >>> from rdflib import ConjunctiveGraph
-   >>> from owmeta.context import Context
+   >>> from owmeta_core.context import Context
    >>> # from mymod import Widget  # my own OWM widget model
    >>> # from bdw import Load # BigDataWarehouse API
 
@@ -66,7 +66,7 @@ Context Metadata
 ^^^^^^^^^^^^^^^^
 Contexts, because they have identifiers just like any other objects, so we can
 make statements about them as well. An essential statement is imports: Contexts
-import other contexts, which means, if you follow owmeta semantics, that
+import other contexts, which means, if you follow owmeta_core semantics, that
 when you query objects from the importing context, that the imported contexts
 will also be available to query. In other words, the statements in the imported
 context are entailed by the imports statement.

@@ -146,7 +146,7 @@ class Configure(object):
                             if variables and match in variables:
                                 res = variables[match]
                             elif match == 'BASE':
-                                res = resource_filename(Requirement.parse('owmeta'), value)
+                                res = resource_filename(Requirement.parse('owmeta_core'), value)
                             elif match == 'HERE':
                                 cfg_name = config_dict.get('configure.file_location')
                                 cfg_dname = cfg_name and dirname(realpath(cfg_name))

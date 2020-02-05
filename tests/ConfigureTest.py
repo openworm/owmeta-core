@@ -6,8 +6,8 @@ try:
     from unittest.mock import patch
 except ImportError:
     from mock import patch
-from owmeta.configure import Configure, ConfigValue, Configureable
-from owmeta.data import Data
+from owmeta_core.configure import Configure, ConfigValue, Configureable
+from owmeta_core.data import Data
 import os
 
 
@@ -169,7 +169,7 @@ class ConfigureTest(unittest.TestCase):
                 os.unlink(tf.name)
 
     def test_base_varname(self):
-        with patch('owmeta.configure.resource_filename') as rf:
+        with patch('owmeta_core.configure.resource_filename') as rf:
             with patch.dict('os.environ', (), clear=True):
                 rf.return_value = 'moosh'
                 tf = self.tempfile()
@@ -182,7 +182,7 @@ class ConfigureTest(unittest.TestCase):
                     os.unlink(tf.name)
 
     def test_base_varname_override(self):
-        with patch('owmeta.configure.resource_filename') as rf:
+        with patch('owmeta_core.configure.resource_filename') as rf:
             with patch.dict('os.environ', {'BASE': 'cars'}, clear=True):
                 rf.return_value = 'moosh'
                 tf = self.tempfile()

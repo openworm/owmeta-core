@@ -1,6 +1,6 @@
 """
 Common utilities for translation, massaging data, etc., that don't fit
-elsewhere in owmeta
+elsewhere in owmeta_core
 """
 import re
 

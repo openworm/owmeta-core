@@ -5,7 +5,7 @@ import os
 import shutil
 import sys
 from os.path import join as p
-from owmeta.file_match import match_directories, match_files
+from owmeta_core.file_match import match_directories, match_files
 
 
 _glob_has_recursive = sys.version_info >= (3, 5)

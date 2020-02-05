@@ -3,32 +3,9 @@
 """
 .. _owm_module:
 
-owmeta
-======
-
-OpenWorm Unified Data Abstract Layer.
-
-An introduction to owmeta can be found in the README on our
-`Github page <https://github.com/openworm/owmeta>`_.
-
-Most statements correspond to some action on the database.
-Some of these actions may be complex, but intuitively ``a.B()``, the Query form,
-will query against the database for the value or values that are related to ``a`` through ``B``;
-on the other hand, ``a.B(c)``, the Update form, will add a statement to the database that ``a``
-relates to ``c`` through ``B``. For the Update form, a Statement object describing the
-relationship stated is returned as a side-effect of the update.
-
-The Update form can also be accessed through the set() method of a Property and the Query form through the get()
-method like::
-
-    a.B.set(c)
-
-and::
-
-    a.B.get()
-
-The get() method also allows for parameterizing the query in ways specific to the Property.
-
+owmeta_core
+===========
+owmeta-core is a platform for sharing relational data over the internet.
 """
 
 from __future__ import print_function
@@ -57,7 +34,7 @@ ModuleRecorder = None
 
 BASE_MAPPER = Mapper(name='base')
 '''
-Handles some of the owmeta DataObjects regardless of whether there's been any connection. Used by Contexts outside
+Handles some of the owmeta_core DataObjects regardless of whether there's been any connection. Used by Contexts outside
 of a connection.
 '''
 
@@ -111,7 +88,7 @@ def get_data(path):
     from glob import glob
     package_paths = glob(os.path.join(get_path('platlib'), '*'))
     sys.path = package_paths + sys.path
-    installed_package_root = os.path.dirname(get_loader('owmeta').get_filename())
+    installed_package_root = os.path.dirname(get_loader('owmeta_core').get_filename())
     sys.path = sys.path[len(package_paths):]
     filename = os.path.join(installed_package_root, path)
     return filename
@@ -119,7 +96,7 @@ def get_data(path):
 
 def config(key=None):
     """
-    Gets the main configuration for the whole owmeta library.
+    Gets the main configuration for the whole owmeta_core library.
 
     :return: the instance of the Configure class currently operating.
     """
@@ -179,7 +156,7 @@ class Connection(object):
         if target is not None and issubclass(target, Context):
             return target.contextualize(self._context)
         else:
-            raise TypeError('Connections can only contextualize owmeta.context.Context'
+            raise TypeError('Connections can only contextualize owmeta_core.context.Context'
                     ' or subclasses thereof. Received %s' % target)
 
     def __str__(self):
@@ -204,9 +181,9 @@ def disconnect(c=False):
 class ConnectionFailError(Exception):
     def __init__(self, cause, *args):
         if args:
-            super(ConnectionFailError, self).__init__('owmeta connection failed: {}. {}'.format(cause, *args))
+            super(ConnectionFailError, self).__init__('owmeta_core connection failed: {}. {}'.format(cause, *args))
         else:
-            super(ConnectionFailError, self).__init__('owmeta connection failed: {}'.format(cause))
+            super(ConnectionFailError, self).__init__('owmeta_core connection failed: {}'.format(cause))
 
 
 def connect(configFile=None,
@@ -215,7 +192,7 @@ def connect(configFile=None,
     """
     Load desired configuration and open the database
 
-    :param configFile: (Optional) The configuration file for owmeta
+    :param configFile: (Optional) The configuration file for owmeta_core
     :param conf: (Optional) a configuration object for the connection. Takes precedence over `configFile`
     :param data: (Optional) specify the file to load into the library
     :param dataFormat: (Optional) file format of `data`. Currently n3 is supported
@@ -241,7 +218,7 @@ def connect(configFile=None,
     except Exception as e:
         raise ConnectionFailError(e)
 
-    logging.getLogger('owmeta').info("Connected to database")
+    logging.getLogger('owmeta_core').info("Connected to database")
 
     # Base class names is empty because we won't be adding any objects to the
     # context automatically

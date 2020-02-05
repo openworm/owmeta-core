@@ -3,10 +3,10 @@
 |owm| Data Sources
 ==================
 
-The sources of data for owmeta are stored in the `OpenWormData
+The sources of data for owmeta-core are stored in the `OpenWormData
 repository <https://github.com/openworm/OpenWormData>`_. A few
-:py:class:`DataTranslators <~owmeta.datasource.DataTranslator>` translate
-these data into common owmeta data sources. You can list these by running::
+:py:class:`DataTranslators <~owmeta_core.datasource.DataTranslator>` translate
+these data into common owmeta-core data sources. You can list these by running::
 
     owm source list
 

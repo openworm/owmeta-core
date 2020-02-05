@@ -4,7 +4,7 @@ try:
 except ImportError:
     from mock import MagicMock
 
-from owmeta.identifier_mixin import IdMixin
+from owmeta_core.identifier_mixin import IdMixin
 
 
 class IdentifierMixinTest(unittest.TestCase):

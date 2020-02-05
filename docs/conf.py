@@ -49,8 +49,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'owmeta'
-copyright = u'2013-2019, OpenWorm'
+project = u'owmeta_core'
+copyright = u'2013-2020, OpenWorm'
 
 # For substitutions in docs
 rst_epilog = """
@@ -68,10 +68,10 @@ rst_epilog = """
 
 # The short X.Y version.
 try:
-    import owmeta
-    version = owmeta.__version__
+    import owmeta_core
+    version = owmeta_core.__version__
     # The full version, including alpha/beta/rc tags.
-    release = owmeta.__version__
+    release = owmeta_core.__version__
 except:
     version = 'dev'
     release = 'dev'
@@ -127,7 +127,7 @@ on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 html_theme = 'alabaster'
 
 apidoc_options[:] = ['members', 'no-undoc-members', 'show-inheritance']
-apidoc_main('-M -f -e -d 2 -o api ../owmeta'.split(' '))
+apidoc_main('-M -f -e -d 2 -o api ../owmeta_core'.split(' '))
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -224,8 +224,8 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-  ('index', 'owmeta.tex', u'owmeta Documentation',
-   u'owmeta', 'manual'),
+  ('index', 'owmeta_core.tex', u'owmeta-core Documentation',
+   u'Mark Watts', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -254,8 +254,8 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'owmeta', u'owmeta Documentation',
-     [u'owmeta'], 1)
+    ('index', 'owmeta_core', u'owmeta-core Documentation',
+     [u'Mark Watts'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -268,9 +268,9 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'owmeta', u'owmeta Documentation',
-   u'owmeta', 'owmeta', 'Unified data abstraction layer for OpenWorm',
-   'owmeta'),
+  ('index', 'owmeta_core', u'owmeta-core Documentation',
+   u'Mark Watts', 'owmeta_core', 'Unified data abstraction layer for OpenWorm',
+   'owmeta_core'),
 ]
 
 # Documents to append as an appendix to all manuals.

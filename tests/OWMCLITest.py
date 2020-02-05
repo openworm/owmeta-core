@@ -13,11 +13,11 @@ from textwrap import dedent
 import transaction
 from pytest import mark, fixture
 
-from owmeta.data_trans.local_file_ds import LocalFileDataSource as LFDS
-from owmeta.datasource import DataTranslator
-from owmeta.command import OWM
-from owmeta.context import Context, IMPORTS_CONTEXT_KEY, DEFAULT_CONTEXT_KEY
-from owmeta.context_common import CONTEXT_IMPORTS
+from owmeta_core.data_trans.local_file_ds import LocalFileDataSource as LFDS
+from owmeta_core.datasource import DataTranslator
+from owmeta_core.command import OWM
+from owmeta_core.context import Context, IMPORTS_CONTEXT_KEY, DEFAULT_CONTEXT_KEY
+from owmeta_core.context_common import CONTEXT_IMPORTS
 
 from .TestUtilities import assertRegexpMatches
 
@@ -152,7 +152,7 @@ def test_save_diff(self):
         ''')
 
     self.writefile(p(modpath, 'monkey.py'), '''\
-        from owmeta.dataObject import DataObject, DatatypeProperty
+        from owmeta_core.dataObject import DataObject, DatatypeProperty
 
 
         class Monkey(DataObject):
@@ -177,7 +177,7 @@ def test_save_classes(self):
     os.mkdir(modpath)
     open(p(modpath, '__init__.py'), 'w').close()
     self.writefile(p(modpath, 'monkey.py'), '''\
-        from owmeta.dataObject import DataObject, DatatypeProperty
+        from owmeta_core.dataObject import DataObject, DatatypeProperty
 
 
         class Monkey(DataObject):
@@ -202,7 +202,7 @@ def test_save_imports(self):
     os.mkdir(modpath)
     open(p(modpath, '__init__.py'), 'w').close()
     self.writefile(p(modpath, 'monkey.py'), '''\
-        from owmeta.dataObject import DataObject, DatatypeProperty
+        from owmeta_core.dataObject import DataObject, DatatypeProperty
 
         class Monkey(DataObject):
             class_context = 'http://example.org/primate/monkey'

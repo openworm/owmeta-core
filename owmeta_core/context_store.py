@@ -20,7 +20,7 @@ class ContextStore(Store):
         """
         Parameters
         ----------
-            context : owmeta.context.Context
+            context : owmeta_core.context.Context
                 context
 
         """

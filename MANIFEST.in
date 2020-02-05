@@ -1,1 +1,1 @@
-include owmeta/default.conf
+include owmeta_core/default.conf

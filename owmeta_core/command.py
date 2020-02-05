@@ -62,7 +62,7 @@ class OWMSourceData(object):
         archive_type : str
             The type of the archive to create.
         '''
-        from owmeta.datasource import DataSource
+        from owmeta_core.datasource import DataSource
         sid = self._owm_command._den3(source)
         if not archive_type:
             for ext in EXT_TO_ARCHIVE_FMT:
@@ -175,7 +175,7 @@ class OWMSource(object):
         data_source : str
             The ID of the data source to find derivatives of
         '''
-        from owmeta.datasource import DataSource
+        from owmeta_core.datasource import DataSource
         uri = self._parent._den3(data_source)
         ctx = self._parent._default_ctx.stored
         source = ctx(DataSource)(ident=uri)
@@ -190,7 +190,7 @@ class OWMSource(object):
                                  columns=(lambda x: x[0], lambda x: x[1]))
 
     def _derivs(self, ctx, source):
-        from owmeta.datasource import DataSource
+        from owmeta_core.datasource import DataSource
         derived = ctx(DataSource).query()
         derived.source(source)
         res = []
@@ -206,7 +206,7 @@ class OWMSource(object):
         *data_source : str
             The ID of the data source to show
         '''
-        from owmeta.datasource import DataSource
+        from owmeta_core.datasource import DataSource
 
         for ds in data_source:
             uri = self._parent._den3(ds)
@@ -259,7 +259,7 @@ class OWMTranslator(object):
         full : bool
             Whether to (attempt to) shorten the source URIs by using the namespace manager
         '''
-        from owmeta.datasource import DataTranslator
+        from owmeta_core.datasource import DataTranslator
         conf = self._parent._conf()
         if context is not None:
             ctx = self._make_ctx(context)
@@ -285,7 +285,7 @@ class OWMTranslator(object):
         translator : str
             The translator to show
         '''
-        from owmeta.datasource import DataTranslator
+        from owmeta_core.datasource import DataTranslator
         conf = self._parent._conf()
         uri = self._parent._den3(translator)
         dt = self._parent._default_ctx.stored(DataTranslator)(ident=uri, conf=conf)
@@ -713,8 +713,8 @@ class OWM(object):
         # Tailoring for known loggers
 
         # Generally, too verbose for the user
-        logging.getLogger('owmeta.mapper').setLevel(logging.ERROR)
-        logging.getLogger('owmeta.module_recorder').setLevel(logging.ERROR)
+        logging.getLogger('owmeta_core.mapper').setLevel(logging.ERROR)
+        logging.getLogger('owmeta_core.module_recorder').setLevel(logging.ERROR)
 
     def save(self, module, provider=None, context=None):
         '''
@@ -802,7 +802,7 @@ class OWM(object):
         object : str
             The other object you want to say something about
         '''
-        from owmeta.dataObject import DataObject
+        from owmeta_core.dataObject import DataObject
         import transaction
         dctx = self._default_ctx
         query = dctx.stored(DataObject)(ident=self._den3(subject))
@@ -959,8 +959,8 @@ class OWM(object):
         return self._owm_connection
 
     def _conf(self, *args):
-        from owmeta.data import Data
-        from owmeta import connect
+        from owmeta_core.data import Data
+        from owmeta_core import connect
         import six
         dat = getattr(self, '_dat', None)
         if not dat or self._dat_file != self.config_file:
@@ -1004,7 +1004,7 @@ class OWM(object):
         return dat
 
     def _disconnect(self):
-        from owmeta import disconnect
+        from owmeta_core import disconnect
         if self._owm_connection is not None:
             disconnect(self._owm_connection)
 
@@ -1225,12 +1225,12 @@ class OWM(object):
                     shutil.copy2(src, dst)
 
     def _lookup_translator(self, tname):
-        from owmeta.datasource import DataTranslator
+        from owmeta_core.datasource import DataTranslator
         for x in self._default_ctx.stored(DataTranslator)(ident=tname).load():
             return x
 
     def _lookup_source(self, sname):
-        from owmeta.datasource import DataSource
+        from owmeta_core.datasource import DataSource
         for x in self._default_ctx.stored(DataSource)(ident=self._den3(sname)).load():
             provide(x, self._cap_provs)
             return x
@@ -1306,7 +1306,7 @@ class OWM(object):
         Get the package path
         """
         from pkgutil import get_loader
-        return dirname(get_loader('owmeta').get_filename())
+        return dirname(get_loader('owmeta_core').get_filename())
 
     def _default_config(self):
         return pth_join(self._package_path(), 'default.conf')
@@ -1595,7 +1595,7 @@ class SaveValidationFailureRecord(namedtuple('SaveValidationFailureRecord', ['us
     def __str__(self):
         from traceback import format_list
         stack = format_list([x[1:4] + (''.join(x[4]).strip(),) for x in self.filtered_stack()])
-        fmt = '{}\n Traceback (most recent call last, owmeta frames omitted):\n {}'
+        fmt = '{}\n Traceback (most recent call last, owmeta_core frames omitted):\n {}'
         res = fmt.format(self.validation_record, '\n '.join(''.join(s for s in stack if s).split('\n')))
         return res.strip()
 

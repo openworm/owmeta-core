@@ -8,8 +8,8 @@ except ImportError:
 
 from rdflib.term import URIRef
 
-from owmeta.datasource import Informational, DataSource, DuplicateAlsoException
-from owmeta.contextDataObject import ContextDataObject
+from owmeta_core.datasource import Informational, DataSource, DuplicateAlsoException
+from owmeta_core.contextDataObject import ContextDataObject
 from .DataTestTemplate import _DataTest
 
 

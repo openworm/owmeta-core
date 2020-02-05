@@ -1,12 +1,12 @@
 .. _test:
 
-Testing in owmeta
-=====================
+Testing in owmeta-core
+======================
 
 Preparing for tests
 -------------------
 
-owmeta should be installed like::
+owmeta_core should be installed like::
 
     python setup.py develop
 

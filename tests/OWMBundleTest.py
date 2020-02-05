@@ -6,8 +6,8 @@ from pytest import mark, fixture
 from contextlib import contextmanager
 import transaction
 
-from owmeta.command import DEFAULT_OWM_DIR as OD, OWM
-from owmeta.context import Context
+from owmeta_core.command import DEFAULT_OWM_DIR as OD, OWM
+from owmeta_core.context import Context
 
 from rdflib.term import URIRef, Literal
 
@@ -61,7 +61,7 @@ def test_install(self):
     print(self.sh('owm bundle install abundle',
         env={'HOME': homedir}))
     self.writefile('use.py', '''\
-    from owmeta.bundle import Bundle
+    from owmeta_core.bundle import Bundle
     from rdflib.term import URIRef, Literal
     with Bundle('abundle') as bnd:
         # "contextualize" the Context with the bundle to access contexts within the bundle

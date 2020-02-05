@@ -8,7 +8,7 @@ import rdflib
 from rdflib import ConjunctiveGraph, URIRef
 from pytest import fixture, raises
 
-from owmeta.bundle import (NoRemoteAvailable,
+from owmeta_core.bundle import (NoRemoteAvailable,
                            Remote,
                            Deployer,
                            Descriptor,

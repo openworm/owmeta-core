@@ -4,7 +4,7 @@
 ======================
 
 Pull requests are *required* to follow the PEP-8 Guidelines for contributions of
-Python code to owmeta, with some exceptions noted below. Compliance can be
+Python code to owmeta_core, with some exceptions noted below. Compliance can be
 checked with the ``pep8`` tool and these command line arguments::
 
     --max-line-length=120 --ignore=E261,E266,E265,E402,E121,E123,E126,E226,E24,E704,E128

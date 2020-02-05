@@ -7,7 +7,7 @@ import six
 import hashlib
 
 from importlib import import_module
-import owmeta  # noqa
+import owmeta_core # noqa
 from . import BASE_SCHEMA_URL, DEF_CTX, __version__ as OWMETA_VERSION
 from .contextualize import (Contextualizable,
                             ContextualizableClass,
@@ -29,7 +29,7 @@ from .identifier_mixin import IdMixin
 from .inverse_property import InverseProperty
 from .rdf_query_util import goq_hop_scorer, get_most_specific_rdf_type, oid, load
 
-import owmeta.simpleProperty as SP
+import owmeta_core.simpleProperty as SP
 
 __all__ = [
     "BaseDataObject",
@@ -275,7 +275,7 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
 
     def after_mapper_module_load(self, mapper):
         '''
-        Called after the module has been loaded. See :class:`owmeta.mapper.Mapper`
+        Called after the module has been loaded. See :class:`owmeta_core.mapper.Mapper`
         '''
         self.init_python_class_registry_entries()
 
@@ -479,9 +479,9 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         The RDF type URI for objects of this type
     rdf_namespace : rdflib.namespace.Namespace
         The rdflib namespace (prefix for URIs) for objects from this class
-    properties : list of owmeta.simpleProperty.RealSimpleProperty or owmeta.pProperty.Property
+    properties : list of owmeta_core.simpleProperty.RealSimpleProperty or owmeta_core.pProperty.Property
         Properties belonging to this object
-    owner_properties : list of owmeta.simpleProperty.RealSimpleProperty or owmeta.pProperty.Property
+    owner_properties : list of owmeta_core.simpleProperty.RealSimpleProperty or owmeta_core.pProperty.Property
         Properties belonging to parents of this object
     """
     rdf_type = R.RDFS['Resource']
@@ -702,7 +702,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         ----------
         linkName : string
             The name of this property.
-        owner : owmeta.dataObject.BaseDataObject
+        owner : owmeta_core.dataObject.BaseDataObject
             The owner of this property.
         """
         return _make_property(cls, 'DatatypeProperty', *args, **kwargs)
@@ -716,7 +716,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         ----------
         linkName : string
             The name of this property.
-        owner : owmeta.dataObject.BaseDataObject
+        owner : owmeta_core.dataObject.BaseDataObject
             The owner of this property.
         value_type : type
             The type of BaseDataObject for values of this property
@@ -732,7 +732,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         ----------
         linkName : string
             The name of this property.
-        owner : owmeta.dataObject.BaseDataObject
+        owner : owmeta_core.dataObject.BaseDataObject
             The owner of this property.
         """
         return _make_property(cls, 'UnionProperty', *args, **kwargs)
@@ -1138,4 +1138,4 @@ class PythonClassDescription(ClassDescription):
                                     self.module.defined_values[0].identifier.n3())
 
 
-__distribution__ = dict(name='owmeta', version=OWMETA_VERSION)
+__distribution__ = dict(name='owmeta_core', version=OWMETA_VERSION)

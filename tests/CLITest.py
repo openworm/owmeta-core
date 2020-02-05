@@ -6,9 +6,9 @@ except ImportError:
     from mock import patch, Mock
 
 from pytest import mark
-from owmeta.command_util import SubCommand, IVar
-from owmeta.cli_command_wrapper import CLICommandWrapper
-import owmeta.cli as PCLI
+from owmeta_core.command_util import SubCommand, IVar
+from owmeta_core.cli_command_wrapper import CLICommandWrapper
+import owmeta_core.cli as PCLI
 from .TestUtilities import noexit, stderr, stdout
 import json
 import re
@@ -141,9 +141,9 @@ class CLICommandWrapperTest(unittest.TestCase):
 
 class CLIOutputModeTest(unittest.TestCase):
     def setUp(self):
-        self.ccw = patch('owmeta.cli.CLICommandWrapper').start()
-        patch('owmeta.cli.OWM').start()
-        patch('owmeta.cli.GitRepoProvider').start()
+        self.ccw = patch('owmeta_core.cli.CLICommandWrapper').start()
+        patch('owmeta_core.cli.OWM').start()
+        patch('owmeta_core.cli.GitRepoProvider').start()
 
     def tearDown(self):
         patch.stopall()
@@ -175,7 +175,7 @@ class CLIJSONOutputModeTest(CLIOutputModeTest):
         with noexit(), stdout() as so:
             @with_defaults
             def main(argument_namespace_callback, **kwargs):
-                from owmeta.context import Context
+                from owmeta_core.context import Context
                 argument_namespace_callback.output_mode = 'json'
                 return Context('ident', base_namespace='base_namespace')
             self.ccw().main.side_effect = main
