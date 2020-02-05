@@ -21,7 +21,6 @@ class ExampleRunnerTest(unittest.TestCase):
     @classmethod
     def setUpClass(self):
         self.testdir = tempfile.mkdtemp(prefix=__name__ + '.')
-        shutil.copytree('.owm', p(self.testdir, '.owm'), symlinks=True)
         shutil.copytree('examples', p(self.testdir, 'examples'), symlinks=True)
         self.startdir = os.getcwd()
         os.chdir(p(self.testdir, 'examples'))
@@ -54,5 +53,6 @@ class ExampleRunnerTest(unittest.TestCase):
         os.unlink(fname)
 
     def test_owm_save(self):
-        self.exec_("owm save examples.owm_save_example",
-                  cwd=self.testdir)
+        os.mkdir(p(self.testdir, '.owm'))
+        self.exec_("owm init", cwd=self.testdir)
+        self.exec_("owm save examples.owm_save_example", cwd=self.testdir)
