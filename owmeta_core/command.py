@@ -655,6 +655,12 @@ class OWM(object):
     def __init__(self, owmdir=None):
         self.progress_reporter = default_progress_reporter
         self.message = lambda *args, **kwargs: print(*args, **kwargs)
+
+        def prompt(*args, **kwargs):
+            res = input(*args, **kwargs)
+            print()
+            return res
+        self.prompt = prompt
         self._data_source_directories = None
         self._changed_contexts = None
         self._owm_connection = None
@@ -849,7 +855,8 @@ class OWM(object):
         else:
             return self._conf().get(IMPORTS_CONTEXT_KEY)
 
-    def init(self, update_existing_config=False):
+    def init(self, update_existing_config=False, imports_context_id=None,
+            default_context_id=None):
         """
         Makes a new graph store.
 
@@ -862,11 +869,17 @@ class OWM(object):
         update_existing_config : bool
             If True, updates the existing config file to point to the given
             file for the store configuration
+        imports_context_id : str
+            URI for the imports context. If not provided, it will be prompted for
+        default_context_id : str
+            URI for the default context. If not provided, it will be prompted for
         """
         try:
+            reinit = exists(self.owmdir)
             self._ensure_owmdir()
             if not exists(self.config_file):
-                self._init_config_file()
+                self._init_config_file(imports_context_id=imports_context_id,
+                        default_context_id=default_context_id)
             elif update_existing_config:
                 with open(self.config_file, 'r+') as f:
                     conf = json.load(f)
@@ -877,7 +890,11 @@ class OWM(object):
 
             self._init_store()
             self._init_repository()
-        except Exception:
+            if reinit:
+                self.message('Reinitialized owmeta-core project at %s' % abspath(self.owmdir))
+            else:
+                self.message('Initialized owmeta-core project at %s' % abspath(self.owmdir))
+        except BaseException:
             self._ensure_no_owmdir()
             raise
 
@@ -885,12 +902,36 @@ class OWM(object):
         if exists(self.owmdir):
             shutil.rmtree(self.owmdir)
 
-    def _init_config_file(self):
-        with open(self._default_config(), 'r') as f:
+    def _init_config_file(self, default_context_id=None, imports_context_id=None):
+        with open(self._default_config_file_name(), 'r') as f:
             default = json.load(f)
             with open(self.config_file, 'w') as of:
                 default['rdf.store_conf'] = pth_join('$OWM',
                         relpath(abspath(self.store_name), abspath(self.owmdir)))
+
+                if not default_context_id:
+                    default_context_id = self.prompt(dedent('''\
+                    The default context is where statements are placed by default. The URI for this context should use a domain name that you control.
+
+                    Please provide the URI of the default context: '''))
+
+                if default_context_id:
+                    default[DEFAULT_CONTEXT_KEY] = default_context_id
+                else:
+                    raise GenericUserError("A default context ID is required")
+
+                if not imports_context_id:
+                    imports_context_id = self.prompt(dedent('''\
+                    The imports context contains import statements between contexts.
+                    If a URI is not provided for this context, one will be generated at random.
+
+                    Please provide the URI of the imports context: '''))
+                if not imports_context_id:
+                    import uuid
+                    imports_context_id = uuid.uuid4().urn
+
+                if imports_context_id:
+                    default[IMPORTS_CONTEXT_KEY] = imports_context_id
 
                 write_config(default, of)
 
@@ -1308,7 +1349,7 @@ class OWM(object):
         from pkgutil import get_loader
         return dirname(get_loader('owmeta_core').get_filename())
 
-    def _default_config(self):
+    def _default_config_file_name(self):
         return pth_join(self._package_path(), 'default.conf')
 
     def list_contexts(self):
