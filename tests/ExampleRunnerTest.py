@@ -54,5 +54,5 @@ class ExampleRunnerTest(unittest.TestCase):
 
     def test_owm_save(self):
         os.mkdir(p(self.testdir, '.owm'))
-        self.exec_("owm init --imports_context_id 'http://example.org'", cwd=self.testdir)
+        self.exec_("owm -b init --default_context_id 'http://example.org'", cwd=self.testdir)
         self.exec_("owm save examples.owm_save_example", cwd=self.testdir)

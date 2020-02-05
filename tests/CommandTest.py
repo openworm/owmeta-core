@@ -33,6 +33,7 @@ class BaseTest(unittest.TestCase):
         self.startdir = os.getcwd()
         os.chdir(self.testdir)
         self.cut = OWM()
+        self.cut.non_interactive = True
         self._default_conf = {'rdf.store_conf': '$HERE/worm.db',
                               IMPORTS_CONTEXT_KEY: 'http://example.org/imports'}
 
@@ -53,18 +54,18 @@ class BaseTest(unittest.TestCase):
 class OWMTest(BaseTest):
 
     def test_init_default_creates_store(self):
-        self.cut.init()
+        self.cut.init(default_context_id='http://example.org/')
         self.assertTrue(exists(p('.owm', 'worm.db')), msg='worm.db is created')
 
     def test_init_default_creates_config(self):
-        self.cut.init()
+        self.cut.init(default_context_id='http://example.org/')
         self.assertTrue(exists(p('.owm', 'owm.conf')), msg='owm.conf is created')
 
     def test_init_default_store_config_file_exists_no_change(self):
         self._init_conf()
         with open(p('.owm', 'owm.conf'), 'r') as f:
             init = f.read()
-        self.cut.init()
+        self.cut.init(default_context_id='http://example.org/')
         with open(p('.owm', 'owm.conf'), 'r') as f:
             self.assertEqual(init, f.read())
 
@@ -92,7 +93,7 @@ class OWMTest(BaseTest):
         def failed_init(*args, **kwargs): raise _TestException('Oh noes!')
         self.cut.repository_provider.init.side_effect = failed_init
         try:
-            self.cut.init()
+            self.cut.init(default_context_id='http://example.org/')
             self.fail("Should have failed init")
         except _TestException:
             pass
@@ -667,18 +668,18 @@ class GitCommandTest(BaseTest):
         """ A git directory should be created when we use the .git repository
            provider
         """
-        self.cut.init()
+        self.cut.init(default_context_id='http://example.org/')
         self.assertTrue(exists(p(self.cut.owmdir, '.git')))
 
     def test_init_tracks_config(self):
         """ Test that the config file is tracked """
-        self.cut.init()
+        self.cut.init(default_context_id='http://example.org/')
         p(self.cut.owmdir, '.git')
 
     def test_clone_creates_git_dir(self):
         self.cut.basedir = 'r1'
-        self.cut.init()
-
+        self.cut.init(default_context_id='http://example.org/')
+        self.cut.commit(message='init commit')
         pd = self.cut.owmdir
 
         clone = 'r2'
@@ -688,7 +689,7 @@ class GitCommandTest(BaseTest):
 
     def test_clones_graphs(self):
         self.cut.basedir = 'r1'
-        self.cut.init()
+        self.cut.init(default_context_id='http://example.org/')
 
         self._add_to_graph()
         self.cut.commit('Commit Message')
@@ -702,7 +703,7 @@ class GitCommandTest(BaseTest):
 
     def test_clones_config(self):
         self.cut.basedir = 'r1'
-        self.cut.init()
+        self.cut.init(default_context_id='http://example.org/')
 
         self._add_to_graph()
         self.cut.commit('Commit Message')
@@ -716,7 +717,7 @@ class GitCommandTest(BaseTest):
 
     def test_clone_creates_store(self):
         self.cut.basedir = 'r1'
-        self.cut.init()
+        self.cut.init(default_context_id='http://example.org/')
 
         self._add_to_graph()
         self.cut.commit('Commit Message')
@@ -729,7 +730,7 @@ class GitCommandTest(BaseTest):
         self.assertTrue(exists(self.cut.store_name), msg=self.cut.store_name)
 
     def test_reset_resets_add(self):
-        self.cut.init()
+        self.cut.init(default_context_id='http://example.org/')
 
         self._add_to_graph()
         # dirty up the index
@@ -746,7 +747,7 @@ class GitCommandTest(BaseTest):
         self.assertNotIn('something', [x[0] for x in repo.index.entries])
 
     def test_reset_resets_remove(self):
-        self.cut.init()
+        self.cut.init(default_context_id='http://example.org/')
 
         self._add_to_graph()
         # dirty up the index
