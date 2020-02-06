@@ -19,7 +19,7 @@ list_coverage () {
 
 cleanup_coverage () {
     if [ "$COVERAGES" ] ; then
-        rm $COVERAGES
+        rm -f $COVERAGES
     fi
 }
 
