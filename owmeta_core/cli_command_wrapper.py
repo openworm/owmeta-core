@@ -172,7 +172,7 @@ class CLICommandWrapper(object):
     Wraps an object such that it can be used in a command line interface
     '''
 
-    def __init__(self, runner, mapper=None, hints=None, program_name=None):
+    def __init__(self, runner, mapper=None, hints=None, hints_map=None, program_name=None):
         '''
         Parameters
         ----------
@@ -183,15 +183,19 @@ class CLICommandWrapper(object):
             created if none is provided. optional
         hints : dict
             A multi-level dict describing how certain command line arguments get turned
-            into attributes and method orguments. If `hints` is not provided, the hints
-            are looked up by the runner's fully-qualified class name in CLI_HINTS. optional
+            into attributes and method arguments. If `hints` is not provided, the hints
+            are looked up by the runner's fully-qualified class name in `hints_map`. optional
+        hints_map : dict
+            A multi-level dict describing how certain command line arguments get turned
+            into attributes and method arguments. Defaults to `CLI_HINTS`. optional
         program_name : str
             The name of the top-level program. Uses `sys.argv[0] <sys.argv>` if not provided.
             optional
         '''
         self.runner = runner
         self.mapper = CLIArgMapper() if mapper is None else mapper
-        self.hints = CLI_HINTS.get(FCN(type(runner)), {}) if hints is None else hints
+        self.hints_map = hints_map or CLI_HINTS
+        self.hints = self.hints_map.get(FCN(type(runner)), {}) if hints is None else hints
         self.program_name = program_name
 
     def extract_args(self, val):
@@ -249,96 +253,101 @@ class CLICommandWrapper(object):
                                                action=CLISubCommandAction)
             return _sp[0]
 
-        for key, val in sorted(vars(type(self.runner)).items()):
-            if not key.startswith('_') and key not in self.hints.get('IGNORE', ()):
-                if isinstance(val, (types.FunctionType, types.MethodType)):
-                    sc_hints = self.hints.get(key) if self.hints else None
-                    summary, detail, params = self.extract_args(val)
+        runner_type_attrs = dict()
+        runner_type = type(self.runner)
+        for x in dir(runner_type):
+            if x.startswith('_') or x in self.hints.get('IGNORE', ()):
+                continue
+            runner_type_attrs[x] = getattr(runner_type, x)
+        for key, val in sorted(runner_type_attrs.items()):
+            if isinstance(val, (types.FunctionType, types.MethodType)):
+                sc_hints = self.hints.get(key) if self.hints else None
+                summary, detail, params = self.extract_args(val)
 
-                    subparser = sp().add_parser(key, help=summary, description=detail)
+                subparser = sp().add_parser(key, help=summary, description=detail)
 
-                    self.mapper.runners[key] = _method_runner(self.runner, key)
-                    argcount = 0
-                    for pindex, param in enumerate(params):
-                        action = CLIStoreAction
-                        if param[1] == 'bool':
-                            action = CLIStoreTrueAction
+                self.mapper.runners[key] = _method_runner(self.runner, key)
+                argcount = 0
+                for pindex, param in enumerate(params):
+                    action = CLIStoreAction
+                    if param[1] == 'bool':
+                        action = CLIStoreTrueAction
 
-                        atype = ARGUMENT_TYPES.get(param[1])
+                    atype = ARGUMENT_TYPES.get(param[1])
 
-                        arg = param[0]
-                        desc = param[2]
-                        if arg.startswith('**'):
-                            subparser.add_argument('--' + arg[2:],
-                                                   action=CLIAppendAction,
-                                                   mapper=self.mapper,
-                                                   key=METHOD_KWARGS,
-                                                   type=atype,
-                                                   help=desc)
-                        elif arg.startswith('*'):
-                            subparser.add_argument(arg[1:],
-                                                   action=action,
-                                                   nargs='*',
-                                                   key=METHOD_NARGS,
-                                                   mapper=self.mapper,
-                                                   type=atype,
-                                                   help=desc)
-                        else:
-                            arg_hints = self._arg_hints(sc_hints, METHOD_NAMED_ARG, arg)
-                            names = None if arg_hints is None else arg_hints.get('names')
-                            if names is None:
-                                names = ['--' + arg]
-                            argument_args = dict(action=action,
-                                                 key=METHOD_NAMED_ARG,
-                                                 mapper=self.mapper,
-                                                 index=pindex,
-                                                 mapped_name=arg,
-                                                 type=atype,
-                                                 help=desc)
-                            if arg_hints:
-                                nargs = arg_hints.get('nargs')
-                                if nargs is not None:
-                                    argument_args['nargs'] = nargs
+                    arg = param[0]
+                    desc = param[2]
+                    if arg.startswith('**'):
+                        subparser.add_argument('--' + arg[2:],
+                                               action=CLIAppendAction,
+                                               mapper=self.mapper,
+                                               key=METHOD_KWARGS,
+                                               type=atype,
+                                               help=desc)
+                    elif arg.startswith('*'):
+                        subparser.add_argument(arg[1:],
+                                               action=action,
+                                               nargs='*',
+                                               key=METHOD_NARGS,
+                                               mapper=self.mapper,
+                                               type=atype,
+                                               help=desc)
+                    else:
+                        arg_hints = self._arg_hints(sc_hints, METHOD_NAMED_ARG, arg)
+                        names = None if arg_hints is None else arg_hints.get('names')
+                        if names is None:
+                            names = ['--' + arg]
+                        argument_args = dict(action=action,
+                                             key=METHOD_NAMED_ARG,
+                                             mapper=self.mapper,
+                                             index=pindex,
+                                             mapped_name=arg,
+                                             type=atype,
+                                             help=desc)
+                        if arg_hints:
+                            nargs = arg_hints.get('nargs')
+                            if nargs is not None:
+                                argument_args['nargs'] = nargs
 
-                            subparser.add_argument(*names,
-                                                   **argument_args)
-                        argcount += 1
-                    self.mapper.arg_count[key] = argcount
-                elif isinstance(val, property):
-                    doc = getattr(val, '__doc__', None)
-                    parser.add_argument('--' + key, help=doc,
-                                        action=CLIStoreAction,
-                                        key=INSTANCE_ATTRIBUTE,
-                                        mapper=self.mapper)
-                elif isinstance(val, SubCommand):
-                    summary, detail, params = self.extract_args(val)
-                    sub_runner = getattr(self.runner, key)
-                    sub_mapper = CLIArgMapper()
+                        subparser.add_argument(*names,
+                                               **argument_args)
+                    argcount += 1
+                self.mapper.arg_count[key] = argcount
+            elif isinstance(val, property):
+                doc = getattr(val, '__doc__', None)
+                parser.add_argument('--' + key, help=doc,
+                                    action=CLIStoreAction,
+                                    key=INSTANCE_ATTRIBUTE,
+                                    mapper=self.mapper)
+            elif isinstance(val, SubCommand):
+                summary, detail, params = self.extract_args(val)
+                sub_runner = getattr(self.runner, key)
+                sub_mapper = CLIArgMapper()
 
-                    self.mapper.runners[key] = _sc_runner(sub_mapper, sub_runner)
+                self.mapper.runners[key] = _sc_runner(sub_mapper, sub_runner)
 
-                    subparser = sp().add_parser(key, help=summary, description=detail)
-                    type(self)(sub_runner, sub_mapper).parser(subparser)
-                elif isinstance(val, IVar):
-                    doc = getattr(val, '__doc__', None)
-                    var_hints = self.hints.get(key) if self.hints else None
-                    if val.default_value:
-                        if doc:
-                            doc += '. Default is ' + repr(val.default_value)
-                        else:
-                            doc = 'Default is ' + repr(val.default_value)
-                    # NOTE: we have a default value from the val, but we don't
-                    # set it here -- IVars return the defaults ... by default
-                    arg_kwargs = dict(help=doc,
-                                      action=CLIStoreAction,
-                                      key=INSTANCE_ATTRIBUTE,
-                                      mapper=self.mapper)
-                    if val.value_type == bool:
-                        arg_kwargs['action'] = CLIStoreTrueAction
-                    names = None if var_hints is None else var_hints.get('names')
-                    if names is None:
-                        names = ['--' + key]
-                    parser.add_argument(*names, **arg_kwargs)
+                subparser = sp().add_parser(key, help=summary, description=detail)
+                type(self)(sub_runner, sub_mapper, hints_map=self.hints_map).parser(subparser)
+            elif isinstance(val, IVar):
+                doc = getattr(val, '__doc__', None)
+                var_hints = self.hints.get(key) if self.hints else None
+                if val.default_value:
+                    if doc:
+                        doc += '. Default is ' + repr(val.default_value)
+                    else:
+                        doc = 'Default is ' + repr(val.default_value)
+                # NOTE: we have a default value from the val, but we don't
+                # set it here -- IVars return the defaults ... by default
+                arg_kwargs = dict(help=doc,
+                                  action=CLIStoreAction,
+                                  key=INSTANCE_ATTRIBUTE,
+                                  mapper=self.mapper)
+                if val.value_type == bool:
+                    arg_kwargs['action'] = CLIStoreTrueAction
+                names = None if var_hints is None else var_hints.get('names')
+                if names is None:
+                    names = ['--' + key]
+                parser.add_argument(*names, **arg_kwargs)
 
         return parser
 

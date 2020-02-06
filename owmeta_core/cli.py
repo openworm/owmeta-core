@@ -1,14 +1,26 @@
 from __future__ import print_function
 import sys
 import json
-from tqdm import tqdm
-import six
 from os import environ
+from itertools import groupby
+import logging
+
+import six
+from tqdm import tqdm
+from pkg_resources import iter_entry_points
+
 from .cli_command_wrapper import CLICommandWrapper, CLIUserError
+from .cli_hints import CLI_HINTS
 from .command import OWM
 from .git_repo import GitRepoProvider
 from .text_util import format_table
-from .command_util import GeneratorWithData, GenericUserError
+from .command_util import GeneratorWithData, GenericUserError, SubCommand
+
+
+CLI_HINTS_GROUP = 'owmeta_core.cli_hints'
+COMMANDS_GROUP = 'owmeta_core.commands'
+
+L = logging.getLogger(__name__)
 
 
 def additional_args(parser):
@@ -98,9 +110,9 @@ def columns_arg_to_list(arg):
 
 
 def main():
-    import logging
     logging.basicConfig()
-    p = OWM()
+    top_command = _augment_subcommands_from_entry_points()
+    p = top_command()
     p.log_level = 'WARN'
     p.message = print
     p.repository_provider = GitRepoProvider()
@@ -111,9 +123,15 @@ def main():
         profiler = Profile()
         profiler.enable()
     out = None
+
+    hints = dict()
+    hints.update(CLI_HINTS)
+    hints.update(_gather_hints_from_entry_points())
+
     try:
-        out = CLICommandWrapper(p).main(argument_callback=additional_args,
-                                        argument_namespace_callback=ns_handler)
+        out = CLICommandWrapper(p, hints_map=hints).main(
+                argument_callback=additional_args,
+                argument_namespace_callback=ns_handler)
     except (CLIUserError, GenericUserError) as e:
         s = str(e)
         if not s:
@@ -218,6 +236,58 @@ def main():
     if environ.get('OWM_CLI_PROFILE'):
         profiler.disable()
         profiler.dump_stats(environ['OWM_CLI_PROFILE'])
+
+
+def _gather_hints_from_entry_points():
+    res = dict()
+    for entry_point in iter_entry_points(CLI_HINTS_GROUP):
+        try:
+            res.update(entry_point.load())
+        except Exception:
+            L.warning('Unable to add CLI hints for %s', entry_point)
+    return res
+
+
+def _augment_subcommands_from_entry_points():
+    command_map = {(): OWM}
+    unordered_commands = []
+    for entry_point in iter_entry_points(COMMANDS_GROUP):
+        name = str(entry_point.name).strip()
+        path = tuple(name.split('.'))
+        try:
+            unordered_commands.append((path, entry_point.load()))
+        except Exception:
+            L.warning('Unable to add command', entry_point)
+            pass
+    level_ordered_commands = \
+        sorted(unordered_commands, key=lambda x: (len(x[0]), x[0]))
+    # Group by everything up-to a given command
+    for indicator, level in groupby(level_ordered_commands,
+            key=lambda x: (len(x[0]), x[0][:-1])):
+        override_dict = dict()
+        level_key = None
+        for path, cmd in level:
+            level_key = path[:-1]
+            override_dict[path[-1]] = SubCommand(cmd)
+
+        if level_key is not None:
+            orig_cmd = command_map.get(level_key)
+            if not orig_cmd:
+                last = command_map[()]
+                for idx, component in enumerate(level_key):
+                    cmd = command_map.get(level_key[:idx+1])
+                    if not cmd:
+                        cmd = getattr(last, component).cmd
+                        command_map[level_key[:idx+1]] = cmd
+                    last = cmd
+                orig_cmd = last
+
+            override_dict['__module__'] = orig_cmd.__module__
+            command_map[level_key] = type(orig_cmd.__name__, (orig_cmd,), override_dict)
+            if level_key:
+                setattr(command_map[level_key[:-1]], level_key[-1], SubCommand(command_map[level_key]))
+
+    return command_map[()]
 
 
 if __name__ == '__main__':

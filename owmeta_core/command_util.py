@@ -62,6 +62,8 @@ class SubCommand(object):
         self.__doc__ = getattr(cmd, '__doc__', '')
 
     def __get__(self, target, typ=None):
+        if target is None:
+            return self
         return self.cmd(target)
 
 
