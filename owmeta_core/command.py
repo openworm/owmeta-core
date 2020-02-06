@@ -893,7 +893,7 @@ class OWM(object):
                     write_config(conf, f)
 
             self._init_store()
-            self._init_repository()
+            self._init_repository(reinit)
             if reinit:
                 self.message('Reinitialized owmeta-core project at %s' % abspath(self.owmdir))
             else:
@@ -939,9 +939,12 @@ class OWM(object):
 
                 write_config(default, of)
 
-    def _init_repository(self):
+    def _init_repository(self, reinit):
         if self.repository_provider is not None:
             self.repository_provider.init(base=self.owmdir)
+            if not reinit:
+                self.repository_provider.add([relpath(self.config_file, self.owmdir)])
+                self.repository_provider.commit('Initial commit')
 
     def _den3(self, s):
         if not s:

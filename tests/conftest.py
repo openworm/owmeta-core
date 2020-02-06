@@ -2,9 +2,13 @@ from contextlib import contextmanager
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 import logging
 from multiprocessing import Process, Queue
+from subprocess import check_output, CalledProcessError
 from os import chdir
+import os
 from os.path import join as p
+from textwrap import dedent
 import shutil
+import shlex
 import tempfile
 
 import requests
@@ -119,3 +123,70 @@ def wait_for_started(server_data, max_tries=10):
             done = True
         except Exception:
             L.info("Unable to connect to the bundle server. Trying again.", exc_info=True)
+
+
+@fixture
+def owm_project():
+    res = Data()
+    res.testdir = tempfile.mkdtemp(prefix=__name__ + '.')
+    res.test_homedir = p(res.testdir, 'homedir')
+    os.mkdir(res.test_homedir)
+    with open(p('tests', 'pytest-cov-embed.py'), 'r') as f:
+        ptcov = f.read()
+    # Added so pytest_cov gets to run for our subprocesses
+    with open(p(res.testdir, 'sitecustomize.py'), 'w') as f:
+        f.write(ptcov)
+
+    try:
+        res.sh('owm -b init --default_context_id "http://example.org/data"')
+        yield res
+    finally:
+        shutil.rmtree(res.testdir)
+
+
+class Data(object):
+    exception = None
+
+    def __str__(self):
+        items = []
+        for m in vars(self):
+            if (m.startswith('_') or m == 'sh'):
+                continue
+            items.append(m + '=' + repr(getattr(self, m)))
+        return 'Data({})'.format(', '.join(items))
+
+    def writefile(self, name, contents):
+        with open(p(self.testdir, name), 'w') as f:
+            print(dedent(contents), file=f)
+            f.flush()
+
+    def sh(self, *command, **kwargs):
+        if not command:
+            return None
+        env = dict(os.environ)
+        env['PYTHONPATH'] = self.testdir + os.pathsep + env['PYTHONPATH']
+        env['HOME'] = self.test_homedir
+        env.update(kwargs.pop('env', {}))
+        outputs = []
+        for cmd in command:
+            try:
+                outputs.append(check_output(shlex.split(cmd), env=env, cwd=self.testdir, **kwargs).decode('utf-8'))
+            except CalledProcessError as e:
+                if e.output:
+                    print(dedent('''\
+                    ----------stdout from "{}"----------
+                    {}
+                    ----------{}----------
+                    ''').format(cmd, e.output.decode('UTF-8'),
+                               'end stdout'.center(14 + len(cmd))))
+                if getattr(e, 'stderr', None):
+                    print(dedent('''\
+                    ----------stderr from "{}"----------
+                    {}
+                    ----------{}----------
+                    ''').format(cmd, e.stderr.decode('UTF-8'),
+                               'end stderr'.center(14 + len(cmd))))
+                raise
+        return outputs[0] if len(outputs) == 1 else outputs
+
+    __repr__ = __str__
