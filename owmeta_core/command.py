@@ -915,7 +915,8 @@ class OWM(object):
 
                 if not default_context_id and not self.non_interactive:
                     default_context_id = self.prompt(dedent('''\
-                    The default context is where statements are placed by default. The URI for this context should use a domain name that you control.
+                    The default context is where statements are placed by default. The URI
+                    for this context should use a domain name that you control.
 
                     Please provide the URI of the default context: '''))
 

@@ -21,6 +21,8 @@ class IVar(object):
         self.value_type = value_type
 
     def __get__(self, target, typ=None):
+        if target is None:
+            return self
         return getattr(target, self.name, self.default_value)
 
     def __set__(self, target, value):
