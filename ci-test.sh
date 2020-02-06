@@ -1,14 +1,14 @@
 #!/bin/sh -ex
 
 pt () {
-    python setup.py test --addopts "$* --cov=owmeta"
+    python setup.py test --addopts "$* --cov=owmeta_core"
 }
 
 
 COVERAGES=""
 
 add_coverage () {
-    tempname="$(mktemp ow-meta-test-coverage.XXXXXXXXXX)"
+    tempname="$(mktemp owmeta-test-coverage.XXXXXXXXXX)"
     cat .coverage > $tempname
     COVERAGES="$COVERAGES $tempname"
 }
