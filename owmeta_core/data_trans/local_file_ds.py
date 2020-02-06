@@ -1,6 +1,8 @@
 from os.path import join
 from contextlib import contextmanager
+
 from rdflib.namespace import Namespace
+
 from ..datasource import Informational
 from .file_ds import FileDataSource
 from .common_data import DS_NS

@@ -1,13 +1,14 @@
-from rdflib.namespace import Namespace
 from os.path import join as pth_join
 from contextlib import contextmanager
+import csv
+
+from rdflib.namespace import Namespace
+
+from ..datasource import Informational, DataTranslator
+from ..mapper import mapped
 from .common_data import DS_NS
 from .local_file_ds import LocalFileDataSource
 from .http_ds import HTTPFileDataSource
-from ..mapper import mapped
-
-from owmeta_core.datasource import Informational, DataTranslator
-import csv
 
 
 @mapped

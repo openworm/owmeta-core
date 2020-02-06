@@ -1654,6 +1654,9 @@ class _DSD(object):
         self.base_directory = base_directory
         self._loader_classes = self._init_loaders(loader_classes)
 
+    def __str__(self):
+        return '{}({})'.format(FCN(type(self)), self._dsdict)
+
     def __getitem__(self, data_source):
         dsid = str(data_source.identifier)
         try:
