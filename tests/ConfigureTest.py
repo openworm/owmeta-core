@@ -6,7 +6,7 @@ try:
     from unittest.mock import patch
 except ImportError:
     from mock import patch
-from owmeta_core.configure import Configure, ConfigValue, Configureable
+from owmeta_core.configure import Configuration, ConfigValue, Configurable
 from owmeta_core.data import Data
 import os
 
@@ -15,18 +15,18 @@ class ConfigureTest(unittest.TestCase):
     def test_fake_config(self):
         """ Try to retrieve a config value that hasn't been set """
         with self.assertRaises(KeyError):
-            c = Configure()
+            c = Configuration()
             c['not_a_valid_config']
 
     def test_literal(self):
         """ Assign a literal rather than a ConfigValue"""
-        c = Configure()
+        c = Configuration()
         c['seven'] = "coke"
         self.assertEqual(c['seven'], "coke")
 
     def test_ConfigValue(self):
         """ Assign a ConfigValue"""
-        c = Configure()
+        c = Configuration()
 
         class pipe(ConfigValue):
             def get(self):
@@ -36,7 +36,7 @@ class ConfigureTest(unittest.TestCase):
 
     def test_getter_no_ConfigValue(self):
         """ Assign a method with a "get". Should return a the object rather than calling its get method """
-        c = Configure()
+        c = Configuration()
 
         class pipe:
             def get(self):
@@ -46,7 +46,7 @@ class ConfigureTest(unittest.TestCase):
 
     def test_late_get(self):
         """ "get" shouldn't be called until the value is *dereferenced* """
-        c = Configure()
+        c = Configuration()
         a = {'t': False}
 
         class pipe(ConfigValue):
@@ -77,7 +77,7 @@ class ConfigureTest(unittest.TestCase):
             print('{"z": "$ENV_VAR"}', file=tf)
             tf.close()
             try:
-                c = Configure.open(tf.name)
+                c = Configuration.open(tf.name)
                 self.assertEqual(c['z'], 'myapikey')
             finally:
                 os.unlink(tf.name)
@@ -88,7 +88,7 @@ class ConfigureTest(unittest.TestCase):
         tf.close()
         try:
             with self.assertRaises(ValueError):
-                Configure.open(tf.name)
+                Configuration.open(tf.name)
         finally:
             os.unlink(tf.name)
 
@@ -98,7 +98,7 @@ class ConfigureTest(unittest.TestCase):
         tf.close()
         try:
             with self.assertRaises(ValueError):
-                Configure.open(tf.name)
+                Configuration.open(tf.name)
         finally:
             os.unlink(tf.name)
 
@@ -108,7 +108,7 @@ class ConfigureTest(unittest.TestCase):
             print('{"z": "$ENV_VAR1"}', file=tf)
             tf.close()
             try:
-                c = Configure.open(tf.name)
+                c = Configuration.open(tf.name)
                 self.assertEqual(c['z'], '$ENV_VAR')
             finally:
                 os.unlink(tf.name)
@@ -119,7 +119,7 @@ class ConfigureTest(unittest.TestCase):
             print('{"z": "$ENV_VAR"}', file=tf)
             tf.close()
             try:
-                c = Configure.open(tf.name)
+                c = Configuration.open(tf.name)
                 self.assertIsNone(c['z'])
             finally:
                 os.unlink(tf.name)
@@ -130,7 +130,7 @@ class ConfigureTest(unittest.TestCase):
             print('{"z": "$ENV_VAR"}', file=tf)
             tf.close()
             try:
-                c = Configure.open(tf.name)
+                c = Configuration.open(tf.name)
                 self.assertIsNone(c['z'])
             finally:
                 os.unlink(tf.name)
@@ -141,7 +141,7 @@ class ConfigureTest(unittest.TestCase):
             print('{"greeting": "Hello, $USER"}', file=tf)
             tf.close()
             try:
-                c = Configure.open(tf.name)
+                c = Configuration.open(tf.name)
                 self.assertEqual(c['greeting'], 'Hello, dave')
             finally:
                 os.unlink(tf.name)
@@ -152,7 +152,7 @@ class ConfigureTest(unittest.TestCase):
             print('{"greeting": "Hello, $IS_SUPER $USER"}', file=tf)
             tf.close()
             try:
-                c = Configure.open(tf.name)
+                c = Configuration.open(tf.name)
                 self.assertEqual(c['greeting'], 'Hello, normal dave')
             finally:
                 os.unlink(tf.name)
@@ -163,7 +163,7 @@ class ConfigureTest(unittest.TestCase):
             print('{"z": "$V1$V2"}', file=tf)
             tf.close()
             try:
-                c = Configure.open(tf.name)
+                c = Configuration.open(tf.name)
                 self.assertIsNone(c['z'])
             finally:
                 os.unlink(tf.name)
@@ -176,7 +176,7 @@ class ConfigureTest(unittest.TestCase):
                 print('{"z": "$BASE/car"}', file=tf)
                 tf.close()
                 try:
-                    c = Configure.open(tf.name)
+                    c = Configuration.open(tf.name)
                     self.assertEqual(c['z'], 'moosh/car')
                 finally:
                     os.unlink(tf.name)
@@ -189,7 +189,7 @@ class ConfigureTest(unittest.TestCase):
                 print('{"z": "$BASE/car"}', file=tf)
                 tf.close()
                 try:
-                    c = Configure.open(tf.name)
+                    c = Configuration.open(tf.name)
                     self.assertEqual(c['z'], 'cars/car')
                 finally:
                     os.unlink(tf.name)
@@ -205,58 +205,58 @@ class ConfigureTest(unittest.TestCase):
             print('{"z": "$HERE/car"}', file=tf)
             tf.close()
             try:
-                c = Configure.open(tf.name)
+                c = Configuration.open(tf.name)
                 self.assertEqual(c['z'], dname + '/car')
             finally:
                 os.unlink(tf.name)
 
     def test_here_varname_root(self):
         with patch.dict('os.environ', (), clear=True):
-            c = Configure.process_config({'configure.file_location': '/blah.file',
+            c = Configuration.process_config({'configure.file_location': '/blah.file',
                                           'z': '$HERE/car'})
             self.assertEqual(c['z'], '/car')
 
     def test_here_varname_override(self):
         with patch.dict('os.environ', {'HERE': 'there'}, clear=True):
-            c = Configure.process_config({'configure.file_location': '/blah.file',
+            c = Configuration.process_config({'configure.file_location': '/blah.file',
                                           'z': '$HERE/car'})
             self.assertEqual(c['z'], 'there/car')
 
     def test_here_varname_no_value(self):
         with patch.dict('os.environ', (), clear=True):
-            c = Configure.process_config({'z': '$HERE/car'})
+            c = Configuration.process_config({'z': '$HERE/car'})
             self.assertEqual(c['z'], '/car')
 
     def test_copy_dict(self):
-        c = Configure()
+        c = Configuration()
         c.copy({'a': 1})
         self.assertEqual(c['a'], 1)
 
     def test_copy_non_string_key(self):
-        c = Configure()
+        c = Configuration()
         c.copy({5: 1})
         self.assertEqual(c[5], 1)
 
     def test_configurable_init_empty(self):
-        """Ensure Configureable gets init'd with the defalut if nothing is given"""
-        i = Configureable()
-        self.assertEqual(Configureable.default_config, i.conf)
+        """Ensure Configurable gets init'd with the defalut if nothing is given"""
+        i = Configurable()
+        self.assertEqual(Configurable.default_config, i.conf)
 
     def test_configurable_init_False(self):
-        """Ensure Configureable gets init'd with the defalut if None is given"""
-        i = Configureable(conf=None)
-        self.assertEqual(Configureable.default_config, i.conf)
+        """Ensure Configurable gets init'd with the defalut if None is given"""
+        i = Configurable(conf=None)
+        self.assertEqual(Configurable.default_config, i.conf)
 
     def test_dict_init(self):
-        c = Configure(x=4, y=3)
+        c = Configuration(x=4, y=3)
         self.assertEqual(4, c['x'])
 
     def test_iter(self):
-        c = Configure(x=2, y=1)
+        c = Configuration(x=2, y=1)
         self.assertEqual({'x', 'y'}, {s for s in c})
 
     def test_contains(self):
-        c = Configure(x=2, y=1)
+        c = Configuration(x=2, y=1)
         self.assertIn('x', c)
 
     @staticmethod

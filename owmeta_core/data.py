@@ -14,7 +14,7 @@ from rdflib.namespace import RDFS, RDF, NamespaceManager
 import transaction
 
 from .utils import grouper
-from .configure import Configureable, Configure, ConfigValue
+from .configure import Configurable, Configuration, ConfigValue
 
 __all__ = [
     "Data",
@@ -102,7 +102,7 @@ class _UTC(datetime.tzinfo):
 utc = _UTC()
 
 
-class DataUser(Configureable):
+class DataUser(Configurable):
 
     """ A convenience wrapper for users of the database
 
@@ -252,7 +252,7 @@ class DataUser(Configureable):
         return n
 
 
-class Data(Configure):
+class Data(Configuration):
 
     """
     Provides configuration for access to the database.
@@ -264,15 +264,15 @@ class Data(Configure):
         """
         Parameters
         ----------
-        conf : Configure
-            A Configure object
+        conf : Configuration
+            A Configuration object
         """
         super(Data, self).__init__(**kwargs)
 
         if conf is not None:
             self.copy(conf)
         else:
-            self.copy(Configureable.default_config)
+            self.copy(Configurable.default_config)
         self.namespace = Namespace("http://openworm.org/entities/")
         self.molecule_namespace = Namespace("http://openworm.org/entities/molecules/")
         self['rdf.namespace'] = self.namespace
@@ -290,12 +290,12 @@ class Data(Configure):
     @classmethod
     def open(cls, file_name):
         """ Load a file into a new Data instance storing configuration in a JSON format """
-        return cls(conf=Configure.open(file_name))
+        return cls(conf=Configuration.open(file_name))
 
     @classmethod
     def process_config(cls, config_dict, **kwargs):
         """ Load a file into a new Data instance storing configuration in a JSON format """
-        return cls(conf=Configure.process_config(config_dict, **kwargs))
+        return cls(conf=Configuration.process_config(config_dict, **kwargs))
 
     def init(self):
         """ Open the configured database """
@@ -382,10 +382,10 @@ class Data(Configure):
                     str(data)).hexdigest()])
 
     def __setitem__(self, k, v):
-        return Configure.__setitem__(self, k, v)
+        return Configuration.__setitem__(self, k, v)
 
     def __getitem__(self, k):
-        return Configure.__getitem__(self, k)
+        return Configuration.__getitem__(self, k)
 
 
 class ContextChangedEvent(Event):
@@ -397,7 +397,7 @@ def modification_date(filename):
     return datetime.datetime.fromtimestamp(t)
 
 
-class RDFSource(Configureable, ConfigValue):
+class RDFSource(Configurable, ConfigValue):
 
     """ Base class for data sources.
 

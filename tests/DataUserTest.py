@@ -2,7 +2,7 @@ from __future__ import absolute_import
 from six.moves import range
 import unittest
 from owmeta_core.data import DataUser
-from owmeta_core.configure import (Configureable, BadConf, Configure)
+from owmeta_core.configure import (Configurable, BadConf, Configuration)
 import rdflib
 import rdflib as R
 
@@ -13,10 +13,10 @@ class DataUserTest(_DataTest):
 
     def test_init_no_config(self):
         """ Should fail to initialize since it's lacking basic configuration """
-        c = Configureable.default_config
-        Configureable.default_config = False
+        c = Configurable.default_config
+        Configurable.default_config = False
         DataUser()
-        Configureable.default_config = c
+        Configurable.default_config = c
 
     def test_init_no_config_with_default(self):
         """ Should suceed if the default configuration is a Data object """
@@ -31,11 +31,11 @@ class DataUserTest(_DataTest):
         """ Should fail if given a non-Data configuration """
         # XXX: This test touches some machinery in
         # owmeta_core/__init__.py. Feel like it's a bad test
-        tmp = Configureable.default_config
-        Configureable.default_config = Configure()
+        tmp = Configurable.default_config
+        Configurable.default_config = Configuration()
         with self.assertRaises(BadConf):
             DataUser()
-        Configureable.default_config = tmp
+        Configurable.default_config = tmp
 
     @unittest.skip("Should be tracked by version control")
     def test_add_statements_has_uploader(self):

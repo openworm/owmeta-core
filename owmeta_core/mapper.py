@@ -6,7 +6,7 @@ from itertools import count
 import rdflib as R
 
 from .utils import FCN
-from .configure import Configureable
+from .configure import Configurable
 from .module_recorder import ModuleRecordListener
 
 
@@ -24,7 +24,7 @@ class ClassRedefinitionAttempt(Exception):
     pass
 
 
-class Mapper(ModuleRecordListener, Configureable):
+class Mapper(ModuleRecordListener, Configurable):
     '''
     Keeps track of relationships between classes, between modules, and between classes and modules
     '''

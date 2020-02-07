@@ -54,7 +54,7 @@ def install_module_import_wrapper():
 
 install_module_import_wrapper()
 ModuleRecorder.add_listener(BASE_MAPPER)
-from .configure import Configureable
+from .configure import Configurable
 from .context import Context, ClassContext
 
 __all__ = [
@@ -96,12 +96,12 @@ def config(key=None):
     """
     Gets the main configuration for the whole owmeta_core library.
 
-    :return: the instance of the Configure class currently operating.
+    :return: the instance of the Configuration class currently operating.
     """
     if key is None:
-        return Configureable.default
+        return Configurable.default
     else:
-        return Configureable.default[key]
+        return Configurable.default[key]
 
 
 class Connection(object):

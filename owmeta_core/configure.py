@@ -66,13 +66,13 @@ class _NO_DEFAULT(object):
 NO_DEFAULT = _NO_DEFAULT()
 
 
-class Configure(object):
+class Configuration(object):
 
     """
     A simple configuration object.  Enables setting and getting key-value pairs
 
-    Unlike a `dict`, Configure objects will execute a function when retrieving values to enable deferred computation of
-    seldom-used configuration values. In addition, entries in a `Configure` can be aliased to one another.
+    Unlike a `dict`, Configuration objects will execute a function when retrieving values to enable deferred computation of
+    seldom-used configuration values. In addition, entries in a `Configuration` can be aliased to one another.
     """
     # conf: is a configure instance to base this one on
     # dependencies are required for this class to be initialized (TODO)
@@ -170,7 +170,7 @@ class Configure(object):
         Open a configuration file and read it to build the internal state.
 
         :param file_name: configuration file encoded as JSON
-        :return: a Configure object with the configuration taken from the JSON file
+        :return: a Configuration object with the configuration taken from the JSON file
         """
 
         with open(file_name) as f:
@@ -186,7 +186,7 @@ class Configure(object):
         :param other: A different configuration object to copy the configuration from this object into
         :return:
         """
-        if isinstance(other, Configure):
+        if isinstance(other, Configuration):
             self._properties = dict(other._properties)
         elif isinstance(other, dict):
             for x in other:
@@ -218,21 +218,21 @@ class Configure(object):
             raise KeyError(pname)
 
 
-class ImmutableConfigure(Configure):
+class ImmutableConfiguration(Configuration):
     def __setitem__(self, k, v):
         raise TypeError('\'{}\' object does not support item assignment'.format(repr(type(self))))
 
 
-class Configureable(object):
+class Configurable(object):
 
     """ An object which can accept configuration. A base class intended to be subclassed. """
-    default_config = ImmutableConfigure()
+    default_config = ImmutableConfiguration()
 
     def __init__(self, conf=None, **kwargs):
-        super(Configureable, self).__init__(**kwargs)
+        super(Configurable, self).__init__(**kwargs)
         if conf is not None:
             if conf is self:
-                raise ValueError('The \'conf\' of a Configureable cannot be itself')
+                raise ValueError('The \'conf\' of a Configurable cannot be itself')
             self.__conf = conf
         else:
             self.__conf = type(self).default_config
@@ -266,12 +266,12 @@ class Configureable(object):
 
     def get(self, pname, default=None):
         """
-        Gets a config value from this :class:`Configureable`'s `conf`
+        Gets a config value from this :class:`Configurable`'s `conf`
 
         See Also
         --------
-        Configure.get
+        Configuration.get
         """
         if self.conf is self:
-            raise ValueError('The \'conf\' of a Configureable cannot be itself')
+            raise ValueError('The \'conf\' of a Configurable cannot be itself')
         return self.conf.get(pname, default)
