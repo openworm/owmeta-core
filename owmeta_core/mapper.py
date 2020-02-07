@@ -1,14 +1,13 @@
 from __future__ import print_function
 import importlib as IM
 import logging
+from itertools import count
+
 import rdflib as R
-import yarom
+
+from .utils import FCN
 from .configure import Configureable
 from .module_recorder import ModuleRecordListener
-from itertools import count
-from six import with_metaclass
-from yarom.mapperUtils import parents_str
-from yarom.utils import FCN
 
 
 __all__ = ["Mapper",
@@ -96,10 +95,6 @@ class Mapper(ModuleRecordListener, Configureable):
         # in the Mapper.
         self.RDFTypeTable[cls.rdf_type] = cls
         return True
-
-    def unmap_all(self):
-        for cls in self.MappedClasses:
-            cls.unmap()
 
     def load_module(self, module_name):
         """ Loads the module. """
@@ -239,3 +234,7 @@ def mapped(cls):
         module.__yarom_mapped_classes__.append(cls)
 
     return cls
+
+
+def parents_str(cls):
+    return ", ".join(p.__name__ + '@' + hex(id(p)) for p in cls.mro())

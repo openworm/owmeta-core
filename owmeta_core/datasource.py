@@ -4,7 +4,7 @@ import six
 from rdflib.term import URIRef
 from rdflib.namespace import Namespace
 from collections import OrderedDict, defaultdict
-from yarom.mapper import FCN
+from .utils import FCN
 from .context import Context
 from .dataObject import DataObject, ObjectProperty, This
 from .mapper import mapped

@@ -2,8 +2,9 @@ from __future__ import print_function
 import rdflib
 import logging
 from itertools import groupby
-from yarom.graphObject import (GraphObjectQuerier,
-                               ZeroOrMoreTQLayer)
+
+from .graph_object import (GraphObjectQuerier,
+                           ZeroOrMoreTQLayer)
 from .rdf_go_modifiers import SubClassModifier
 
 L = logging.getLogger(__name__)

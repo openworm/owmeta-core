@@ -28,7 +28,7 @@ correctness must not depend on any ordering of method calls except that, of
 course, their ``__init__`` is called first.
 '''
 import six
-from yarom.utils import FCN
+from .utils import FCN
 
 
 class _Singleton(type):

@@ -17,9 +17,9 @@ import http.client
 import six
 from rdflib.term import URIRef
 import yaml
-from yarom.utils import FCN
-from yarom.rdfUtils import transitive_lookup, BatchAddGraph
+from .utils import FCN
 
+from .rdf_utils import transitive_lookup, BatchAddGraph
 from .command_util import DEFAULT_OWM_DIR
 from .context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY
 from .context_common import CONTEXT_IMPORTS

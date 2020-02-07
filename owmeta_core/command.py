@@ -19,8 +19,7 @@ import logging
 import errno
 from collections import namedtuple
 from textwrap import dedent
-from yarom.rdfUtils import BatchAddGraph
-from yarom.utils import FCN
+from .utils import FCN
 
 from tempfile import TemporaryDirectory
 
@@ -33,6 +32,7 @@ from .capabilities import FilePathProvider
 from .datasource_loader import DataSourceDirLoader, LoadFailed
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
 from .dataObject import DataObject
+from .rdf_utils import BatchAddGraph
 
 
 L = logging.getLogger(__name__)
@@ -224,7 +224,7 @@ class OWMSource(object):
         """
         from .datasource import DataSource
         from .dataObject import TypeDataObject, RDFSSubClassOfProperty
-        from yarom.graphObject import ZeroOrMoreTQLayer
+        from .graph_object import ZeroOrMoreTQLayer
         from .rdf_query_util import zomifier
         conf = self._parent._conf()
         ctx = self._parent._default_ctx
@@ -1846,7 +1846,7 @@ class UnimportedContextRecord(namedtuple('UnimportedContextRecord', ['context', 
     '''
 
     def __str__(self):
-        from yarom.rdfUtils import triple_to_n3
+        from .rdf_utils import triple_to_n3
         trip = self.statement.to_triple()
         fmt = 'Missing import of context {} for {} of statement "{}"'
         return fmt.format(self.context.n3(),

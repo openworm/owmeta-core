@@ -7,7 +7,7 @@ tracker).
 Each loader can treat the base_directory given as its own namespace and place directories
 in there however it wants.
 '''
-from yarom.utils import FCN
+from .utils import FCN
 from os.path import exists, isdir, join as pth_join, isabs, realpath
 import six
 

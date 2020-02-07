@@ -15,7 +15,7 @@ from .contextualize import (BaseContextualizable,
                             ContextualizableClass,
                             ContextualizingProxy,
                             contextualize_metaclass)
-from yarom.utils import FCN
+from .utils import FCN
 from six.moves.urllib.parse import quote
 from six import text_type
 import six

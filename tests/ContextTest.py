@@ -1,6 +1,6 @@
 import rdflib
 from rdflib.term import URIRef, Variable
-from yarom.mapper import FCN
+from owmeta_core.utils import FCN
 from owmeta_core.dataObject import DataObject, InverseProperty
 from owmeta_core.mapper import Mapper
 from owmeta_core.context import Context

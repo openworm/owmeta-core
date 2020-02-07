@@ -135,7 +135,7 @@ def main():
     except (CLIUserError, GenericUserError) as e:
         s = str(e)
         if not s:
-            from yarom.utils import FCN
+            from .utils import FCN
             # In case someone forgets to add a helpful message for their user error
             s = 'Received error: ' + FCN(type(e))
         die(s)

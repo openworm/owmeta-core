@@ -4,26 +4,24 @@ import rdflib as R
 import logging
 from six import with_metaclass
 
-from yarom.graphObject import (GraphObject,
-                               GraphObjectQuerier,
-                               ZeroOrMoreTQLayer)
-
-from yarom.mappedProperty import MappedPropertyClass
-from yarom.variable import Variable
-from yarom.propertyValue import PropertyValue
-from yarom.propertyMixins import (DatatypePropertyMixin,
-                                  UnionPropertyMixin)
-from yarom.mapper import FCN
+from .utils import FCN
 from .data import DataUser
+from .context import Context
 from .contextualize import (Contextualizable, ContextualizableClass,
                             contextualize_helper,
                             decontextualize_helper)
-from .context import Context
 from .contextMappedClassUtil import find_class_context, find_base_namespace
-from .statement import Statement
+from .graph_object import (GraphObject,
+                           GraphObjectQuerier,
+                           ZeroOrMoreTQLayer)
 from .inverse_property import InversePropertyMixin
+from .property_mixins import (DatatypePropertyMixin,
+                              UnionPropertyMixin)
+from .property_value import PropertyValue
 from .rdf_query_util import goq_hop_scorer, load
 from .rdf_go_modifiers import SubClassModifier
+from .statement import Statement
+from .variable import Variable
 
 import itertools
 from lazy_object_proxy import Proxy
@@ -31,7 +29,7 @@ from lazy_object_proxy import Proxy
 L = logging.getLogger(__name__)
 
 
-class ContextMappedPropertyClass(MappedPropertyClass, ContextualizableClass):
+class ContextMappedPropertyClass(ContextualizableClass):
     def __init__(self, name, bases, dct):
         super(ContextMappedPropertyClass, self).__init__(name, bases, dct)
         ctx = find_class_context(dct, bases)
@@ -82,6 +80,14 @@ class ContextMappedPropertyClass(MappedPropertyClass, ContextualizableClass):
 
         re.rdf_class(self.rdf_type)
         re.class_description(cd)
+
+    def __lt__(self, other):
+        res = False
+        if issubclass(other, self) and not issubclass(self, other):
+            res = True
+        elif issubclass(self, other) == issubclass(other, self):
+            res = self.__name__ < other.__name__
+        return res
 
 
 class ContextualizedPropertyValue(PropertyValue):

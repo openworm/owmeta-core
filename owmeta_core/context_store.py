@@ -4,7 +4,7 @@ from rdflib.plugins.memory import IOMemory
 from rdflib.term import Variable
 from time import time
 import rdflib
-from yarom.rdfUtils import transitive_lookup
+from .rdf_utils import transitive_lookup
 
 from .context_common import CONTEXT_IMPORTS
 

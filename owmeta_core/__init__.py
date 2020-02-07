@@ -56,7 +56,6 @@ install_module_import_wrapper()
 ModuleRecorder.add_listener(BASE_MAPPER)
 from .configure import Configureable
 from .context import Context, ClassContext
-import yarom
 
 __all__ = [
     "get_data",
@@ -218,8 +217,6 @@ def connect(configFile=None,
     mapper = Mapper()
     conf['mapper'] = mapper
     # An "empty" context, that serves as the default when no context is defined
-
-    yarom.MAPPER = mapper
 
     ModuleRecorder.add_listener(mapper)
 

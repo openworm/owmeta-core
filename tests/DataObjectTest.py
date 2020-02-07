@@ -7,14 +7,13 @@ import rdflib as R
 import six
 import warnings
 
-from yarom.utils import FCN
-from yarom.graphObject import IdentifierMissingException
-
+from owmeta_core import BASE_CONTEXT
+from owmeta_core.graph_object import IdentifierMissingException
 from owmeta_core.data import DataUser
 from owmeta_core.dataObject import DataObject, ObjectProperty, DatatypeProperty, _partial_property
 from owmeta_core.context import Context
 from owmeta_core.rdf_query_util import get_most_specific_rdf_type
-from owmeta_core import BASE_CONTEXT
+from owmeta_core.utils import FCN
 
 from .GraphDBInit import make_graph
 

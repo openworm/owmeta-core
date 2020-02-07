@@ -14,20 +14,20 @@ from .contextualize import (Contextualizable,
                             contextualize_helper,
                             decontextualize_helper)
 from .context import ContextualizableDataUserMixin
-from .contextMappedClassUtil import find_class_context, find_base_namespace
+from .context_mapped_class_util import find_class_context, find_base_namespace
 from .mapper import mapped
 
-from yarom.graphObject import (GraphObject,
-                               ComponentTripler,
-                               GraphObjectQuerier)
-from yarom.rdfUtils import triples_to_bgp, deserialize_rdflib_term
-from yarom.rdfTypeResolver import RDFTypeResolver
-from yarom.mappedClass import MappedClass
-from yarom.utils import FCN
+from .graph_object import (GraphObject,
+                           ComponentTripler,
+                           GraphObjectQuerier)
+from .rdf_utils import triples_to_bgp, deserialize_rdflib_term
 from .data import DataUser
 from .identifier_mixin import IdMixin
 from .inverse_property import InverseProperty
+from .mapped_class import MappedClass
+from .rdf_type_resolver import RDFTypeResolver
 from .rdf_query_util import goq_hop_scorer, get_most_specific_rdf_type, oid, load
+from .utils import FCN
 
 import owmeta_core.simpleProperty as SP
 

@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 from collections import namedtuple
 
-from yarom.mapper import FCN
+from .utils import FCN
 
 
 class Statement(namedtuple('Statement', ('subject', 'property', 'object', 'context'))):

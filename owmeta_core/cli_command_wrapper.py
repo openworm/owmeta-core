@@ -3,7 +3,7 @@ import sys
 import types
 import argparse
 import copy as _copy
-from yarom.mapper import FCN
+from .utils import FCN
 from .docscrape import parse as npdoc_parse
 from .command_util import IVar, SubCommand
 
