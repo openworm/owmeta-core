@@ -265,7 +265,7 @@ class Context(six.with_metaclass(ContextMeta, ImportContextualizer,
     @property
     def rdf_object(self):
         if self._rdf_object is None:
-            from owmeta_core.contextDataObject import ContextDataObject
+            from owmeta_core.context_dataobject import ContextDataObject
             self._rdf_object = ContextDataObject.contextualize(self.context)(ident=self.identifier)
 
         return self._rdf_object.contextualize(self.context)
@@ -384,7 +384,7 @@ class Context(six.with_metaclass(ContextMeta, ImportContextualizer,
         if c is None:
             # otherwise, attempt to load into the cache by
             # reading the RDF graph.
-            from owmeta_core.dataObject import PythonClassDescription, RegistryEntry
+            from owmeta_core.dataobject import PythonClassDescription, RegistryEntry
 
             re = self(RegistryEntry)()
             re.rdf_class(uri)

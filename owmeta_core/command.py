@@ -31,7 +31,7 @@ from .capability import provide
 from .capabilities import FilePathProvider
 from .datasource_loader import DataSourceDirLoader, LoadFailed
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
-from .dataObject import DataObject
+from .dataobject import DataObject
 from .rdf_utils import BatchAddGraph
 
 
@@ -223,7 +223,7 @@ class OWMSource(object):
             Whether to (attempt to) shorten the source URIs by using the namespace manager
         """
         from .datasource import DataSource
-        from .dataObject import TypeDataObject, RDFSSubClassOfProperty
+        from .dataobject import TypeDataObject, RDFSSubClassOfProperty
         from .graph_object import ZeroOrMoreTQLayer
         from .rdf_query_util import zomifier
         conf = self._parent._conf()
@@ -576,7 +576,7 @@ class OWMRegistry(object):
         '''
         List registered classes
         '''
-        from .dataObject import RegistryEntry, PythonClassDescription, PythonModule
+        from .dataobject import RegistryEntry, PythonClassDescription, PythonModule
         ctx = self._parent._default_ctx
 
         def registry_entries():
@@ -812,7 +812,7 @@ class OWM(object):
         object : str
             The other object you want to say something about
         '''
-        from owmeta_core.dataObject import DataObject
+        from owmeta_core.dataobject import DataObject
         import transaction
         dctx = self._default_ctx
         query = dctx.stored(DataObject)(ident=self._den3(subject))

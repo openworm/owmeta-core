@@ -3,13 +3,13 @@
 Making data objects
 ====================
 To make a new object type like you just need to make a subclass of
-`~owmeta_core.dataObject.DataObject` with the appropriate.
+`~owmeta_core.dataobject.DataObject` with the appropriate.
 
 Say, for example, that I want to record some information about drug reactions
 in dogs. I make ``Drug``, ``Experiment``, and ``Dog`` classes to describe drug
 reactions::
 
-    >>> from owmeta_core.dataObject import (DataObject,
+    >>> from owmeta_core.dataobject import (DataObject,
     ...                                     DatatypeProperty,
     ...                                     ObjectProperty,
     ...                                     Alias)

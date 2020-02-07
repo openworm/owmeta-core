@@ -10,7 +10,7 @@ import json
 import requests
 
 from owmeta_core import connect, BASE_SCHEMA_URL, BASE_CONTEXT
-from owmeta_core.dataObject import DataObject, DatatypeProperty
+from owmeta_core.dataobject import DataObject, DatatypeProperty
 from owmeta_core.context import Context, ClassContext, IMPORTS_CONTEXT_KEY
 from owmeta_core.bundle import Bundle, Descriptor, make_include_func, Installer, UncoveredImports
 

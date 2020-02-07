@@ -19,7 +19,7 @@ from owmeta_core.context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY, Contex
 from owmeta_core.context_common import CONTEXT_IMPORTS
 from owmeta_core.bittorrent import BitTorrentDataSourceDirLoader
 from owmeta_core.command_util import IVar, PropertyIVar
-from owmeta_core.contextDataObject import ContextDataObject
+from owmeta_core.context_dataobject import ContextDataObject
 from owmeta_core.datasource_loader import LoadFailed
 from owmeta_core.cli_command_wrapper import CLICommandWrapper
 from owmeta_core.cli_common import METHOD_NAMED_ARG

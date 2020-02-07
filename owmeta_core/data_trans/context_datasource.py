@@ -1,5 +1,5 @@
 from ..context import Context
-from ..contextDataObject import ContextDataObject
+from ..context_dataobject import ContextDataObject
 from rdflib.term import URIRef
 from rdflib.namespace import Namespace
 from ..mapper import mapped

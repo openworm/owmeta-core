@@ -1,6 +1,6 @@
 from rdflib.term import URIRef
 from .mapper import mapped
-from .dataObject import DataObject, DatatypeProperty, UnionProperty, Alias
+from .dataobject import DataObject, DatatypeProperty, UnionProperty, Alias
 
 
 @mapped

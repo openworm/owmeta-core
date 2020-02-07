@@ -48,7 +48,7 @@ will typically be created by owmeta-core on the user's behalf, and
 ``AClassName`` is the name of the class available at the top-level of the
 module ``APackage.and.module.name``. These statements will be created in memory
 by owmeta-core when a module defining a
-:py:class:`~owmeta_core.dataObject.DataObject`-derived class is first processed by a
+:py:class:`~owmeta_core.dataobject.DataObject`-derived class is first processed by a
 :py:class:`~owmeta_core.mapper.Mapper` which will happen after the module is
 imported.
 

@@ -4,7 +4,7 @@ import rdflib as R
 
 from .DataTestTemplate import _DataTest
 
-from owmeta_core.dataObject import DataObject
+from owmeta_core.dataobject import DataObject
 
 
 class SimplePropertyTest(_DataTest):
@@ -12,12 +12,12 @@ class SimplePropertyTest(_DataTest):
 
     def setUp(self):
         super(SimplePropertyTest, self).setUp()
-        from owmeta_core.dataObject import PropertyTypes
+        from owmeta_core.dataobject import PropertyTypes
         PropertyTypes.clear()
 
     def tearDown(self):
         super(SimplePropertyTest, self).tearDown()
-        from owmeta_core.dataObject import PropertyTypes
+        from owmeta_core.dataobject import PropertyTypes
         PropertyTypes.clear()
 
     # XXX: auto generate some of these tests...

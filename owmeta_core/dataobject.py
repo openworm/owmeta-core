@@ -29,7 +29,7 @@ from .rdf_type_resolver import RDFTypeResolver
 from .rdf_query_util import goq_hop_scorer, get_most_specific_rdf_type, oid, load
 from .utils import FCN
 
-import owmeta_core.simpleProperty as SP
+import owmeta_core.dataobject_property as SP
 
 __all__ = [
     "BaseDataObject",
@@ -479,9 +479,9 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         The RDF type URI for objects of this type
     rdf_namespace : rdflib.namespace.Namespace
         The rdflib namespace (prefix for URIs) for objects from this class
-    properties : list of owmeta_core.simpleProperty.RealSimpleProperty or owmeta_core.pProperty.Property
+    properties : list of owmeta_core.dataobject_property.RealSimpleProperty or owmeta_core.pProperty.Property
         Properties belonging to this object
-    owner_properties : list of owmeta_core.simpleProperty.RealSimpleProperty or owmeta_core.pProperty.Property
+    owner_properties : list of owmeta_core.dataobject_property.RealSimpleProperty or owmeta_core.pProperty.Property
         Properties belonging to parents of this object
     """
     rdf_type = R.RDFS['Resource']
@@ -702,7 +702,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         ----------
         linkName : string
             The name of this property.
-        owner : owmeta_core.dataObject.BaseDataObject
+        owner : owmeta_core.dataobject.BaseDataObject
             The owner of this property.
         """
         return _make_property(cls, 'DatatypeProperty', *args, **kwargs)
@@ -716,7 +716,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         ----------
         linkName : string
             The name of this property.
-        owner : owmeta_core.dataObject.BaseDataObject
+        owner : owmeta_core.dataobject.BaseDataObject
             The owner of this property.
         value_type : type
             The type of BaseDataObject for values of this property
@@ -732,7 +732,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         ----------
         linkName : string
             The name of this property.
-        owner : owmeta_core.dataObject.BaseDataObject
+        owner : owmeta_core.dataobject.BaseDataObject
             The owner of this property.
         """
         return _make_property(cls, 'UnionProperty', *args, **kwargs)

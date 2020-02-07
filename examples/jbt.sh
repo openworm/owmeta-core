@@ -173,7 +173,7 @@ This is a way to learn a little about the classes in a bundle
 '''
 from owmeta.bundle import Bundle
 from owmeta.context import Context
-from owmeta.dataObject import (TypeDataObject,
+from owmeta.dataobject import (TypeDataObject,
                                DataObject,
                                RDFSSubClassOfProperty)
 

@@ -34,7 +34,7 @@ def test_save_diff(owm_project):
         ''')
 
     owm_project.writefile(p(modpath, 'monkey.py'), '''\
-        from owmeta_core.dataObject import DataObject, DatatypeProperty
+        from owmeta_core.dataobject import DataObject, DatatypeProperty
 
 
         class Monkey(DataObject):
@@ -59,7 +59,7 @@ def test_save_classes(owm_project):
     os.mkdir(modpath)
     open(p(modpath, '__init__.py'), 'w').close()
     owm_project.writefile(p(modpath, 'monkey.py'), '''\
-        from owmeta_core.dataObject import DataObject, DatatypeProperty
+        from owmeta_core.dataobject import DataObject, DatatypeProperty
 
 
         class Monkey(DataObject):
@@ -84,7 +84,7 @@ def test_save_imports(owm_project):
     os.mkdir(modpath)
     open(p(modpath, '__init__.py'), 'w').close()
     owm_project.writefile(p(modpath, 'monkey.py'), '''\
-        from owmeta_core.dataObject import DataObject, DatatypeProperty
+        from owmeta_core.dataobject import DataObject, DatatypeProperty
 
         class Monkey(DataObject):
             class_context = 'http://example.org/primate/monkey'

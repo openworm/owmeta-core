@@ -6,7 +6,7 @@ from rdflib.namespace import Namespace
 from collections import OrderedDict, defaultdict
 from .utils import FCN
 from .context import Context
-from .dataObject import DataObject, ObjectProperty, This
+from .dataobject import DataObject, ObjectProperty, This
 from .mapper import mapped
 import logging
 

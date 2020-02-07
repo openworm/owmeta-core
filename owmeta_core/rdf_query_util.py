@@ -136,7 +136,7 @@ def oid(identifier_or_rdf_type=None, rdf_type=None, context=None, base_type=None
 
     if c is None:
         if base_type is None:
-            from .dataObject import DataObject
+            from .dataobject import DataObject
             c = DataObject
         else:
             c = base_type

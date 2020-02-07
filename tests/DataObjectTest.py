@@ -10,7 +10,7 @@ import warnings
 from owmeta_core import BASE_CONTEXT
 from owmeta_core.graph_object import IdentifierMissingException
 from owmeta_core.data import DataUser
-from owmeta_core.dataObject import DataObject, ObjectProperty, DatatypeProperty, _partial_property
+from owmeta_core.dataobject import DataObject, ObjectProperty, DatatypeProperty, _partial_property
 from owmeta_core.context import Context
 from owmeta_core.rdf_query_util import get_most_specific_rdf_type
 from owmeta_core.utils import FCN
@@ -211,7 +211,7 @@ class ClassRegistryTest(_DataTest):
             - loading a module from a ClassDescription
             - resolving subclasses from superclasses
         '''
-        from owmeta_core.dataObject import (PythonModule,
+        from owmeta_core.dataobject import (PythonModule,
                                        PythonClassDescription,
                                        RegistryEntry)
 

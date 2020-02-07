@@ -10,7 +10,7 @@ from .context import Context
 from .contextualize import (Contextualizable, ContextualizableClass,
                             contextualize_helper,
                             decontextualize_helper)
-from .contextMappedClassUtil import find_class_context, find_base_namespace
+from .context_mapped_class_util import find_class_context, find_base_namespace
 from .graph_object import (GraphObject,
                            GraphObjectQuerier,
                            ZeroOrMoreTQLayer)
@@ -67,7 +67,7 @@ class ContextMappedPropertyClass(ContextualizableClass):
 
     def init_python_class_registry_entries(self):
         #self._check_is_good_class_registry()
-        from owmeta_core.dataObject import (RegistryEntry, PythonClassDescription,
+        from owmeta_core.dataobject import (RegistryEntry, PythonClassDescription,
                                        PythonModule)
         re = RegistryEntry.contextualize(self.definition_context)()
         cd = PythonClassDescription.contextualize(self.definition_context)()
@@ -328,17 +328,17 @@ class OPResolver(object):
 
     @property
     def type_resolver(self):
-        from .dataObject import _Resolver
+        from .dataobject import _Resolver
         return _Resolver.get_instance().type_resolver
 
     @property
     def deserializer(self):
-        from .dataObject import _Resolver
+        from .dataobject import _Resolver
         return _Resolver.get_instance().deserializer
 
     @property
     def base_type(self):
-        from .dataObject import _Resolver
+        from .dataobject import _Resolver
         return _Resolver.get_instance().base_type
 
 
