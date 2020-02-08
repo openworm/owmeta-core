@@ -4,6 +4,9 @@ from .graph_object import GraphObject, IdentifierMissingException
 
 
 class Variable(GraphObject):
+    '''
+    A graph object representing a variable. Typically used in property values
+    '''
     def __init__(self, name, **kwargs):
         super(Variable, self).__init__()
         self.var = rdflib.Variable(name)

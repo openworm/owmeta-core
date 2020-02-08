@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-from owmeta_core.pProperty import Property
+from owmeta_core.custom_dataobject_property import CustomProperty
 from .DataTestTemplate import _DataTest
 
 
@@ -12,11 +12,11 @@ class PropertyTest(_DataTest):
         self.assertEqual(42, t.one())
 
     def test_context_getter(self):
-        p = Property()
+        p = CustomProperty()
         self.assertIsNone(p.context)
 
     def test_values_property(self):
-        p = Property()
+        p = CustomProperty()
         self.assertEquals(p.values, [])
 
     def test_call_without_arg(self):
@@ -32,9 +32,9 @@ class PropertyTest(_DataTest):
         self.assertEquals(n.b, 42)
 
 
-class T(Property):
+class T(CustomProperty):
     def __init__(self):
-        Property.__init__(self)
+        CustomProperty.__init__(self)
         self.b = None
 
     def get(self):

@@ -3,9 +3,9 @@ from .data import DataUser
 from .contextualize import Contextualizable, ContextualizableClass
 
 
-class PropertyMeta(ContextualizableClass):
+class CustomPropertyMeta(ContextualizableClass):
     def __init__(self, name, bases, dct):
-        super(PropertyMeta, self).__init__(name, bases, dct)
+        super(CustomPropertyMeta, self).__init__(name, bases, dct)
         self.__context = None
 
     @property
@@ -17,7 +17,7 @@ class PropertyMeta(ContextualizableClass):
         self.__context = ctx
 
 
-class Property(with_metaclass(PropertyMeta, Contextualizable, DataUser)):
+class CustomProperty(with_metaclass(CustomPropertyMeta, Contextualizable, DataUser)):
     """ Store a value associated with a DataObject
 
     Properties can be be accessed like methods. A method call like::
@@ -35,14 +35,13 @@ class Property(with_metaclass(PropertyMeta, Contextualizable, DataUser)):
         The name of this property. Can be accessed as an attribute like::
 
             owner.name
-
     """
 
-    # Indicates whether the Property is multivalued
+    # Indicates whether the CustomProperty is multivalued
     multiple = False
 
     def __init__(self, name=False, owner=False, **kwargs):
-        super(Property, self).__init__(**kwargs)
+        super(CustomProperty, self).__init__(**kwargs)
         self.owner = owner
         self.linkName = name
         if self.owner:
@@ -74,24 +73,27 @@ class Property(with_metaclass(PropertyMeta, Contextualizable, DataUser)):
         raise NotImplementedError()
 
     def one(self):
-        """ Returns a single value for the ``Property`` whether or not it is multivalued.
+        """
+        Returns a single value for the `CustomProperty` whether or not it is multivalued.
         """
 
         r = self.get()
         return next(iter(r), None)
 
     def has_value(self):
-        """ Returns true if the Property has any values set on it.
+        """
+        Returns true if the `CustomProperty` has any values set on it.
 
         This may be defined differently for each property
         """
         return True
 
     def __call__(self, *args, **kwargs):
-        """ If arguments are passed to the ``Property``, its ``set`` method
-        is called. Otherwise, the ``get`` method is called. If the ``multiple``
-        member for the ``Property`` is set to ``True``, then a Python set containing
-        the associated values is returned. Otherwise, a single bare value is returned.
+        """
+        If arguments are passed to the `CustomProperty`, its :meth:`set` method is called.
+        Otherwise, the `get` method is called. If the ``multiple`` member for the
+        `CustomProperty` is set to `True`, then a Python :py:func:`set` containing the
+        associated values is returned. Otherwise, a single value is returned.
         """
 
         if len(args) > 0 or len(kwargs) > 0:

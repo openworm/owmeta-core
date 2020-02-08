@@ -479,9 +479,9 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         The RDF type URI for objects of this type
     rdf_namespace : rdflib.namespace.Namespace
         The rdflib namespace (prefix for URIs) for objects from this class
-    properties : list of owmeta_core.dataobject_property.RealSimpleProperty or owmeta_core.pProperty.Property
+    properties : list of owmeta_core.dataobject_property.Property or owmeta_core.custom_dataobject_property.CustomProperty
         Properties belonging to this object
-    owner_properties : list of owmeta_core.dataobject_property.RealSimpleProperty or owmeta_core.pProperty.Property
+    owner_properties : list of owmeta_core.dataobject_property.Property or owmeta_core.custom_dataobject_property.CustomProperty
         Properties belonging to parents of this object
     """
     rdf_type = R.RDFS['Resource']
@@ -536,7 +536,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         self.owner_properties = ContextFilteringList(self.context)
 
         self.po_cache = None
-        """ A cache of property URIs and values. Used by RealSimpleProperty """
+        """ A cache of property URIs and values. Used by Property """
 
         self._variable = None
 

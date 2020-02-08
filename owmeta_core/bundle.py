@@ -810,8 +810,8 @@ class Loader(object):
 
         This is a required part of the `Loader` interface.
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         bundle_id : str
             ID of the bundle for which versions are requested
 
@@ -1067,7 +1067,7 @@ class Unarchiver(object):
         initialization, then if the bundle manifest doesn't match the expected archive
         path, then an exception is raised.
 
-        Paramaters
+        Parameters
         ----------
         input_file : str or :term:`file object`
             The archive file
@@ -1078,12 +1078,15 @@ class Unarchiver(object):
         ------
         NotABundlePath
             Thrown in one of these conditions:
+
             - If the `input_file` is not an expected format (lzma-zipped TAR file)
             - If the `input_file` does not have a "manifest" file
             - If the `input_file` manifest file is invalid or is not a regular file (see
               `validate_manifest` for further details)
             - If the `input_file` is a file path and the corresponding file is not found
+
         '''
+
         # - If we were given a target directory, just unpack there...no complications
         #
         # - If we weren't given a target directory, then we have to extract the manifest,

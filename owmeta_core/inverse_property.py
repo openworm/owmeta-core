@@ -10,7 +10,7 @@ class InversePropertyMixin(object):
     """
     Mixin for inverse properties.
 
-    Augments RealSimpleProperty methods to update inverse properties as well
+    Augments Property methods to update inverse properties as well
     """
 
     def set(self, other):

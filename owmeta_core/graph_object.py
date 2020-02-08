@@ -25,7 +25,9 @@ EMPTY_SET = frozenset([])
 
 
 class Variable(int):
-    pass
+    """
+    A marker used in `GraphObjectQuerier` for variables in a query
+    """
 
 
 class _Range(InRange):
@@ -57,8 +59,8 @@ class GraphObject(object):
         raise NotImplementedError()
 
     def variable(self):
-        """ Must return a :class:`Variable` object that identifies
-        this :class:`GraphObject` in queries.
+        """ Must return a `~owmeta_core.graph_object.Variable` object that identifies this
+        :class:`GraphObject` in queries.
 
         The variable can be randomly generated when the object is created and
         stored in the object.
@@ -89,6 +91,10 @@ class GraphObject(object):
 
 
 class GraphObjectChecker(object):
+    '''
+    Checks the graph of defined GraphObjects for
+    '''
+
     def __init__(self, query_object, graph, parallel=False, sort_first=False):
         self.query_object = query_object
         self.graph = graph
@@ -162,12 +168,10 @@ class GraphObjectQuerier(object):
         }
 
     are not supported and will be ignored without error.
-
     """
 
     def __init__(self, q, graph, parallel=False, hop_scorer=None):
-        """ Initialize the querier.
-
+        """
         Call the GraphObjectQuerier object to perform the query.
 
         Parameters
@@ -181,12 +185,10 @@ class GraphObjectQuerier(object):
             ``t`` is ``t[i] = None``, 0 <= i <= 2, indicates that the i'th
             position can take any value.
 
-            The ``graph`` method can optionally implement the 'range query'
-            'interface':
-                the graph must have a property ``supports_range_queries``
-                equal to ``True`` and ``triples`` must accept an InRange
-                object in the object position of the query triple, but only for
-                literals
+            The ``graph`` method can optionally implement the 'range query' 'interface':
+            the graph must have a property ``supports_range_queries`` equal to `True` and
+            :meth:`triples` must accept an `~owmeta_core.ranged_objects.InRange` object in
+            the object position of the query triple, but only for literals
         hop_scorer : callable
             Returns a score for a hop (a four-tuple, (subject, predicate,
             object, target)) indicating how selective the query would be for
@@ -898,7 +900,6 @@ class IdentifierMissingException(Exception):
 
     def __init__(self, dataObject="[unspecified object]", *args, **kwargs):
         super(IdentifierMissingException, self).__init__(
-            "An identifier should be provided for {}".format(
-                str(dataObject)),
+            "An identifier should be provided for {}".format(str(dataObject)),
             *args,
             **kwargs)

@@ -129,7 +129,7 @@ class _StatementContextRDFObjectFactory(Contextualizable):
         return '{}({})'.format(FCN(type(self)), repr(self.statement))
 
 
-class RealSimpleProperty(with_metaclass(ContextMappedPropertyClass,
+class Property(with_metaclass(ContextMappedPropertyClass,
                                         DataUser, Contextualizable)):
     multiple = False
     link = R.URIRef("property")
@@ -137,7 +137,7 @@ class RealSimpleProperty(with_metaclass(ContextMappedPropertyClass,
     base_namespace = R.Namespace("http://openworm.org/entities/")
 
     def __init__(self, owner, **kwargs):
-        super(RealSimpleProperty, self).__init__(**kwargs)
+        super(Property, self).__init__(**kwargs)
         self._v = []
         self.owner = owner
         self._hdf = dict()
@@ -219,7 +219,7 @@ class RealSimpleProperty(with_metaclass(ContextMappedPropertyClass,
         if self.context is not None:
             return self.context.rdf_graph()
         else:
-            return super(RealSimpleProperty, self).rdf
+            return super(Property, self).rdf
 
     @property
     def identifier(self):
@@ -350,7 +350,7 @@ class PropertyCountMixin(object):
 class ObjectProperty(InversePropertyMixin,
                      _ContextualizingPropertySetMixin,
                      PropertyCountMixin,
-                     RealSimpleProperty):
+                     Property):
 
     def __init__(self, resolver=None, *args, **kwargs):
         super(ObjectProperty, self).__init__(*args, **kwargs)
@@ -385,7 +385,7 @@ class ObjectProperty(InversePropertyMixin,
                                 for x in super(ObjectProperty, self).statements))
 
 
-class DatatypeProperty(DatatypePropertyMixin, PropertyCountMixin, RealSimpleProperty):
+class DatatypeProperty(DatatypePropertyMixin, PropertyCountMixin, Property):
 
     def get(self):
         r = super(DatatypeProperty, self).get()
@@ -418,7 +418,7 @@ class UnionProperty(_ContextualizingPropertySetMixin,
                     InversePropertyMixin,
                     UnionPropertyMixin,
                     PropertyCountMixin,
-                    RealSimpleProperty):
+                    Property):
 
     """ A Property that can handle either DataObjects or basic types """
     def get(self):
