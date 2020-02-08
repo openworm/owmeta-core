@@ -126,7 +126,8 @@ on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 
 html_theme = 'alabaster'
 
-apidoc_options[:] = ['members', 'no-undoc-members', 'show-inheritance']
+apidoc_options[:] = ['members', 'no-undoc-members', 'show-inheritance',
+        'ignore-module-all']
 apidoc_main('-M -f -e -d 2 -o api ../owmeta_core'.split(' '))
 
 # Theme options are theme-specific and customize the look and feel of a theme

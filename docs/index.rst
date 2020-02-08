@@ -1,7 +1,7 @@
 .. owmeta-core documentation master file.
 
 Welcome to owmeta-core's documentation!
-==================================
+=======================================
 
 Our main README is available online on Github. [1]_  This documentation contains
 additional materials beyond what is covered there.

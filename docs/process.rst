@@ -2,10 +2,8 @@
 
 Requirements for data storage in OpenWorm
 =========================================
-Our OpenWorm database captures facts about `C. elegans`. The database stores
-data for generating model files and together with annotations describing the
-origins of the data. Below are a set of recommendations for implementation of
-the database organized around an RDF model.
+Below are a set of recommendations for implementation of the database organized around an
+RDF model.
 
 Interface
 ---------
@@ -14,92 +12,24 @@ library serves the function of providing an object oriented view on the database
 that can be accessed through the Python scripts commonly used in the project.
 The :ref:`api <owm_module>` is described separately.
 
-Data modelling
---------------
-Biophysical and anatomical data are included in the database. A sketch of some
-features of the data model is below. Also included in our model are the
-relationships between these types. Given our choice of data types, we do not
-model the individual interactions between cells as entities in the database.
-Rather these are described by generic predicates in an
-`RDF triple <http://stackoverflow.com/a/1122451>`__.
-For instance, neuron A synapsing with muscle cell B would give a statement
-(A, synapsesWith, B), but A synapsing with neuron C would also have
-(A, synapsesWith, C). Data which belong to the specific relationship between two
-nodes is attached to an
-`rdf:Statement object <http://www.w3.org/TR/rdf-schema/#ch_statement>`__
-which points to the statement. This choice is intended to easy querying and
-extension later on.
-
-Nervous system
-~~~~~~~~~~~~~~
-In the worm's nervous system, we capture a few important data types (listed
-`below <#datatypes>`__). These correspond primarily to the anatomical structures
-and chemicals which are necessary for the worm to record external and internal
-stimuli and activate its body in response to those stimuli.
-
-.. _datatypes:
-
-Data types
-++++++++++
-A non-exhaustive list of neurological data types in our C. elegans database:
-
-- receptor types identified in the nerve cell
-- neurons
-- ion channels
-- neurotransmitters
-- muscle receptors
-
-Development
-~~~~~~~~~~~
-Caenorhabditis elegans has very stable cell division patterns in the absence of
-mutations. This means that we can capture divisions in our database as static
-'daughter_of' relationships. The theory of differentiation codes additionally
-gives an algorithmic description to the growth patterns of the worm which
-describes signals transmitted between developing cells. In order to test this
-theory we would like to leverage existing photographic data indicating the
-volume of cells at the time of their division as this relates to the
-differentiation code stored by the cell. Progress on this issue is documented
-`on Github <https://github.com/openworm/owmeta/issues/7#issuecomment-45401916>`_.
-
-Aging
-~~~~~
-Concurrently with development, we would like to begin modeling the effects of
-aging on the worm. Aging typically manifests in physiological changes due to
-transcription errors or cell death. These physiological changes can be
-represented abstractly as parameters to the function of biological entities.
-See `Github <https://github.com/openworm/owmeta/issues/6>`_ for further discussion.
-
 Information assurance
 ---------------------
-
-Reasoning and Data integrity
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-To make full use of RDF storage it's recommended to leverage reasoning over our
-stored data. Encoding rules for the worm requires a good knowledge of both
-C. elegans and the database schema. More research needs to be done on this going
-forward. Preliminarily, SPIN, a constraint notation system based on SPARQL
-looks like a good candidate for `specifying` rules, but an inference engine for
-`enforcing` the rules still needs to be found.
 
 Input validation
 ~~~~~~~~~~~~~~~~
 Input validation is to be handled through the interface library referenced
-`above <#interface>`_. In general, incorrect entry of biological names will
-result in an error being reported identifying the offending entry and providing
-a acceptable entries where appropriate. No direct access to the underlying data
-store will be provided.
+`above <#interface>`_.
 
 Provenance
 ~~~~~~~~~~
-Tracking the origins of facts stated in the
-database demands a method of annotating statements in our database. Providing
-citations for facts must be as simple as providing a global identifier
-(e.g., URI, DOI) or a local identifier (e.g., Bibtex identifier, Pubmed ID).
-A technique called RDF reification allows us to annotate arbitrary facts in our
-database with additional information. This technique allows for the addition of
-structured citation data to facts in the database as well as annotations for
-tracking responsibility for uploads to the database. Further details for the
-attachment of evidence using this technique are given in the :ref:`api <owm_module>`.
+Tracking the origins of facts stated in the database demands a method of annotating
+statements in our database. Providing citations for facts must be as simple as providing a
+global identifier (e.g., URI, DOI) or a local identifier (e.g., Bibtex identifier, Pubmed
+ID).  A technique called RDF reification allows us to annotate arbitrary facts in our
+database with additional information. This technique allows for the addition of structured
+citation data to facts in the database as well as annotations for tracking responsibility
+for uploads to the database. Further details for the attachment of evidence using this
+technique are given in the :ref:`api <owm_module>`.
 
 In line with current practices for communication through the source code
 management platform, Github, we would like to track responsibility for new
