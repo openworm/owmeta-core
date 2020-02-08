@@ -31,8 +31,8 @@ class OWMBundleRemote(object):
     ''' Commands for dealing with bundle remotes '''
 
     def __init__(self, parent):
-        self._parent = parent
-        self._owm = self._parent._parent
+        self._owm_bundle = parent
+        self._owm = self._owm_bundle._parent
 
     def add(self, name, url):
         '''
@@ -69,17 +69,7 @@ class OWMBundleRemote(object):
     def list(self):
         ''' List remotes '''
 
-        def helper():
-            remotes_dir = p(self._owm.owmdir, 'remotes')
-            for r in listdir(remotes_dir):
-                if r.endswith('.remote'):
-                    with open(p(remotes_dir, r)) as inp:
-                        try:
-                            yield Remote.read(inp)
-                        except Exception:
-                            L.warning('Unable to read remote %s', r, exc_info=True)
-
-        return GeneratorWithData(helper(),
+        return GeneratorWithData(self._owm_bundle._retrieve_remotes(),
                 text_format=lambda r: r.name,
                 columns=(lambda r: r.name,),
                 header=("Name",))
