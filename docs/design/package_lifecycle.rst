@@ -15,7 +15,7 @@ back and look at what needs to happen when we share data.
 In |owm|, we may be changing remote resources outside of the |owm| system. We
 also want to support local use and staging of data because it is expected that
 there is a lengthy period of data collection/generation, analysis, curation,
-and editing which precedes the publication of any data set.  Having separate
+and editing which precedes the publication of any data set. Having separate
 phases allows us to support a wider range of use-cases with |owm| in this local
 "staging" period. 
 
@@ -42,13 +42,14 @@ of shell scripts and disconnected commands, or even rule-based execution (e.g.,
 local database gets made available to other people. This explicitness is very
 useful since, when different people can take different roles in creating the
 configuration for each phase, having named phases where things happen aids in
-discussion, process development, and review.  For instance, junior lab
+discussion, process development, and review. For instance, junior lab
 technicians may be responsible for creating or maintaining packaging with
 guidance from senior technicians or principal investigators. IT personnel may
 be interested in all phases since they all deal with the computing resources
 they manage, but they may focus on the phases that affect "remote" resources
 since those resources may, in fact, be managed within the same organization and
-require more effort in sharing URLs, generating access credentials, etc. 
+require additional effort on the back-end to prepare those remote resources
+(e.g., generating access credentials).
 
 .. _make: https://www.gnu.org/software/make/manual/html_node/index.html
 
@@ -73,16 +74,15 @@ Stage
 
 When we're generating data, our workspace is not necessarily in the right state
 for distribution. We may have created temporary files and notes to ourselves,
-or we may have generated data in trial runs (or by mistake) which do not
-reflect our formal experimental conditions. In the staging phase, we bring
-together just the data which we wish to distribute for a given bundle. During
-the staging phase we also serialize 
+or we may have generated data in trial runs, intentionally or mistakenly, which
+do not reflect our formal experimental conditions. In the staging phase, we
+bring together just the data which we wish to distribute for a given bundle.
+During the staging phase we also serialize 
 
 Once these data are brought together in the staging area, they should be
 immutable -- in other words, they should not change any more. Consequently, the
 staging phase is the appropriate time for creating summary statistics,
 signatures, and content-based identifiers.
-
 
 For files associated with staged |RDF| data, Much of the data which is created
 in a research lab is append-only: observations are logged and timestamped
@@ -103,23 +103,22 @@ Install
 
 The "install" phase takes the staged data, and adds additional glue to make it
 available on the local machine as it would be for a remote machine after
-deployment. |owm| will create a local repository to house installed
-packages. The repository stores the relationship between the human-friendly
-name for the package (serving a purpose similar to Maven's
-group-artifact-version coordinates) and the set of serialized |RDF| graphs in
-the package. Given that the repository is meant to serve a user across
-projects, the repository will be stored in the "user directory", if one can be
-found on the system. [#userdir]_
+deployment. |owm| will create a local repository to house installed packages.
+The repository stores the relationship between the human-friendly name for the
+package (serving a purpose similar to Maven's group-artifact-version
+coordinates) and the set of serialized |RDF| graphs in the package. Given that
+the repository is meant to serve a user across projects, the repository will be
+stored in the "user directory", if one can be found on the system. [#userdir]_
 
 Continuing the pattern of putting configuration in RDF form, the repository is
-also described as in RDF and shall use the same form as remote repositories, up
-to a substitution of access protocols (e.g., file system access in place of
-HTTP access). The value here is in interoperability and ease of implementation.
-For the first point, we have fairly broad support for RDF query and
-manipulation across programming languages. The second point is supported by the
-first and by the fact that, once we've got implementations for the necessary
-access methods, no additional code should need to be written for access to
-remote repositories beyond what's done for local.
+also described in RDF and shall use the same form as remote repositories, up to
+a substitution of access protocols (e.g., file system access in place of HTTP
+access). The value here is in interoperability and ease of implementation.  For
+the first point, we have fairly broad support for RDF query and manipulation
+across programming languages. The second point is supported by the first and by
+the fact that, once we've got implementations for the necessary access methods,
+no additional code should need to be written for access to remote repositories
+beyond what's done for local.
 
 The same argument about immutability of data files applies to the install phase
 as well. Installed packages may still have references to paths on the local

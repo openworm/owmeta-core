@@ -7,8 +7,6 @@ For Developers
 
    test
    docs
-   rdf_details
-   futureapi
    coding_standards
    design/index
    query

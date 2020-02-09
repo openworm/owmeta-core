@@ -10,10 +10,6 @@ owmeta_core should be installed like::
 
     python setup.py develop
 
-The default database should be populated like::
-
-    owm clone https://github.com/openworm/OpenWormData.git
-
 Running tests
 -------------
 Tests should be run via setup.py like::
@@ -22,7 +18,7 @@ Tests should be run via setup.py like::
 
 you can pass options to ``pytest`` like so::
 
-    python setup.py test --addopts '-k DataIntegrityTest'
+    python setup.py test --addopts '-k CommandTest'
 
 Writing tests
 -------------
