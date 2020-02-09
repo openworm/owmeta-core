@@ -3,8 +3,8 @@
 Publishing DataSources
 ======================
 
-:py:class:`~owmeta.datasource.DataSource` is a subclass of
-:py:class:`~owmeta.dataobject.DataObject` with a few features to make
+:py:class:`~owmeta_core.datasource.DataSource` is a subclass of
+:py:class:`~owmeta_core.dataobject.DataObject` with a few features to make
 describing data files (CSV, HDF5, Excel) a bit more consistent and to make
 recovering those files, and information about them, more reliable. In order to
 have that reliability we have to take some extra measures when publishing a
