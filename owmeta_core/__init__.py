@@ -10,7 +10,7 @@ owmeta-core is a platform for sharing relational data over the internet.
 
 from __future__ import print_function
 __version__ = '0.11.3.dev0'
-__author__ = 'Stephen Larson'
+__author__ = 'OpenWorm.org authors and contributors'
 
 import sys
 import os
@@ -61,8 +61,7 @@ __all__ = [
     "get_data",
     "disconnect",
     "connect",
-    "config",
-    ]
+]
 
 DEF_CTX = Context()
 
@@ -90,18 +89,6 @@ def get_data(path):
     sys.path = sys.path[len(package_paths):]
     filename = os.path.join(installed_package_root, path)
     return filename
-
-
-def config(key=None):
-    """
-    Gets the main configuration for the whole owmeta_core library.
-
-    :return: the instance of the Configuration class currently operating.
-    """
-    if key is None:
-        return Configurable.default
-    else:
-        return Configurable.default[key]
 
 
 class Connection(object):
