@@ -1621,7 +1621,7 @@ class FetchFailed(Exception):
 
 class NoBundleLoader(FetchFailed):
     '''
-    Thrown when a loader can't be found for a loader
+    Thrown when a loader can't be found for a bundle
     '''
 
     def __init__(self, bundle_id, bundle_version=None):

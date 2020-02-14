@@ -1,12 +1,25 @@
-from ..context import Context
-from ..context_dataobject import ContextDataObject
 from rdflib.term import URIRef
 from rdflib.namespace import Namespace
+
+from ..context import Context
+from ..context_dataobject import ContextDataObject
 from ..mapper import mapped
 
 
 class VariableIdentifierMixin(object):
+    '''
+    A mix-in class that takes its identifier from its 'maker'
+    passed in at initialization.
+    '''
     def __init__(self, maker=None, **kwargs):
+        '''
+        Parameters
+        ----------
+        maker : object
+            An object with an `identifier` attribute
+        maker.identifier : rdflib.term.URIRef
+            A URI that will serve as the identifier for the `VariableIdentifierMixin`
+        '''
         if maker is not None:
             conf = kwargs.pop('conf', maker.conf)
             super(VariableIdentifierMixin, self).__init__(conf=conf, **kwargs)

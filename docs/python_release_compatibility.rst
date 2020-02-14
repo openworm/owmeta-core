@@ -10,6 +10,7 @@ an EOL Python version, or due to a change in |owm| making use of a feature in a
 still-supported Python release will only be fixed for the sake of OpenWorm
 projects when requested by an issue on `our tracker`_ or for other projects
 when a compelling case can be made.
+
 .. _PEP index: https://www.python.org/dev/peps/#id7
 .. _our tracker: https://github.com/openworm/owmeta-core/issues
 

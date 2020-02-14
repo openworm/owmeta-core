@@ -126,10 +126,34 @@ class Alias(object):
 
 
 def DatatypeProperty(*args, **kwargs):
+    '''
+    Used in a `.DataObject` implementation to designate a property whose values are
+    not `DataObjects <.DataObject>`.
+
+    An example `DatatypeProperty` use::
+
+        class Person(DataObject):
+            name = DatatypeProperty()
+            age = DatatypeProperty()
+
+        Person(name='Abioye', age=34)
+    '''
     return APThunk('DatatypeProperty', args, kwargs)
 
 
 def ObjectProperty(*args, **kwargs):
+    '''
+    Used in a `.DataObject` implementation to designate a property whose values are other
+    `DataObjects <.DataObject>`.
+
+    An example `ObjectProperty` use::
+
+        class Person(DataObject):
+            name = DatatypeProperty()
+            friend = ObjectProperty()
+
+        Person(name='Abioye', friend=Person(name='Baako'))
+    '''
     return APThunk('ObjectProperty', args, kwargs)
 
 
@@ -349,6 +373,7 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             dist_name = distro.get('name')
             dist_version = distro.get('version')
             if dist_name and dist_version:
+                # We need a package version to distinguish different versions of a class
                 pkg = PythonPackage.contextualize(self.definition_context)(
                     name=dist_name,
                     version=dist_version

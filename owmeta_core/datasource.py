@@ -129,7 +129,7 @@ class DataSourceType(type(DataObject)):
     def _docstr(self):
         s = ''
         for inf in self.__info_fields:
-            s += '{} : :class:`{}`'.format(inf.display_name, inf.property_type) + \
+            s += '{} : :class:`~owmeta_core.dataobject.{}`'.format(inf.display_name, inf.property_type) + \
                     ('\n    Attribute: `{}`'.format(inf.name if inf.property_name is None else inf.property_name)) + \
                     (('\n\n    ' + inf.description) if inf.description else '') + \
                     ('\n\n    Default value: {}'.format(inf.default_value) if inf.default_value is not None else '') + \

@@ -153,9 +153,9 @@ class OWMBundle(object):
         '''
         Write a bundle to a file
 
-        Writing the bundle to a file writes the bundle descriptor, constituent graphs, and
-        attached files to an archive. The bundle can be in the local bundle repository, a
-        remote, or registered in the project.
+        Writing the bundle to a file means writing the bundle manifest, constituent
+        graphs, and attached files to an archive. The bundle can be in the local bundle
+        repository, a remote, or registered in the project.
 
         Parameters
         ----------
@@ -164,6 +164,7 @@ class OWMBundle(object):
         output : str
             The target file
         '''
+        raise NotImplementedError()
 
     def install(self, bundle):
         '''
@@ -289,7 +290,7 @@ class OWMBundle(object):
     def deploy(self, bundle_id, remotes=None):
         '''
         Deploys a bundle to a remote. The target remotes come from project and user
-        settings or, if provided, the parameters
+        settings or, if provided, the `remotes` parameter
 
         Parameters
         ----------
@@ -313,7 +314,7 @@ class OWMBundle(object):
         '''
         List registered bundles in the current project.
 
-        To list bundles within the local repo or a remote repo, use the `repo query`
+        To list bundles within the local repo or a remote repo, use the `cache list`
         sub-command.
         '''
         def helper():
@@ -349,7 +350,7 @@ class OWMBundle(object):
 
 class NoBundleLoader(GenericUserError):
     '''
-    Thrown when a loader can't be found for a loader
+    Thrown when a loader can't be found for a bundle
     '''
 
     def __init__(self, bundle_id, bundle_version=None):
@@ -360,7 +361,7 @@ class NoBundleLoader(GenericUserError):
 
 class BundleNotFound(GenericUserError):
     '''
-    Thrown when a bundle cannot be found with the requested name and ID
+    Thrown when a bundle cannot be found with the requested ID and version
     '''
 
     def __init__(self, bundle_id, bundle_version=None):
