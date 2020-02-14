@@ -353,11 +353,11 @@ class DataObjectContextDataSource(DataSource):
 
 def format_types(typ):
     if isinstance(typ, OneOrMore):
-        return ':class:`{}` (:class:`{}`)'.format(FCN(OneOrMore), FCN(typ.source_type))
+        return ':class:`{}` (:class:`~{}`)'.format(FCN(OneOrMore), FCN(typ.source_type))
     elif isinstance(typ, type):
-        return ':class:`{}`'.format(FCN(typ))
+        return ':class:`~{}`'.format(FCN(typ))
     else:
-        return ', '.join(':class:`{}`'.format(FCN(x)) for x in typ)
+        return ', '.join(':class:`~{}`'.format(FCN(x)) for x in typ)
 
 
 class DataTransatorType(type(DataObject)):

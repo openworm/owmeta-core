@@ -35,6 +35,8 @@ class CSVHTTPFileDataSource(HTTPFileDataSource):
 @mapped
 class CSVDataTranslator(DataTranslator):
 
+    input_type = CSVDataSource
+
     def make_reader(self, source, skipheader=True, dict_reader=False, skiplines=0, **kwargs):
         params = dict()
         delim = source.csv_field_delimiter.one()
