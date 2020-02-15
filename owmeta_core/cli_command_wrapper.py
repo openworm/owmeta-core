@@ -9,7 +9,6 @@ from .command_util import IVar, SubCommand
 
 
 # TODO: Use `inspect` module for getting argument names so we aren't depending on docstrings
-# TODO: Abstract numpydoc out into a hints provider (also implement a hints provider)
 from .cli_common import (INSTANCE_ATTRIBUTE,
                          METHOD_NAMED_ARG,
                          METHOD_NARGS,
@@ -25,7 +24,9 @@ ARGUMENT_TYPES = {
 
 
 class CLIUserError(Exception):
-    pass
+    '''
+    An error which the user must correct. Typically an error with user input
+    '''
 
 
 def _method_runner(runner, key):
@@ -67,7 +68,7 @@ class CLIArgMapper(object):
 
         See Also
         --------
-        CLICommandWrapper : takes a runner in its ``__init__``
+        CLICommandWrapper : accepts a runner argument in its ``__init__`` method
         '''
         iattrs = self.get(INSTANCE_ATTRIBUTE)
         kvpairs = self.get(METHOD_KWARGS)
@@ -137,6 +138,11 @@ class CLIStoreTrueAction(CLIStoreAction):
 
 
 class CLIAppendAction(CLIStoreAction):
+    '''
+    Extends CLIStoreAction to append to a set of accumulated values
+
+    Used for recording a `dict`
+    '''
     def __call__(self, parser, namespace, values, option_string=None):
         items = _copy.copy(_ensure_value(namespace, self.dest, []))
         items.append(values)
@@ -187,7 +193,7 @@ class CLICommandWrapper(object):
             are looked up by the runner's fully-qualified class name in `hints_map`. optional
         hints_map : dict
             A multi-level dict describing how certain command line arguments get turned
-            into attributes and method arguments. Defaults to `CLI_HINTS`. optional
+            into attributes and method arguments. Defaults to `CLI_HINTS <.cli_hints>`. optional
         program_name : str
             The name of the top-level program. Uses `sys.argv[0] <sys.argv>` if not provided.
             optional
@@ -233,6 +239,15 @@ class CLICommandWrapper(object):
         return paragraphs
 
     def parser(self, parser=None):
+        '''
+        Generates the argument parser's arguments
+
+        Parameters
+        ----------
+        parser : argparse.ArgumentParser
+            The parser to add the arguments to. optional: will create a parser if none is
+            given
+        '''
         if parser is None:
             doc = getattr(self.runner, '__doc__', None)
             if doc:

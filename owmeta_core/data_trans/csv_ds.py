@@ -13,6 +13,10 @@ from .http_ds import HTTPFileDataSource
 
 @mapped
 class CSVDataSource(LocalFileDataSource):
+    '''
+    A CSV file data source
+    '''
+
     rdf_namespace = Namespace(DS_NS['CSVDataSource#'])
 
     csv_file_name = Informational(display_name='CSV file name',
@@ -25,6 +29,10 @@ class CSVDataSource(LocalFileDataSource):
 
 @mapped
 class CSVHTTPFileDataSource(HTTPFileDataSource):
+    '''
+    A CSV file retrieved over HTTP
+    '''
+
     rdf_namespace = Namespace(DS_NS['CSVHTTPFileDataSource#'])
 
     csv_header = Informational(display_name='Header column names', multiple=False)
@@ -34,10 +42,31 @@ class CSVHTTPFileDataSource(HTTPFileDataSource):
 
 @mapped
 class CSVDataTranslator(DataTranslator):
+    '''
+    A data translator which handles CSV files
+    '''
 
-    input_type = CSVDataSource
+    input_type = (CSVDataSource,)
 
     def make_reader(self, source, skipheader=True, dict_reader=False, skiplines=0, **kwargs):
+        '''
+        Make a CSV reader
+
+        Parameters
+        ----------
+        source : CSVDataSource
+            The data source to read from
+        skipheader : bool
+            If true, the first line read of the CSV file after the reader is created will
+            not be returned from the reader
+        dict_reader : bool
+            If true, the reader will be a `~csv.DictReader`
+        skiplines : int
+            A number of lines to skip before creating the reader. Useful if the CSV file
+            contains some commentary or other 'front matter'
+        **kwargs
+            Remaining arguments passed on to `~csv.reader` or `~csv.DictReader`
+        '''
         params = dict()
         delim = source.csv_field_delimiter.one()
 
@@ -56,6 +85,8 @@ class CSVDataTranslator(DataTranslator):
                     next(f)
                     skiplines -= 1
                 if dict_reader:
+                    if 'fieldnames' not in params:
+                        skipheader = False
                     reader = csv.DictReader(f, **params)
                 else:
                     reader = csv.reader(f, **params)
@@ -65,3 +96,4 @@ class CSVDataTranslator(DataTranslator):
         return cm(skiplines, dict_reader)
 
     reader = make_reader
+    ''' Alias to `make_reader` '''

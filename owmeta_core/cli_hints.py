@@ -1,3 +1,10 @@
+'''
+Hints for the CLI wrapper that help mapping from the Python methods to command line
+arguments
+
+:CLI_HINTS: hints accepted by `~.cli_command_wrapper.CLICommandWrapper`
+'''
+
 from .cli_common import METHOD_NAMED_ARG
 
 CLI_HINTS = {

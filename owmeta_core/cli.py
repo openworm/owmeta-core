@@ -110,6 +110,9 @@ def columns_arg_to_list(arg):
 
 
 def main():
+    '''
+    Entry point for the command line interface
+    '''
     logging.basicConfig()
     top_command = _augment_subcommands_from_entry_points()
     p = top_command()

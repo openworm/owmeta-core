@@ -41,6 +41,9 @@ class _Singleton(type):
 
 
 class Capability(six.with_metaclass(_Singleton)):
+    '''
+    A capability
+    '''
     def __str__(self):
         return FCN(type(self))
 
@@ -48,25 +51,17 @@ class Capability(six.with_metaclass(_Singleton)):
 class Provider(object):
     def provides(self, cap):
         '''
-        Returns a SupportChecker if the provider provides for the given
-        capability; otherwise, returns None
+        Returns the provider if the given capability is one this provider provides;
+        otherwise, returns None
         '''
         if cap in getattr(self, 'provided_capabilities', ()):
             return self
 
 
-class SupportChecker(object):
-
-    def __call__(self, ob):
-        ''' Returns an object that actually provides the capability '''
-        return None
-
-    def to(self, ob):
-        ''' For use in a 'fluent' API.  Ex: a.provides(cap).to(obj) '''
-        return self(ob)
-
-
 class Capable(object):
+    '''
+    An object which can have capabilities
+    '''
 
     @property
     def needed_capabilities(self):
