@@ -34,13 +34,13 @@ class Bag(DataObject):
     '''An object in the group'''
 
     add = Alias(value)
-    '''An alias for ``value``'''
+    '''An alias for `value`'''
 
     name = DatatypeProperty()
     '''The name of the group of objects'''
 
     group_name = Alias(name)
-    '''Alias for ``name``'''
+    '''Alias for `name`'''
 
     def defined_augment(self):
         return self.group_name.has_defined_value()

@@ -115,7 +115,7 @@ def IdMixin(typ=object, hashfunc=None):
                 Raises
                 ------
 
-                IdentifierMissingException
+                `~.graph_object.IdentifierMissingException`
 
                 """
                 raise IdentifierMissingException(self)

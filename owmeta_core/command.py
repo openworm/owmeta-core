@@ -106,21 +106,6 @@ class OWMSource(object):
     def __init__(self, parent):
         self._parent = parent
 
-    # Commands specific to sources
-    def create(self, kind, key, *args, **kwargs):
-        """
-        Create the source and add it to the graph.
-
-        Arguments are determined by the type of the data source
-
-        Parameters
-        ----------
-        kind : rdflib.term.URIRef
-            The kind of source to create
-        key : str
-            The key, a unique name for the source
-        """
-
     def list(self, context=None, kind=None, full=False):
         """
         List known sources
@@ -1102,7 +1087,11 @@ class OWM(object):
         import shlex
         from subprocess import Popen, PIPE
         startdir = os.getcwd()
-        os.chdir(self.owmdir)
+        try:
+            os.chdir(self.owmdir)
+        except FileNotFoundError:
+            raise GenericUserError('Cannot find ".owm" directory')
+
         try:
             with Popen(['git'] + list(args), stdout=PIPE) as p:
                 self.message(p.stdout.read().decode('utf-8', 'ignore'))

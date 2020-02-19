@@ -142,6 +142,7 @@ def main():
             # In case someone forgets to add a helpful message for their user error
             s = 'Received error: ' + FCN(type(e))
         die(s)
+
     output_mode = ns_handler.output_mode
     text_field_separator = ns_handler.text_field_separator
     text_record_separator = ns_handler.text_record_separator

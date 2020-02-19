@@ -4,6 +4,7 @@ imports
 '''
 import re
 from textwrap import dedent
+from collections import namedtuple
 
 parameter_regex = r'''
 ^(?P<param_name>[*]{0,2}\w+)(?:\s+:\s+(?P<param_type>.+))?\n
@@ -24,6 +25,9 @@ ParamRE = re.compile(parameter_regex, flags=re.VERBOSE | re.MULTILINE)
 FLURE = re.compile(first_line_unindented_regex, flags=re.VERBOSE | re.MULTILINE)
 
 
+ParamInfo = namedtuple('ParamInfo', ('name', 'val_type', 'desc'))
+
+
 def parse(text):
     resp = {}
     iws_match = FLURE.match(text)
@@ -41,9 +45,9 @@ def parse(text):
         if params:
             for pmd in ParamRE.finditer(params):
                 param_type = pmd.group('param_type')
-                tp = (pmd.group('param_name').strip(),
-                      param_type and param_type.strip(),
-                      pmd.group('param_description').strip())
+                tp = ParamInfo(pmd.group('param_name').strip(),
+                               param_type and param_type.strip(),
+                               pmd.group('param_description').strip())
                 resp['parameters'].append(tp)
     if not resp.get('desc') and not resp.get('parameters'):
         resp['desc'] = text.strip()

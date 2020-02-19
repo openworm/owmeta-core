@@ -9,7 +9,7 @@ from os.path import exists, join as p, realpath
 import shutil
 import json
 from rdflib.term import URIRef
-from pytest import mark
+from pytest import mark, raises
 import git
 from owmeta_core.git_repo import GitRepoProvider, _CloneProgress
 from owmeta_core.command import (OWM, UnreadableGraphException, GenericUserError, StatementValidationError,
@@ -762,6 +762,10 @@ class GitCommandTest(BaseTest):
         self.cut.commit('Commit Message 2')
 
         self.assertIn(p('graphs', 'index'), [x[0] for x in repo.index.entries])
+
+    def test_git_passthrough_no_owmdir(self):
+        with raises(GenericUserError, match=r'[cC]annot find .*\.owm.*'):
+            self.cut.git('--help')
 
     def _add_to_graph(self):
         m = Mock()

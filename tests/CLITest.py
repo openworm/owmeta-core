@@ -5,9 +5,10 @@ try:
 except ImportError:
     from mock import patch, Mock
 
-from pytest import mark
+from pytest import mark, raises
 from owmeta_core.command_util import SubCommand, IVar
-from owmeta_core.cli_command_wrapper import CLICommandWrapper
+from owmeta_core.cli_command_wrapper import CLICommandWrapper, CLIArgMapper
+from owmeta_core.cli_common import METHOD_NAMED_ARG, METHOD_NARGS, METHOD_KWARGS
 import owmeta_core.cli as PCLI
 from .TestUtilities import noexit, stderr, stdout
 import json
@@ -137,6 +138,56 @@ class CLICommandWrapperTest(unittest.TestCase):
         with noexit(), stdout() as out:
             parser.parse_args(['sc', '--help'])
         self.assertIn('TEST_STRING', out.getvalue())
+
+
+class CLIArgMapperTest(unittest.TestCase):
+    def test_nargs_with_named_args(self):
+        cut = CLIArgMapper()
+        cut.mappings[(METHOD_NAMED_ARG, 'name0', 0)] = 4
+        cut.mappings[(METHOD_NARGS, 'name1', -1)] = [4, 5, 5]
+
+        runner = Mock()
+        cut.apply(runner)
+        runner.assert_called_with(4, 4, 5, 5)
+
+    def test_named_args_multiple(self):
+        cut = CLIArgMapper()
+        cut.mappings[(METHOD_NAMED_ARG, 'name0', 0)] = 4
+        cut.mappings[(METHOD_NAMED_ARG, 'name1', 1)] = 6
+
+        runner = Mock()
+        cut.apply(runner)
+        runner.assert_called_with(4, 6)
+
+    def test_named_fallback_to_kwargs(self):
+        cut = CLIArgMapper()
+        cut.mappings[(METHOD_NAMED_ARG, 'name0', 0)] = 4
+        cut.mappings[(METHOD_NAMED_ARG, 'name1', 2)] = 6
+
+        runner = Mock()
+        cut.apply(runner)
+        runner.assert_called_with(name0=4, name1=6)
+
+    def test_named_insufficient_args_error(self):
+        cut = CLIArgMapper()
+        cut.named_arg_count = 3
+        cut.mappings[(METHOD_NAMED_ARG, 'name0', 0)] = 4
+        cut.mappings[(METHOD_NAMED_ARG, 'name1', 1)] = 6
+
+        runner = Mock()
+
+        with raises(Exception):
+            cut.apply(runner)
+
+    def test_kwargs(self):
+        cut = CLIArgMapper()
+        cut.mappings[(METHOD_KWARGS, 'name0', -1)] = ['a=b', 'c=d']
+
+        runner = Mock()
+
+        cut.apply(runner)
+
+        runner.assert_called_with(a='b', c='d')
 
 
 class CLIOutputModeTest(unittest.TestCase):

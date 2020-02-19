@@ -25,7 +25,9 @@ ARGUMENT_TYPES = {
 
 class CLIUserError(Exception):
     '''
-    An error which the user must correct. Typically an error with user input
+    An error which the user would have to correct.
+
+    Typically caused by invalid user input
     '''
 
 
@@ -52,7 +54,7 @@ class CLIArgMapper(object):
         self.runners = dict()
         ''' Mapping from subcommand names to functions which run for them '''
 
-        self.arg_count = dict()
+        self.named_arg_count = dict()
 
         self.argparser = None
 
@@ -72,14 +74,19 @@ class CLIArgMapper(object):
         '''
         iattrs = self.get(INSTANCE_ATTRIBUTE)
         kvpairs = self.get(METHOD_KWARGS)
-        kvs = list(kv.split('=') for kv in kvpairs.values())
-        kvs += self.get(METHOD_NAMED_ARG).items()
+        kvs = list(kv.split('=') for kv in next(iter(kvpairs.values()), ()))
 
         kwargs = {k: v for k, v in kvs}
+
+        args = self.get_list(METHOD_NAMED_ARG)
+        if not args:
+            kwargs.update(self.get(METHOD_NAMED_ARG))
+
         try:
-            args = next(iter(self.get(METHOD_NARGS).values()))
+            # The get returns
+            nargs = next(iter(self.get(METHOD_NARGS).values()))
         except StopIteration:
-            args = ()
+            nargs = ()
 
         runmethod = None
 
@@ -93,7 +100,17 @@ class CLIArgMapper(object):
                 self.argparser.print_help(file=sys.stderr)
                 print(file=sys.stderr)
                 raise CLIUserError('Please specify a sub-command')
-
+        argcount = self.named_arg_count.get(self.methodname)
+        if nargs and args and argcount is not None and len(args) != argcount:
+            # This means we have passed in positional arguments, and we have a
+            # variable-length option, but we have not filled out all of the arguments
+            # necessary to cleanly apply the runmethod since Python would think we're
+            # trying to apply some arguments twice.
+            #
+            # We *could* support a slightly richer set of options here, but it's probably
+            # not worth it...
+            raise Exception('Missing arguments to method ' + str(self.methodname))
+        args += nargs
         for k, v in iattrs.items():
             setattr(runner, k, v)
 
@@ -101,6 +118,15 @@ class CLIArgMapper(object):
 
     def get(self, key):
         return {k[1]: self.mappings[k] for k in self.mappings if k[0] == key}
+
+    def get_list(self, key):
+        keys = sorted((k for k in self.mappings.keys() if k[0] == key), key=lambda it: it[2])
+        last = -1
+        for k in keys:
+            if k[2] - last != 1:
+                return []
+            last = k[2]
+        return [self.mappings[k] for k in keys]
 
     def __str__(self):
         return type(self).__name__ + '(' + str(self.mappings) + ')'
@@ -110,6 +136,24 @@ class CLIStoreAction(argparse.Action):
     ''' Interacts with the CLIArgMapper '''
 
     def __init__(self, mapper, key, index=-1, mapped_name=None, *args, **kwargs):
+        '''
+        Parameters
+        ----------
+        mapper : CLIArgMapper
+            CLI argument to Python mapper
+        key : str
+            Indicates what kind of argument is being mapped. One of `.INSTANCE_ATTRIBUTE`,
+            `.METHOD_NAMED_ARG`, `.METHOD_KWARGS`, `.METHOD_NARGS`
+        index : int
+            Argument index. Used for maintaining the order of arguments when passed to the
+            runner
+        mapped_name : str
+            The name to map to. optional.
+        *args
+            passed to `~argparse.Action`
+        **kwargs
+            passed to `~argparse.Action`
+        '''
         super(CLIStoreAction, self).__init__(*args, **kwargs)
         if self.nargs == 0:
             raise ValueError('nargs for store actions must be > 0; if you '
@@ -129,6 +173,9 @@ class CLIStoreAction(argparse.Action):
 
 
 class CLIStoreTrueAction(CLIStoreAction):
+    '''
+    Action for storing `True` when a given option is provided
+    '''
     def __init__(self, *args, **kwargs):
         super(CLIStoreTrueAction, self).__init__(*args, **kwargs)
         self.nargs = 0
@@ -146,11 +193,28 @@ class CLIAppendAction(CLIStoreAction):
     def __call__(self, parser, namespace, values, option_string=None):
         items = _copy.copy(_ensure_value(namespace, self.dest, []))
         items.append(values)
+        self.mapper.mappings[(self.key, self.name, -1)] = items
         setattr(namespace, self.dest, items)
 
 
 class CLISubCommandAction(argparse._SubParsersAction):
+    '''
+    Action for sub-commands
+
+    Extends the normal action for sub-parsers to record the subparser name in a mapper
+    '''
+
     def __init__(self, mapper, *args, **kwargs):
+        '''
+        Parameters
+        ----------
+        mapper : CLIArgMapper
+            CLI argument to Python mapper
+        *args
+            Passed on to `argparse._SubParsersAction`
+        **kwargs
+            Passed on to `argparse._SubParsersAction`
+        '''
         super(CLISubCommandAction, self).__init__(*args, **kwargs)
         self.mapper = mapper
 
@@ -168,7 +232,7 @@ NOT_SET = object()
 
 
 def _ensure_value(namespace, name, value):
-    if getattr(namespace, name, NOT_SET) is NOT_SET:
+    if getattr(namespace, name, None) is None:
         setattr(namespace, name, value)
     return getattr(namespace, name)
 
@@ -285,13 +349,13 @@ class CLICommandWrapper(object):
                 argcount = 0
                 for pindex, param in enumerate(params):
                     action = CLIStoreAction
-                    if param[1] == 'bool':
+                    if param.val_type == 'bool':
                         action = CLIStoreTrueAction
 
-                    atype = ARGUMENT_TYPES.get(param[1])
+                    atype = ARGUMENT_TYPES.get(param.val_type)
 
-                    arg = param[0]
-                    desc = param[2]
+                    arg = param.name
+                    desc = param.desc
                     if arg.startswith('**'):
                         subparser.add_argument('--' + arg[2:],
                                                action=CLIAppendAction,
@@ -326,8 +390,8 @@ class CLICommandWrapper(object):
 
                         subparser.add_argument(*names,
                                                **argument_args)
-                    argcount += 1
-                self.mapper.arg_count[key] = argcount
+                        argcount += 1
+                self.mapper.named_arg_count[key] = argcount
             elif isinstance(val, property):
                 doc = getattr(val, '__doc__', None)
                 parser.add_argument('--' + key, help=doc,
