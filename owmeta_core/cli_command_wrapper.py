@@ -177,6 +177,14 @@ class CLIStoreTrueAction(CLIStoreAction):
     Action for storing `True` when a given option is provided
     '''
     def __init__(self, *args, **kwargs):
+        '''
+        Parameters
+        ----------
+        *args
+            passed to `~.CLIStoreAction`
+        **kwargs
+            passed to `~.CLIStoreAction`
+        '''
         super(CLIStoreTrueAction, self).__init__(*args, **kwargs)
         self.nargs = 0
 
@@ -191,6 +199,16 @@ class CLIAppendAction(CLIStoreAction):
     Used for recording a `dict`
     '''
     def __call__(self, parser, namespace, values, option_string=None):
+        '''
+        Parameters
+        ----------
+        parser
+            Ignored
+        namespace : argparse.Namespace
+            Namespace to add to
+        values : str
+            Value to add
+        '''
         items = _copy.copy(_ensure_value(namespace, self.dest, []))
         items.append(values)
         self.mapper.mappings[(self.key, self.name, -1)] = items

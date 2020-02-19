@@ -27,7 +27,7 @@ class LocalFileDataSource(Capable, FileDataSource):
 
     def file_contents(self):
         if not self._base_path_provider:
-            raise NoProviderGiven()
+            raise NoProviderGiven(FilePathCapability())
 
         return open(self.full_path(), 'b')
 

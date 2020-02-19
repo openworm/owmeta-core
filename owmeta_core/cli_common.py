@@ -4,9 +4,6 @@ INSTANCE_ATTRIBUTE = 'INSTANCE_ATTRIBUTE'
 METHOD_NAMED_ARG = 'METHOD_NAMED_ARG'
 ''' Indicates an option that corresponds to a method's named parameter '''
 
-METHOD_KWONLY_ARG = 'METHOD_KWONLY_ARG'
-''' Indicates an option that corresponds to a method's keyword-only parameter '''
-
 METHOD_NARGS = 'METHOD_NARGS'
 ''' Indicates an option that corresponds to the variadic argument consumer of a method (e.g. ``*args``) '''
 
