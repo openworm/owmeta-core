@@ -1,6 +1,7 @@
 '''
 Utilities for making objects that work with the `CLICommandWrapper`
 '''
+from .utils import FCN
 
 DEFAULT_OWM_DIR = '.owm'
 
@@ -19,6 +20,12 @@ class IVar(object):
         self.default_value = default_value
         self.__doc__ = doc.strip() if doc is not None else doc
         self.value_type = value_type
+
+    def __repr__(self):
+        return '{}(name={}, doc={}, value_type={}, default_value={})'.format(
+                FCN(type(self)), repr(self.name), repr(self.__doc__), repr(self.value_type), repr(self.default_value))
+
+    __str__ = __repr__
 
     def __get__(self, target, typ=None):
         if target is None:
@@ -62,6 +69,11 @@ class SubCommand(object):
     def __init__(self, cmd):
         self.cmd = cmd
         self.__doc__ = getattr(cmd, '__doc__', '')
+
+    def __repr__(self):
+        return '{}({})'.format(FCN(type(self)), repr(self.cmd))
+
+    __str__ = __repr__
 
     def __get__(self, target, typ=None):
         if target is None:

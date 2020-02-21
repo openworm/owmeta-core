@@ -1573,17 +1573,23 @@ class UnreadableGraphException(GenericUserError):
 
 
 class NoConfigFileError(GenericUserError):
-    pass
+    '''
+    Thrown when a project config file (e.g., '.owm/owm.conf') cannot be found
+    '''
 
 
 class OWMDirMissingException(GenericUserError):
-    pass
+    '''
+    Thrown when the .owm directory is needed, but cannot be found
+    '''
 
 
-class SaveValidationFailureRecord(namedtuple('SaveValidationFailureRecord', ['user_module',
+class SaveValidationFailureRecord(namedtuple('_SaveValidationFailureRecord', ['user_module',
                                                                              'stack',
                                                                              'validation_record'])):
-
+    '''
+    Record of a validation failure in `OWM.save`
+    '''
     def filtered_stack(self):
         umfile = getattr(self.user_module, '__file__', None)
         if umfile and umfile.endswith('pyc'):
@@ -1796,7 +1802,7 @@ class OWMSaveNamespace(object):
         return self.context.save_context(*args, **kwargs)
 
 
-class UnimportedContextRecord(namedtuple('UnimportedContextRecord', ['context', 'node_index', 'statement'])):
+class UnimportedContextRecord(namedtuple('_UnimportedContextRecord', ['context', 'node_index', 'statement'])):
     '''
     Stored when statements include a reference to an object but do not include the
     context of that object in the callback passed to `OWM.save`. For example, if we had a
@@ -1822,6 +1828,9 @@ class UnimportedContextRecord(namedtuple('UnimportedContextRecord', ['context', 
 
 
 class StatementValidationError(GenericUserError):
+    '''
+    Thrown in the case that a set of statements fails to validate
+    '''
     def __init__(self, statements):
         msgfmt = '{} invalid statements were found:\n{}'
         msg = msgfmt.format(len(statements), '\n'.join(str(x) for x in statements))
@@ -1830,5 +1839,8 @@ class StatementValidationError(GenericUserError):
 
 
 class ConfigMissingException(GenericUserError):
+    '''
+    Thrown when a configuration key is missing
+    '''
     def __init__(self, key):
         self.key = key
