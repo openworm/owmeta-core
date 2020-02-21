@@ -504,9 +504,11 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         The RDF type URI for objects of this type
     rdf_namespace : rdflib.namespace.Namespace
         The rdflib namespace (prefix for URIs) for objects from this class
-    properties : list of owmeta_core.dataobject_property.Property or owmeta_core.custom_dataobject_property.CustomProperty
+    properties : list of owmeta_core.dataobject_property.Property or \
+            owmeta_core.custom_dataobject_property.CustomProperty
         Properties belonging to this object
-    owner_properties : list of owmeta_core.dataobject_property.Property or owmeta_core.custom_dataobject_property.CustomProperty
+    owner_properties : list of owmeta_core.dataobject_property.Property or \
+            owmeta_core.custom_dataobject_property.CustomProperty
         Properties belonging to parents of this object
     """
     rdf_type = R.RDFS['Resource']
@@ -1120,7 +1122,7 @@ class RegistryEntry(DataObject):
 
 @mapped
 class PythonPackage(Package):
-    ''' A python package '''
+    ''' A Python package '''
     key_properties = ('name', 'version')
 
 
