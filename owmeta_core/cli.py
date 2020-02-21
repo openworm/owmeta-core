@@ -120,21 +120,14 @@ def main():
     p.message = print
     p.repository_provider = GitRepoProvider()
     p.non_interactive = False
-    ns_handler = NSHandler(p)
     if environ.get('OWM_CLI_PROFILE'):
         from cProfile import Profile
         profiler = Profile()
         profiler.enable()
     out = None
 
-    hints = dict()
-    hints.update(CLI_HINTS)
-    hints.update(_gather_hints_from_entry_points())
-
     try:
-        out = CLICommandWrapper(p, hints_map=hints).main(
-                argument_callback=additional_args,
-                argument_namespace_callback=ns_handler)
+        _helper(p)
     except (CLIUserError, GenericUserError) as e:
         s = str(e)
         if not s:
@@ -142,100 +135,6 @@ def main():
             # In case someone forgets to add a helpful message for their user error
             s = 'Received error: ' + FCN(type(e))
         die(s)
-
-    output_mode = ns_handler.output_mode
-    text_field_separator = ns_handler.text_field_separator
-    text_record_separator = ns_handler.text_record_separator
-
-    if out is not None:
-        if output_mode == 'json':
-            json.dump(out, sys.stdout, default=JSONSerializer(), indent=2)
-        elif output_mode == 'table':
-            # `out.header` holds the *names* for each column whereas `out.columns` holds
-            # accessors for each column. `out` must have either:
-            # 1) Just `header`
-            # 2) `header` and `columns`
-            # 3) neither `header` nor `columns`
-            # at least one to be valid.
-            #
-            # If `out` has only `header`, then `header must have one element which is the
-            # header for a single result from `out`.
-            #
-            # If it has `header` and `columns` then the two must be of equal length and
-            # each element of `header` names the result of the corresponding entry in
-            # `columns`.
-            #
-            # If neither `header` nor `columns` is given, then a default header of
-            # `['Value']` is used and the column accessor is the identify function.
-            #
-            # `out.default_columns` determines which columns to show by default. If there
-            # is no `default_columns`, then all defined columns are shown. The columns can
-            # be overriden by the `--columns` command line argument. If there is no
-            # `header`, but `--columns` is provided, the user will get an error.
-
-            # N.B.: we use getattr rather than hasattr because we want to make sure we
-            # have the attribute AND that the columns/header isn't an empty or tuple/list
-            if getattr(out, 'columns', None) and getattr(out, 'header', None):
-                if ns_handler.columns:
-                    selected_columns = [i for i, e in zip(range(len(out.header)), out.header)
-                                        if e in columns_arg_to_list(ns_handler.columns)]
-                    if not selected_columns:
-                        die('The given list of columns is not valid for this command')
-                elif getattr(out, 'default_columns', None):
-                    selected_columns = [i for i, e in zip(range(len(out.header)), out.header)
-                                        if e in out.default_columns]
-                else:
-                    selected_columns = list(range(len(out.header)))
-            elif getattr(out, 'columns', None):
-                raise Exception('Programmer error: A header must be provided if an output'
-                                ' has multiple columns')
-            elif getattr(out, 'header', None):
-                if len(out.header) != 1:
-                    raise Exception('Programmer error: Only one column in the header can be defined if'
-                                    ' no columns are defined')
-                if ns_handler.columns \
-                        and columns_arg_to_list(ns_handler.columns) != out.header:
-                    die('The given list of columns is not valid for this command')
-                out = GeneratorWithData(out,
-                                        columns=[lambda x: x],
-                                        header=out.header)
-                selected_columns = [0]
-            elif ns_handler.columns:
-                die('The given list of columns is not valid for this command')
-            else:
-                out = GeneratorWithData(out,
-                                        columns=[lambda x: x],
-                                        header=['Value'])
-                selected_columns = [0]
-
-            header = _select(out.header, selected_columns)
-            columns = _select(out.columns, selected_columns)
-
-            def mygen():
-                if columns:
-                    for m in out:
-                        yield tuple(c(m) for c in columns)
-                else:
-                    for m in out:
-                        yield (m,)
-            print(format_table(mygen(), header=header))
-        elif output_mode == 'text':
-            if isinstance(out, dict):
-                for k, v in out.items():
-                    print('{}{}{}'.format(k, text_field_separator, v), end=text_record_separator)
-            elif isinstance(out, six.string_types):
-                print(out)
-            else:
-                try:
-                    iterable = (x for x in out)
-                except TypeError:
-                    print(out)
-                else:
-                    for x in iterable:
-                        if hasattr(out, 'text_format'):
-                            print(out.text_format(x), end=text_record_separator)
-                        else:
-                            print(x, end=text_record_separator)
 
     if environ.get('OWM_CLI_PROFILE'):
         profiler.disable()
@@ -292,6 +191,116 @@ def _augment_subcommands_from_entry_points():
                 setattr(command_map[level_key[:-1]], level_key[-1], SubCommand(command_map[level_key]))
 
     return command_map[()]
+
+
+def _helper(p):
+    ns_handler = NSHandler(p)
+
+    hints = dict()
+    hints.update(CLI_HINTS)
+    hints.update(_gather_hints_from_entry_points())
+
+    out = CLICommandWrapper(p, hints_map=hints).main(
+            argument_callback=additional_args,
+            argument_namespace_callback=ns_handler)
+
+    if out is not None:
+        _format_output(out, ns_handler)
+
+
+def _format_output(out, ns_handler):
+    output_mode = ns_handler.output_mode
+    text_field_separator = ns_handler.text_field_separator
+    text_record_separator = ns_handler.text_record_separator
+
+    if output_mode == 'json':
+        json.dump(out, sys.stdout, default=JSONSerializer(), indent=2)
+    elif output_mode == 'table':
+        # `out.header` holds the *names* for each column whereas `out.columns` holds
+        # accessors for each column. `out` must have either:
+        # 1) Just `header`
+        # 2) `header` and `columns`
+        # 3) neither `header` nor `columns`
+        # at least one to be valid.
+        #
+        # If `out` has only `header`, then `header must have one element which is the
+        # header for a single result from `out`.
+        #
+        # If it has `header` and `columns` then the two must be of equal length and
+        # each element of `header` names the result of the corresponding entry in
+        # `columns`.
+        #
+        # If neither `header` nor `columns` is given, then a default header of
+        # `['Value']` is used and the column accessor is the identify function.
+        #
+        # `out.default_columns` determines which columns to show by default. If there
+        # is no `default_columns`, then all defined columns are shown. The columns can
+        # be overriden by the `--columns` command line argument. If there is no
+        # `header`, but `--columns` is provided, the user will get an error.
+
+        # N.B.: we use getattr rather than hasattr because we want to make sure we
+        # have the attribute AND that the columns/header isn't an empty or tuple/list
+        if getattr(out, 'columns', None) and getattr(out, 'header', None):
+            if ns_handler.columns:
+                selected_columns = [i for i, e in zip(range(len(out.header)), out.header)
+                                    if e in columns_arg_to_list(ns_handler.columns)]
+                if not selected_columns:
+                    die('The given list of columns is not valid for this command')
+            elif getattr(out, 'default_columns', None):
+                selected_columns = [i for i, e in zip(range(len(out.header)), out.header)
+                                    if e in out.default_columns]
+            else:
+                selected_columns = list(range(len(out.header)))
+        elif getattr(out, 'columns', None):
+            raise Exception('Programmer error: A header must be provided if an output'
+                            ' has multiple columns')
+        elif getattr(out, 'header', None):
+            if len(out.header) != 1:
+                raise Exception('Programmer error: Only one column in the header can be defined if'
+                                ' no columns are defined')
+            if ns_handler.columns \
+                    and columns_arg_to_list(ns_handler.columns) != out.header:
+                die('The given list of columns is not valid for this command')
+            out = GeneratorWithData(out,
+                                    columns=[lambda x: x],
+                                    header=out.header)
+            selected_columns = [0]
+        elif ns_handler.columns:
+            die('The given list of columns is not valid for this command')
+        else:
+            out = GeneratorWithData(out,
+                                    columns=[lambda x: x],
+                                    header=['Value'])
+            selected_columns = [0]
+
+        header = _select(out.header, selected_columns)
+        columns = _select(out.columns, selected_columns)
+
+        def mygen():
+            if columns:
+                for m in out:
+                    yield tuple(c(m) for c in columns)
+            else:
+                for m in out:
+                    yield (m,)
+        print(format_table(mygen(), header=header))
+    elif output_mode == 'text':
+        if isinstance(out, dict):
+            for k, v in out.items():
+                print('{}{}{}'.format(k, text_field_separator, v), end=text_record_separator)
+        elif isinstance(out, six.string_types):
+            print(out)
+        else:
+            try:
+                iterable = (x for x in out)
+            except TypeError:
+                print(out)
+            else:
+                for x in iterable:
+                    if hasattr(out, 'text_format'):
+                        print(out.text_format(x), end=text_record_separator)
+                    else:
+                        print(x, end=text_record_separator)
 
 
 if __name__ == '__main__':

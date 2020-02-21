@@ -32,12 +32,6 @@ CLI_HINTS = {
             },
         },
         'translate': {
-            (METHOD_NAMED_ARG, 'output_key'): {
-                'names': ['--output-key']
-            },
-            (METHOD_NAMED_ARG, 'output_identifier'): {
-                'names': ['--output-identifier']
-            },
             (METHOD_NAMED_ARG, 'translator'): {
                 'names': ['translator']
             },
@@ -68,7 +62,7 @@ CLI_HINTS = {
             },
             (METHOD_NAMED_ARG, 'format'): {
                 'names': ['--format', '-f']
-            },
+            }
         },
         'non_interactive': {
             'names': ['--non-interactive', '-b']
@@ -82,7 +76,6 @@ CLI_HINTS = {
                 'nargs': '?'
             },
             (METHOD_NAMED_ARG, 'list_formats'): {
-                'names': ['--list-formats'],
                 'nargs': '?'
             }
         }

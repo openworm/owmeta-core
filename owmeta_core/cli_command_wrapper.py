@@ -361,9 +361,10 @@ class CLICommandWrapper(object):
                 sc_hints = self.hints.get(key) if self.hints else None
                 summary, detail, params = self.extract_args(val)
 
-                subparser = sp().add_parser(key, help=summary, description=detail)
+                command_name = key.replace('_', '-')
+                subparser = sp().add_parser(command_name, help=summary, description=detail)
 
-                self.mapper.runners[key] = _method_runner(self.runner, key)
+                self.mapper.runners[command_name] = _method_runner(self.runner, key)
                 argcount = 0
                 for pindex, param in enumerate(params):
                     action = CLIStoreAction
@@ -373,16 +374,17 @@ class CLICommandWrapper(object):
                     atype = ARGUMENT_TYPES.get(param.val_type)
 
                     arg = param.name
+                    arg_cli_name = arg.replace('_', '-')
                     desc = param.desc
                     if arg.startswith('**'):
-                        subparser.add_argument('--' + arg[2:],
+                        subparser.add_argument('--' + arg_cli_name[2:],
                                                action=CLIAppendAction,
                                                mapper=self.mapper,
                                                key=METHOD_KWARGS,
                                                type=atype,
                                                help=desc)
                     elif arg.startswith('*'):
-                        subparser.add_argument(arg[1:],
+                        subparser.add_argument(arg_cli_name[1:],
                                                action=action,
                                                nargs='*',
                                                key=METHOD_NARGS,
@@ -393,7 +395,7 @@ class CLICommandWrapper(object):
                         arg_hints = self._arg_hints(sc_hints, METHOD_NAMED_ARG, arg)
                         names = None if arg_hints is None else arg_hints.get('names')
                         if names is None:
-                            names = ['--' + arg]
+                            names = ['--' + arg_cli_name]
                         argument_args = dict(action=action,
                                              key=METHOD_NAMED_ARG,
                                              mapper=self.mapper,
@@ -443,7 +445,7 @@ class CLICommandWrapper(object):
                     arg_kwargs['action'] = CLIStoreTrueAction
                 names = None if var_hints is None else var_hints.get('names')
                 if names is None:
-                    names = ['--' + key]
+                    names = ['--' + key.replace('_', '-')]
                 parser.add_argument(*names, **arg_kwargs)
 
         return parser

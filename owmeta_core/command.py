@@ -1303,7 +1303,7 @@ class OWM(object):
         include_imports : bool
             If true, then include contexts imported by the provided context in the result.
             The default is not to include imported contexts.
-        whole_graph: bool
+        whole_graph : bool
             Serialize all contexts from all graphs (this probably isn't what you want)
         '''
 
@@ -1313,14 +1313,14 @@ class OWM(object):
             retstr = True
             destination = BytesIO()
 
-        if context is None:
-            ctx = self._default_ctx
-        else:
-            ctx = Context(ident=self._den3(context), conf=self._conf())
-
         if whole_graph:
             self.rdf.serialize(destination, format=format)
         else:
+            if context is None:
+                ctx = self._default_ctx
+            else:
+                ctx = Context(ident=self._den3(context), conf=self._conf())
+
             if include_imports:
                 ctx.stored.rdf_graph().serialize(destination, format=format)
             else:
@@ -1576,6 +1576,10 @@ class NoConfigFileError(GenericUserError):
     '''
     Thrown when a project config file (e.g., '.owm/owm.conf') cannot be found
     '''
+
+    def __init__(self, config_file_path):
+        super(NoConfigFileError, self).__init__('Cannot find config file at "%s"' %
+                config_file_path)
 
 
 class OWMDirMissingException(GenericUserError):
@@ -1843,4 +1847,6 @@ class ConfigMissingException(GenericUserError):
     Thrown when a configuration key is missing
     '''
     def __init__(self, key):
+        super(ConfigMissingException, self).__init__(
+                'Missing "%s" in configuration' % key)
         self.key = key
