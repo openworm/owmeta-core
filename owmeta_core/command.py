@@ -1288,16 +1288,6 @@ class OWM(object):
     def _make_ctx(self, ctxid):
         return Context(ident=ctxid, conf=self._conf())
 
-    def reconstitute(self, data_source):
-        '''
-        Recreate a data source by executing the chain of translators that went into making it.
-
-        Parameters
-        ----------
-        data_source : str
-            Identifier for the data source to reconstitute
-        '''
-
     def serialize(self, context=None, destination=None, format='nquads', include_imports=False, whole_graph=False):
         '''
         Serialize the current data context or the one provided
@@ -1532,18 +1522,6 @@ class OWM(object):
                 l = colored(l, 'red')
             l += os.linesep
             yield l
-
-    def merge(self):
-        """
-        """
-
-    def push(self):
-        """
-        """
-
-    def tag(self):
-        """
-        """
 
 
 class _OWMSaveContext(Context):
