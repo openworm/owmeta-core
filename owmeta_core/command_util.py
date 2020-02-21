@@ -37,6 +37,17 @@ class IVar(object):
 
     @classmethod
     def property(cls, wrapped=None, *args, **kwargs):
+        '''
+        Creates a `PropertyIVar` from a method
+
+        Typically, this will be used as a decorator for a method
+
+        Parameters
+        ----------
+        wrapped : types.FunctionType or types.MethodType
+            The function to wrap. optional: if omitted, returns a function that can be
+            invoked later to create the `PropertyIVar`
+        '''
         if wrapped is not None and \
                 callable(wrapped) and \
                 len(args) == 0 and \
@@ -66,6 +77,11 @@ def _property_update(wrapped, *args, **kwargs):
 
 
 class SubCommand(object):
+    '''
+    A descriptor that wraps objects which function as sub-commands to
+    `~owmeta_core.command.OWM` or to other sub-commands
+    '''
+
     def __init__(self, cmd):
         self.cmd = cmd
         self.__doc__ = getattr(cmd, '__doc__', '')
@@ -82,6 +98,21 @@ class SubCommand(object):
 
 
 class PropertyIVar(IVar):
+    '''
+    An `.IVar` that functions similarly to a `property`
+
+
+    Typically a PropertyIVar will be created by using `.IVar.property` as a decorator for
+    a method like::
+
+        class A(object):
+
+            @IVar.property('default_value')
+            def prop(self):
+                return 'value'
+
+    .. automethod:: __get__
+    '''
     def __init__(self, *args, **kwargs):
         super(PropertyIVar, self).__init__(*args, **kwargs)
         self.value_getter = None
@@ -89,6 +120,13 @@ class PropertyIVar(IVar):
         self._setter_called_flag = '_' + self.name + '_is_set'
 
     def setter(self, fset):
+        '''
+        Decorator for the setter that goes along with this property.
+
+        See Also
+        --------
+        property
+        '''
         res = type(self)(default_value=self.default_value,
                          doc=self.__doc__,
                          value_type=self.value_type,
