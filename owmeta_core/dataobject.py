@@ -118,7 +118,23 @@ class APThunk(PThunk):
 
 
 class Alias(object):
+    '''
+    Used to declare that a descriptor is an alias to some other
+    `~dataobject_property.Property`
+
+    Example usage::
+
+        class Person(DataObject):
+            child = DatatypeProperty()
+            offspring = Alias(child)
+    '''
     def __init__(self, target):
+        '''
+        Parameters
+        ----------
+        target : dataobject_property.Property
+            The property to alias
+        '''
         self.target = target
 
     def __repr__(self):
@@ -158,13 +174,37 @@ def ObjectProperty(*args, **kwargs):
 
 
 def UnionProperty(*args, **kwargs):
+    '''
+    Used in a `.DataObject` implementation to designate a property whose values are either other
+    `DataObjects <.DataObject>` or literals (e.g., str, int).
+
+    An example `UnionProperty` use::
+
+        class Address(DataObject):
+            street = DatatypeProperty()
+            number = DatatypeProperty()
+            city = DatatypeProperty()
+            state = DatatypeProperty()
+            zip = DatatypeProperty()
+
+        class Person(DataObject):
+            name = DatatypeProperty()
+            address = UnionProperty()
+
+        Person(name='Umoja', address='38 West 88th Street, Manhattan NY 10024 , New York, USA')
+        Person(name='Umoja', address=Address(number=38,
+                                             street='West 88th Street',
+                                             city='New York',
+                                             state='NY',
+                                             zip=10024))
+    '''
     return APThunk('UnionProperty', args, kwargs)
 
 
 @mapped
 class RDFSClass(GraphObject):
-
     """ The GraphObject corresponding to rdfs:Class """
+
     # XXX: This class may be changed from a singleton later to facilitate
     #      dumping and reloading the object graph
     rdf_type = R.RDFS['Class']
@@ -456,7 +496,9 @@ def contextualized_data_object(context, obj):
 
 
 class ContextualizableList(Contextualizable, list):
-
+    '''
+    A Contextualizable list
+    '''
     def __init__(self, context):
         super(ContextualizableList, self).__init__()
         self._context = context
@@ -496,7 +538,10 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
                                         GraphObject,
                                         ContextualizableDataUserMixin)):
 
-    """ An object backed by the database
+    """
+    An object which can be mapped to an RDF graph
+
+    Most classes should be derived from `.DataObject` rather than `.BaseDataObject`
 
     Attributes
     -----------
@@ -580,6 +625,10 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
 
     @property
     def rdf(self):
+        '''
+        Returns either the configured RDF graph or the `Context.rdf_graph` of its
+        context
+        '''
         if self.context is not None:
             return self.context.rdf_graph()
         else:
@@ -686,6 +735,9 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
                                       hop_scorer=goq_hop_scorer)())
 
     def load(self, graph=None):
+        '''
+        Loads a `DataObject` from the graph
+        '''
         # XXX: May need to rethink this refactor at some point...
         for x in load(self.rdf if graph is None else graph,
                       start=self,
@@ -722,8 +774,9 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
 
     @classmethod
     def DatatypeProperty(cls, *args, **kwargs):
-        """ Attach a, possibly new, property to this class that has a simple
-        type (string,number,etc) for its values
+        """
+        Attach a, possibly new, property to this class that has a simple type
+        (string, number, etc) for its values
 
         Parameters
         ----------
@@ -736,8 +789,9 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
 
     @classmethod
     def ObjectProperty(cls, *args, **kwargs):
-        """ Attach a, possibly new, property to this class that has a complex
-        BaseDataObject for its values
+        """
+        Attach a, possibly new, property to this class that has a `BaseDataObject` for its
+        values
 
         Parameters
         ----------
@@ -753,7 +807,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
     @classmethod
     def UnionProperty(cls, *args, **kwargs):
         """ Attach a, possibly new, property to this class that has a simple
-        type (string,number,etc) or BaseDataObject for its values
+        type (string,number,etc) or `BaseDataObject` for its values
 
         Parameters
         ----------
@@ -971,6 +1025,10 @@ class DataObjectSingletonMeta(type(BaseDataObject)):
 
 
 class DataObjectSingleton(six.with_metaclass(DataObjectSingletonMeta, BaseDataObject)):
+    '''
+    A superclass for singleton `DataObjects <DataObject>`
+    '''
+
     instance = None
     class_context = URIRef(BASE_SCHEMA_URL)
 
@@ -978,10 +1036,16 @@ class DataObjectSingleton(six.with_metaclass(DataObjectSingletonMeta, BaseDataOb
         if self._gettingInstance:
             super(DataObjectSingleton, self).__init__(*args, **kwargs)
         else:
-            raise Exception("You must call getInstance to get " + type(self).__name__)
+            raise Exception("You must call get_instance to get " + type(self).__name__)
 
     @classmethod
     def get_instance(cls, **kwargs):
+        '''
+        Get the instance for this class
+        '''
+        # Opting to have a `get_instance` method rather than doing some trickery with
+        # __new__ or __call__ so the fact that there's a single instance is more apparent.
+        # This is important since the instance can be mutated
         if cls.instance is None:
             cls._gettingInstance = True
             cls.instance = cls(**kwargs)
@@ -1002,6 +1066,9 @@ class PropertyDataObject(BaseDataObject):
 
 @mapped
 class RDFSCommentProperty(SP.DatatypeProperty):
+    '''
+    Corresponds to the rdfs:comment predicate
+    '''
     class_context = 'http://www.w3.org/2000/01/rdf-schema'
     link = R.RDFS['comment']
     linkName = 'rdfs_comment'
@@ -1012,6 +1079,9 @@ class RDFSCommentProperty(SP.DatatypeProperty):
 
 @mapped
 class RDFSLabelProperty(SP.DatatypeProperty):
+    '''
+    Corresponds to the rdfs:label predicate
+    '''
     class_context = 'http://www.w3.org/2000/01/rdf-schema'
     link = R.RDFS['label']
     linkName = 'rdfs_label'
@@ -1022,13 +1092,16 @@ class RDFSLabelProperty(SP.DatatypeProperty):
 
 @mapped
 class DataObject(BaseDataObject):
+    '''
+    An object that can be mapped to an RDF graph
+    '''
     rdfs_comment = CPThunk(RDFSCommentProperty)
     rdfs_label = CPThunk(RDFSLabelProperty)
 
 
 @mapped
 class RDFProperty(DataObjectSingleton):
-    """ The DataObject corresponding to rdf:Property """
+    """ The `DataObject` corresponding to rdf:Property """
     rdf_type = R.RDF['Property']
     class_context = URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns')
 
@@ -1069,10 +1142,10 @@ class Module(DataObject):
     '''
     Represents a module of code
 
-    Most modern programming languages organize code into importable modules of one kind or another. This is basically
-    the nearest level above a *class* in the language.
+    Most modern programming languages organize code into importable modules of one kind or
+    another. This is basically the nearest level above a *class* in the language.
 
-    Modules are accessable by one or more ModuleAccess
+    Modules are accessable by one or more `ModuleAccessor`
     '''
 
     accessors = ObjectProperty(multiple=True, value_type=ModuleAccessor)
@@ -1154,6 +1227,7 @@ class PIPInstall(ModuleAccessor):
 
 @mapped
 class PythonClassDescription(ClassDescription):
+
     name = DatatypeProperty()
     ''' Local name of the class (i.e., relative to the module name) '''
 

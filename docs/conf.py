@@ -30,6 +30,8 @@ autoclass_content = 'both'
 autodoc_member_order = 'groupwise'
 autodoc_typehints = 'none'
 numpydoc_xref_param_type = True
+autodoc_inherit_docstrings = False
+
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = ['sphinx.ext.autodoc', 'sphinx.ext.todo', 'sphinx.ext.viewcode',

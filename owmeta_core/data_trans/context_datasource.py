@@ -59,7 +59,8 @@ class VariableIdentifierContext(VariableIdentifierMixin, Context):
 @mapped
 class VariableIdentifierContextDataObject(VariableIdentifierMixin, ContextDataObject):
     '''
-    A ContextDataObject that gets its identifier and its configuration from its 'maker' passed in at initialization
+    A ContextDataObject that gets its identifier and its configuration from its 'maker'
+    passed in at initialization
     '''
 
     rdf_type = URIRef('http://openworm.org/schema/Context#variable')

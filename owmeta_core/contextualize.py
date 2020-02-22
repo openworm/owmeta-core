@@ -56,27 +56,26 @@ class Contextualizable(BaseContextualizable):
     A BaseContextualizable with the addition of a default behavior of setting
     the context from the class's 'context' attribute. This generally requires
     that for the metaclass of the Contextualizable that a 'context' data
-    property is defined. For example:
+    property is defined. For example::
 
-    >>> class AMeta(ContextualizableClass):
-    >>>     @property
-    >>>     def context(self):
-    >>>         return self.__context
+        >>> class AMeta(ContextualizableClass):
+        ...     @property
+        ...     def context(self):
+        ...         return self.__context
+        ...
+        ...     @context.setter
+        ...     def context(self, ctx):
+        ...         self.__context = ctx
 
-    >>>     @context.setter
-    >>>     def context(self, ctx):
-    >>>         self.__context = ctx
-
-    >>> class A(six.with_metaclass(Contextualizable)):
-    >>>     pass
+        >>> class A(six.with_metaclass(Contextualizable)):
+        ...     pass
 
     """
 
     def __new__(cls, *args, **kwargs):
-        """
-        This is defined so that the __init__ method gets a contextualized
-        instance, allowing for statements made in __init__ to be contextualized.
-        """
+        #This is defined so that the __init__ method gets a contextualized
+        #instance, allowing for statements made in __init__ to be contextualized.
+
         ores = super(Contextualizable, cls).__new__(cls)
         # XXX: This shouldn't really ever be the property...
         if not isinstance(cls.context, property):

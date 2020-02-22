@@ -35,8 +35,8 @@ class _Range(InRange):
 
 
 class GraphObject(object):
-
-    """ An object which can be included in the object graph.
+    """
+    An object which can be included in the object graph.
 
     An abstract base class.
     """
@@ -60,7 +60,7 @@ class GraphObject(object):
 
     def variable(self):
         """ Must return a `~owmeta_core.graph_object.Variable` object that identifies this
-        :class:`GraphObject` in queries.
+        `.GraphObject` in queries.
 
         The variable can be randomly generated when the object is created and
         stored in the object.
