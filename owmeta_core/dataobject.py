@@ -1096,6 +1096,7 @@ class DataObject(BaseDataObject):
     '''
     An object that can be mapped to an RDF graph
     '''
+    class_context = BASE_SCHEMA_URL
     rdfs_comment = CPThunk(RDFSCommentProperty)
     rdfs_label = CPThunk(RDFSLabelProperty)
 
@@ -1125,11 +1126,13 @@ class ModuleAccessor(DataObject):
     Module access is how a person or automated system brings the module to where it can be imported/included, possibly
     in a subsequent
     '''
+    class_context = BASE_SCHEMA_URL
 
 
 @mapped
 class Package(DataObject):
     ''' Describes an idealized software package identifiable by a name and version number '''
+    class_context = BASE_SCHEMA_URL
 
     name = DatatypeProperty()
     ''' The standard name of the package '''
@@ -1148,6 +1151,7 @@ class Module(DataObject):
 
     Modules are accessable by one or more `ModuleAccessor`
     '''
+    class_context = BASE_SCHEMA_URL
 
     accessors = ObjectProperty(multiple=True, value_type=ModuleAccessor)
     ''' Ways to get the module '''
@@ -1161,6 +1165,7 @@ class ClassDescription(DataObject):
     '''
     Describes a class in the programming language
     '''
+    class_context = BASE_SCHEMA_URL
 
     module = ObjectProperty(value_type=Module)
     ''' The module the class belongs to '''
@@ -1168,12 +1173,12 @@ class ClassDescription(DataObject):
 
 @mapped
 class RegistryEntry(DataObject):
-
     '''
     A mapping from a class in the programming language to an RDF class.
 
     Objects of this type are utilized in the resolution of classes from the RDF graph
     '''
+    class_context = BASE_SCHEMA_URL
 
     class_description = ObjectProperty(value_type=ClassDescription)
     ''' The description of the class '''
@@ -1197,6 +1202,7 @@ class RegistryEntry(DataObject):
 @mapped
 class PythonPackage(Package):
     ''' A Python package '''
+    class_context = BASE_SCHEMA_URL
     key_properties = ('name', 'version')
 
 
@@ -1205,6 +1211,7 @@ class PythonModule(Module):
     '''
     A Python module
     '''
+    class_context = BASE_SCHEMA_URL
 
     name = DatatypeProperty()
     ''' The full name of the module '''
@@ -1220,6 +1227,7 @@ class PIPInstall(ModuleAccessor):
     '''
     Describes a `pip install` command line
     '''
+    class_context = BASE_SCHEMA_URL
 
     name = DatatypeProperty()
 
@@ -1228,6 +1236,10 @@ class PIPInstall(ModuleAccessor):
 
 @mapped
 class PythonClassDescription(ClassDescription):
+    '''
+    Description for a Python class
+    '''
+    class_context = BASE_SCHEMA_URL
 
     name = DatatypeProperty()
     ''' Local name of the class (i.e., relative to the module name) '''

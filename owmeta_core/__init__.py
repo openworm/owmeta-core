@@ -66,15 +66,15 @@ __all__ = [
 DEF_CTX = Context()
 
 RDF_CONTEXT = ClassContext(ident='http://www.w3.org/1999/02/22-rdf-syntax-ns',
-                      base_namespace='http://www.w3.org/1999/02/22-rdf-syntax-ns#')
+        base_namespace='http://www.w3.org/1999/02/22-rdf-syntax-ns#')
 
 RDFS_CONTEXT = ClassContext(ident='http://www.w3.org/2000/01/rdf-schema',
-                       imported=(RDF_CONTEXT,),
-                       base_namespace='http://www.w3.org/2000/01/rdf-schema#')
+        imported=(RDF_CONTEXT,),
+        base_namespace='http://www.w3.org/2000/01/rdf-schema#')
 
 BASE_CONTEXT = ClassContext(imported=(RDFS_CONTEXT,),
-                       ident=BASE_SCHEMA_URL,
-                       base_namespace=BASE_SCHEMA_URL + '#')
+        ident=BASE_SCHEMA_URL,
+        base_namespace=BASE_SCHEMA_URL + '#')
 
 
 def get_data(path):

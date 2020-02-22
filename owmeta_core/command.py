@@ -706,7 +706,6 @@ class OWM(object):
     def log_level(self, level):
         logging.getLogger().setLevel(getattr(logging, level.upper()))
         # Tailoring for known loggers
-
         # Generally, too verbose for the user
         logging.getLogger('owmeta_core.mapper').setLevel(logging.ERROR)
         logging.getLogger('owmeta_core.module_recorder').setLevel(logging.ERROR)

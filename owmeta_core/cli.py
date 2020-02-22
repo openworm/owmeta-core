@@ -114,6 +114,7 @@ def main():
     Entry point for the command line interface
     '''
     logging.basicConfig()
+
     top_command = _augment_subcommands_from_entry_points()
     p = top_command()
     p.log_level = 'WARN'
@@ -160,8 +161,7 @@ def _augment_subcommands_from_entry_points():
         try:
             unordered_commands.append((path, entry_point.load()))
         except Exception:
-            L.warning('Unable to add command', entry_point)
-            pass
+            L.warning('Unable to add command %s', entry_point, exc_info=True)
     level_ordered_commands = \
         sorted(unordered_commands, key=lambda x: (len(x[0]), x[0]))
     # Group by everything up-to a given command

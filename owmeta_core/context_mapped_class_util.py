@@ -7,20 +7,15 @@ from .context import ClassContext
 def find_class_context(dct, bases):
     ctx = None
     ctx_or_ctx_uri = dct.get('class_context', None)
-    if ctx_or_ctx_uri is None:
-        for b in bases:
-            pctx = getattr(b, 'definition_context', None)
-            if pctx is not None:
-                ctx = pctx
-                break
+
+    if not isinstance(ctx_or_ctx_uri, URIRef) \
+       and isinstance(ctx_or_ctx_uri, (str, six.text_type)):
+        ctx_or_ctx_uri = URIRef(ctx_or_ctx_uri)
+
+    if isinstance(ctx_or_ctx_uri, (str, six.text_type)):
+        ctx = ClassContext(ctx_or_ctx_uri)
     else:
-        if not isinstance(ctx_or_ctx_uri, URIRef) \
-           and isinstance(ctx_or_ctx_uri, (str, six.text_type)):
-            ctx_or_ctx_uri = URIRef(ctx_or_ctx_uri)
-        if isinstance(ctx_or_ctx_uri, (str, six.text_type)):
-            ctx = ClassContext(ctx_or_ctx_uri)
-        else:
-            ctx = ctx_or_ctx_uri
+        ctx = ctx_or_ctx_uri
     return ctx
 
 

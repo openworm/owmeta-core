@@ -21,7 +21,14 @@ class UnmappedClassException(Exception):
 
 
 class ClassRedefinitionAttempt(Exception):
-    pass
+    '''
+    Thrown when a `.Mapper.add_class` is called on a class when a class with the same name
+    has already been added to the mapper
+    '''
+    def __init__(self, mapper, maybe_cls, cls):
+        super(ClassRedefinitionAttempt, self).__init__(
+                'Attempted to add class %s to %s when %s had already been added' % (
+                    maybe_cls, mapper, cls))
 
 
 class Mapper(ModuleRecordListener, Configurable):
@@ -79,7 +86,7 @@ class Mapper(ModuleRecordListener, Configurable):
             if maybe_cls is cls:
                 return False
             else:
-                raise ClassRedefinitionAttempt(maybe_cls, cls)
+                raise ClassRedefinitionAttempt(self, maybe_cls, cls)
         L.debug("Adding class %s@0x%x", cls, id(cls))
 
         self.MappedClasses[cname] = cls
@@ -107,9 +114,13 @@ class Mapper(ModuleRecordListener, Configurable):
 
     def process_module(self, module_name, module):
         self.modules[module_name] = module
-        for c in self._module_load_helper(module):
-            if hasattr(c, 'after_mapper_module_load'):
-                c.after_mapper_module_load(self)
+        try:
+            for c in self._module_load_helper(module):
+                if hasattr(c, 'after_mapper_module_load'):
+                    c.after_mapper_module_load(self)
+        except Exception:
+            del self.modules[module_name]
+            return None
         return module
 
     def process_class(self, *classes):
