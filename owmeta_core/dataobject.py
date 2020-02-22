@@ -13,7 +13,7 @@ from .contextualize import (Contextualizable,
                             ContextualizableClass,
                             contextualize_helper,
                             decontextualize_helper)
-from .context import ContextualizableDataUserMixin
+from .context import ContextualizableDataUserMixin, ClassContext
 from .context_mapped_class_util import find_class_context, find_base_namespace
 from .mapper import mapped
 
@@ -210,6 +210,7 @@ class RDFSClass(GraphObject):
     rdf_type = R.RDFS['Class']
     auto_mapped = True
     class_context = 'http://www.w3.org/2000/01/rdf-schema'
+    definition_context = ClassContext('http://www.w3.org/2000/01/rdf-schema')
 
     instance = None
     defined = True

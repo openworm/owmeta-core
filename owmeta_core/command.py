@@ -1436,9 +1436,9 @@ class OWM(object):
         Show differences between what's in the working context set and what's in the serializations
         """
         import sys
+        import traceback
         from difflib import unified_diff
         from os.path import join, basename
-        import traceback
         from git import Repo
 
         r = self.repository_provider
@@ -1477,8 +1477,15 @@ class OWM(object):
             bfname = basename(d.b_path)
 
             graphdir = join(self.owmdir, 'graphs')
-            fromfile = self._fname_contexts.get(afname, afname)
-            tofile = self._fname_contexts.get(bfname, bfname)
+            if not adata:
+                fromfile = '/dev/null'
+            else:
+                fromfile = self._fname_contexts.get(afname, afname)
+
+            if not bdata:
+                tofile = '/dev/null'
+            else:
+                tofile = self._fname_contexts.get(bfname, bfname)
 
             try:
                 sys.stdout.writelines(
