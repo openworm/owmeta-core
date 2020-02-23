@@ -17,6 +17,8 @@ reactions::
     >>> from owmeta_core.mapper import Mapper
     >>> from owmeta_core import connect, ModuleRecorder
 
+    >>> module_context = 'http://example.com/animals'
+
     >>> class Dog(DataObject):
     ...     breed = DatatypeProperty()
     

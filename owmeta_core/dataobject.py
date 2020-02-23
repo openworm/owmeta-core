@@ -13,7 +13,7 @@ from .contextualize import (Contextualizable,
                             ContextualizableClass,
                             contextualize_helper,
                             decontextualize_helper)
-from .context import ContextualizableDataUserMixin, ClassContext
+from .context import ContextualizableDataUserMixin, ClassContext, Context
 from .context_mapped_class_util import find_class_context, find_base_namespace
 from .mapper import mapped
 
@@ -207,12 +207,12 @@ TypeDataObject = None
 class ContextMappedClass(MappedClass, ContextualizableClass):
     def __init__(self, name, bases, dct):
         super(ContextMappedClass, self).__init__(name, bases, dct)
-        ctx = find_class_context(dct, bases)
+        ctx = find_class_context(self, dct, bases)
 
         if ctx is not None:
             self.__context = ctx
         else:
-            self.__context = None
+            self.__context = Context()
 
         if not hasattr(self, 'base_namespace') or self.base_namespace is None:
             self.base_namespace = find_base_namespace(dct, bases)

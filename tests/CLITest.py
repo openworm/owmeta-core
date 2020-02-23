@@ -193,7 +193,10 @@ class CLIArgMapperTest(unittest.TestCase):
 class CLIOutputModeTest(unittest.TestCase):
     def setUp(self):
         self.ccw = patch('owmeta_core.cli.CLICommandWrapper').start()
-        patch('owmeta_core.cli.OWM').start()
+
+        class A(object):
+            pass
+        self.cmd = patch('owmeta_core.cli.OWM', new=A).start()
         patch('owmeta_core.cli.GitRepoProvider').start()
 
     def tearDown(self):

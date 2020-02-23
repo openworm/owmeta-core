@@ -32,7 +32,7 @@ L = logging.getLogger(__name__)
 class ContextMappedPropertyClass(ContextualizableClass):
     def __init__(self, name, bases, dct):
         super(ContextMappedPropertyClass, self).__init__(name, bases, dct)
-        ctx = find_class_context(dct, bases)
+        ctx = find_class_context(self, dct, bases)
 
         if ctx is not None:
             self.__definition_context = ctx
@@ -129,8 +129,7 @@ class _StatementContextRDFObjectFactory(Contextualizable):
         return '{}({})'.format(FCN(type(self)), repr(self.statement))
 
 
-class Property(with_metaclass(ContextMappedPropertyClass,
-                                        DataUser, Contextualizable)):
+class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualizable)):
     multiple = False
     link = R.URIRef("property")
     linkName = "property"
