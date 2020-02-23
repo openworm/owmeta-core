@@ -138,7 +138,7 @@ def owm_project():
         f.write(ptcov)
 
     try:
-        res.sh('owm -b init --default_context_id "http://example.org/data"')
+        res.sh('owm -b init --default-context-id "http://example.org/data"')
         yield res
     finally:
         shutil.rmtree(res.testdir)
