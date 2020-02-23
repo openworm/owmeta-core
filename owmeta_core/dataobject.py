@@ -201,27 +201,6 @@ def UnionProperty(*args, **kwargs):
     return APThunk('UnionProperty', args, kwargs)
 
 
-@mapped
-class RDFSClass(GraphObject):
-    """ The GraphObject corresponding to rdfs:Class """
-
-    # XXX: This class may be changed from a singleton later to facilitate
-    #      dumping and reloading the object graph
-    rdf_type = R.RDFS['Class']
-    auto_mapped = True
-    class_context = 'http://www.w3.org/2000/01/rdf-schema'
-    definition_context = ClassContext('http://www.w3.org/2000/01/rdf-schema')
-
-    instance = None
-    defined = True
-    identifier = R.RDFS["Class"]
-
-    def __new__(cls, *args, **kwargs):
-        if cls.instance is None:
-            cls.instance = super(RDFSClass, cls).__new__(cls)
-        return cls.instance
-
-
 TypeDataObject = None
 
 
@@ -346,7 +325,7 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
 
     def init_rdf_type_object(self):
         global TypeDataObject
-        if self.__name__ == 'BaseDataObject':
+        if self.__name__ in ('BaseDataObject', 'RDFSClass'):
             # Skip BaseDataObject during initialization since TypeDataObject won't be available yet
             pass
         elif TypeDataObject is None and self.__name__ == 'TypeDataObject':
@@ -432,12 +411,12 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
 
         if isinstance(o, TypeDataObject):
             o.rdf_type_property(RDFSClass())
+        elif isinstance(o, RDFSClass):
+            pass
         elif isinstance(o, PropertyDataObject):
             o.rdf_type_property(RDFProperty.get_instance())
         elif isinstance(o, RDFProperty):
             o.rdf_type_property(RDFSClass())
-        elif isinstance(o, RDFSClass):
-            o.rdf_type_property.set(o)
         else:
             o.rdf_type_property.set(self.rdf_type_object)
         return o
@@ -450,6 +429,28 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
     def definition_context(self):
         """ Unlike self.context, definition_context isn't meant to be overriden """
         return self.__context
+
+
+@mapped
+class RDFSClass(GraphObject, metaclass=ContextMappedClass):
+    """ The GraphObject corresponding to rdfs:Class """
+
+    # XXX: This class may be changed from a singleton later to facilitate
+    #      dumping and reloading the object graph
+    rdf_type = R.RDFS['Class']
+    auto_mapped = True
+    class_context = 'http://www.w3.org/2000/01/rdf-schema'
+    definition_context = ClassContext('http://www.w3.org/2000/01/rdf-schema')
+    base_namespace = R.Namespace('http://www.w3.org/2000/01/rdf-schema#')
+
+    instance = None
+    defined = True
+    identifier = R.RDFS["Class"]
+
+    def __new__(cls, *args, **kwargs):
+        if cls.instance is None:
+            cls.instance = super(RDFSClass, cls).__new__(cls)
+        return cls.instance
 
 
 class _QueryMixin(object):
@@ -1062,7 +1063,7 @@ class PropertyDataObject(BaseDataObject):
     Try not to confuse this with the Property class
     """
     rdf_type = R.RDF['Property']
-    class_context = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#'
+    class_context = 'http://www.w3.org/1999/02/22-rdf-syntax-ns'
 
 
 @mapped

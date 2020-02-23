@@ -1,14 +1,18 @@
 from __future__ import print_function
 from __future__ import absolute_import
-import six
+
+from collections import OrderedDict, defaultdict
+import logging
+
 from rdflib.term import URIRef
 from rdflib.namespace import Namespace
-from collections import OrderedDict, defaultdict
+import six
+
+from . import BASE_CONTEXT
 from .utils import FCN
 from .context import Context
 from .dataobject import DataObject, ObjectProperty, This
 from .mapper import mapped
-import logging
 
 L = logging.getLogger(__name__)
 
@@ -156,6 +160,8 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
     any value provided to __init__.
     '''
 
+    class_context = BASE_CONTEXT
+
     source = Informational(display_name='Input source',
                            description='The data source that was translated into this one',
                            identifier=URIRef('http://openworm.org/schema/DataSource/source'),
@@ -287,6 +293,8 @@ class Translation(DataObject):
     source to a translation.
     """
 
+    class_context = BASE_CONTEXT
+
     translator = ObjectProperty()
 
     def defined_augment(self):
@@ -301,6 +309,8 @@ class GenericTranslation(Translation):
     """
     A generic translation that just has sources in order
     """
+
+    class_context = BASE_CONTEXT
 
     source = ObjectProperty(multiple=True, value_rdf_type=DataSource.rdf_type)
 
@@ -343,6 +353,9 @@ class GenericTranslation(Translation):
 
 @mapped
 class DataObjectContextDataSource(DataSource):
+
+    class_context = BASE_CONTEXT
+
     def __init__(self, context, **kwargs):
         super(DataObjectContextDataSource, self).__init__(**kwargs)
         if context is not None:
@@ -375,6 +388,8 @@ class DataTransatorType(type(DataObject)):
 @mapped
 class BaseDataTranslator(six.with_metaclass(DataTransatorType, DataObject)):
     """ Translates from a data source to owmeta_core objects """
+
+    class_context = BASE_CONTEXT
 
     input_type = DataSource
     output_type = DataSource
@@ -451,6 +466,8 @@ class DataTranslator(BaseDataTranslator):
     sources for the translation automatically when a new output is made
     """
 
+    class_context = BASE_CONTEXT
+
     translation_type = GenericTranslation
 
     def make_translation(self, sources=()):
@@ -466,6 +483,8 @@ class PersonDataTranslator(BaseDataTranslator):
     A person who was responsible for carrying out the translation of a data source
     manually
     """
+
+    class_context = BASE_CONTEXT
 
     person = ObjectProperty(multiple=True)
     ''' A person responsible for carrying out the translation. '''

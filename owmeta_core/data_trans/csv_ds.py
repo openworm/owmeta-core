@@ -4,8 +4,10 @@ import csv
 
 from rdflib.namespace import Namespace
 
+from .. import BASE_CONTEXT
 from ..datasource import Informational, DataTranslator
 from ..mapper import mapped
+
 from .common_data import DS_NS
 from .local_file_ds import LocalFileDataSource
 from .http_ds import HTTPFileDataSource
@@ -16,6 +18,8 @@ class CSVDataSource(LocalFileDataSource):
     '''
     A CSV file data source
     '''
+
+    class_context = BASE_CONTEXT
 
     rdf_namespace = Namespace(DS_NS['CSVDataSource#'])
 
@@ -33,6 +37,8 @@ class CSVHTTPFileDataSource(HTTPFileDataSource):
     A CSV file retrieved over HTTP
     '''
 
+    class_context = BASE_CONTEXT
+
     rdf_namespace = Namespace(DS_NS['CSVHTTPFileDataSource#'])
 
     csv_header = Informational(display_name='Header column names', multiple=False)
@@ -45,6 +51,8 @@ class CSVDataTranslator(DataTranslator):
     '''
     A data translator which handles CSV files
     '''
+
+    class_context = BASE_CONTEXT
 
     input_type = (CSVDataSource,)
 
@@ -78,6 +86,7 @@ class CSVDataTranslator(DataTranslator):
 
         @contextmanager
         def cm(skiplines, dict_reader):
+            _skipheader = skipheader
             rel_fname = source.csv_file_name.one()
             fname = pth_join(source.basedir(), rel_fname)
             with open(fname) as f:
@@ -86,11 +95,11 @@ class CSVDataTranslator(DataTranslator):
                     skiplines -= 1
                 if dict_reader:
                     if 'fieldnames' not in params:
-                        skipheader = False
+                        _skipheader = False
                     reader = csv.DictReader(f, **params)
                 else:
                     reader = csv.reader(f, **params)
-                if skipheader:
+                if _skipheader:
                     next(reader)
                 yield reader
         return cm(skiplines, dict_reader)

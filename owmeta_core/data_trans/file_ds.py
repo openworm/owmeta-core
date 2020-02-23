@@ -1,12 +1,18 @@
 from contextlib import contextmanager
 from rdflib.namespace import Namespace
+
+from .. import BASE_CONTEXT
 from ..datasource import Informational, DataSource
 from ..mapper import mapped
+
 from .common_data import DS_NS
 
 
 @mapped
 class FileDataSource(DataSource):
+
+    class_context = BASE_CONTEXT
+
     rdf_namespace = Namespace(DS_NS['FileDataSource#'])
     md5 = Informational(display_name='MD5 hash')
     sha256 = Informational(display_name='SHA-256 hash')

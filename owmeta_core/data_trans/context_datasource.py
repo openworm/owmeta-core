@@ -1,6 +1,7 @@
 from rdflib.term import URIRef
 from rdflib.namespace import Namespace
 
+from .. import BASE_CONTEXT
 from ..context import Context
 from ..context_dataobject import ContextDataObject
 from ..mapper import mapped
@@ -62,6 +63,8 @@ class VariableIdentifierContextDataObject(VariableIdentifierMixin, ContextDataOb
     A ContextDataObject that gets its identifier and its configuration from its 'maker'
     passed in at initialization
     '''
+
+    class_context = BASE_CONTEXT
 
     rdf_type = URIRef('http://openworm.org/schema/Context#variable')
     rdf_namespace = Namespace(rdf_type + '#')
