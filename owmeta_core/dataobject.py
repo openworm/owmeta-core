@@ -301,8 +301,6 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
         if key_property is not None:
             self.key_property = _process_key_property(key_property)
 
-        self.init_rdf_type_object()
-
         self.__query_form = None
 
     def contextualize_class_augment(self, context):
@@ -321,21 +319,23 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
         '''
         Called after the module has been loaded. See :class:`owmeta_core.mapper.Mapper`
         '''
+        self.init_rdf_type_object()
         self.init_python_class_registry_entries()
 
     def init_rdf_type_object(self):
-        global TypeDataObject
-        if self.__name__ in ('BaseDataObject', 'RDFSClass'):
-            # Skip BaseDataObject during initialization since TypeDataObject won't be available yet
-            pass
-        elif TypeDataObject is None and self.__name__ == 'TypeDataObject':
-            # TypeDataObject may not be resolvable yet, so we have to check by name
-            TypeDataObject = self
-            # We don't use the rdf_type_object, but see `__call__` below for how we
-            self.rdf_type_object = None
-            BaseDataObject._init_rdf_type_object()
-        else:
-            self._init_rdf_type_object()
+        if not hasattr(self, 'rdf_type_object') or \
+                self.rdf_type_object is not None and self.rdf_type_object.identifier != self.rdf_type:
+            if self.definition_context is None:
+                raise Exception("The class {0} has no context for TypeDataObject(ident={1})".format(
+                    self, self.rdf_type))
+            L.debug('Creating rdf_type_object for {} in {}'.format(self, self.definition_context))
+            rdto = TypeDataObject.contextualize(self.definition_context)(ident=self.rdf_type)
+            rdto.attach_property(RDFSSubClassOfProperty)
+            for par in self.__bases__:
+                prdto = getattr(par, 'rdf_type_object', None)
+                if prdto is not None:
+                    rdto.rdfs_subclassof_property.set(prdto)
+            self.rdf_type_object = rdto
 
     @property
     def query(self):
@@ -350,21 +350,6 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
                          rdf_namespace=self.rdf_namespace))
             self.__query_form.__module__ = self.__module__
         return self.__query_form
-
-    def _init_rdf_type_object(self):
-        if not hasattr(self, 'rdf_type_object') or \
-                self.rdf_type_object is not None and self.rdf_type_object.identifier != self.rdf_type:
-            if self.definition_context is None:
-                raise Exception("The class {0} has no context for TypeDataObject(ident={1})".format(
-                    self, self.rdf_type))
-            L.debug('Creating rdf_type_object for {} in {}'.format(self, self.definition_context))
-            rdto = TypeDataObject.contextualize(self.definition_context)(ident=self.rdf_type)
-            rdto.attach_property(RDFSSubClassOfProperty)
-            for par in self.__bases__:
-                prdto = getattr(par, 'rdf_type_object', None)
-                if prdto is not None:
-                    rdto.rdfs_subclassof_property.set(prdto)
-            self.rdf_type_object = rdto
 
     def _check_is_good_class_registry(self):
         module = import_module(self.__module__)
@@ -412,7 +397,7 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
         if isinstance(o, TypeDataObject):
             o.rdf_type_property(RDFSClass())
         elif isinstance(o, RDFSClass):
-            pass
+            o.rdf_type_property(o)
         elif isinstance(o, PropertyDataObject):
             o.rdf_type_property(RDFProperty.get_instance())
         elif isinstance(o, RDFProperty):
@@ -429,28 +414,6 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
     def definition_context(self):
         """ Unlike self.context, definition_context isn't meant to be overriden """
         return self.__context
-
-
-@mapped
-class RDFSClass(GraphObject, metaclass=ContextMappedClass):
-    """ The GraphObject corresponding to rdfs:Class """
-
-    # XXX: This class may be changed from a singleton later to facilitate
-    #      dumping and reloading the object graph
-    rdf_type = R.RDFS['Class']
-    auto_mapped = True
-    class_context = 'http://www.w3.org/2000/01/rdf-schema'
-    definition_context = ClassContext('http://www.w3.org/2000/01/rdf-schema')
-    base_namespace = R.Namespace('http://www.w3.org/2000/01/rdf-schema#')
-
-    instance = None
-    defined = True
-    identifier = R.RDFS["Class"]
-
-    def __new__(cls, *args, **kwargs):
-        if cls.instance is None:
-            cls.instance = super(RDFSClass, cls).__new__(cls)
-        return cls.instance
 
 
 class _QueryMixin(object):
@@ -1002,6 +965,27 @@ class RDFTypeProperty(SP.ObjectProperty):
     owner_type = BaseDataObject
     multiple = True
     lazy = False
+
+
+@mapped
+class RDFSClass(BaseDataObject):
+    """ The GraphObject corresponding to rdfs:Class """
+
+    # XXX: This class may be changed from a singleton later to facilitate
+    #      dumping and reloading the object graph
+    rdf_type = R.RDFS['Class']
+    class_context = 'http://www.w3.org/2000/01/rdf-schema'
+    definition_context = ClassContext('http://www.w3.org/2000/01/rdf-schema')
+    base_namespace = R.Namespace('http://www.w3.org/2000/01/rdf-schema#')
+
+    instance = None
+    defined = True
+    identifier = R.RDFS["Class"]
+
+    def __new__(cls, *args, **kwargs):
+        if cls.instance is None:
+            cls.instance = super(RDFSClass, cls).__new__(cls)
+        return cls.instance
 
 
 @mapped

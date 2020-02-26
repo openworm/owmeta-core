@@ -114,13 +114,14 @@ class Mapper(ModuleRecordListener, Configurable):
 
     def process_module(self, module_name, module):
         self.modules[module_name] = module
-        try:
-            for c in self._module_load_helper(module):
+        for c in self._module_load_helper(module):
+            try:
+                print('processing', c)
                 if hasattr(c, 'after_mapper_module_load'):
                     c.after_mapper_module_load(self)
-        except Exception:
-            del self.modules[module_name]
-            return None
+            except Exception:
+                L.warning("Failed to process class", c)
+                continue
         return module
 
     def process_class(self, *classes):
@@ -169,8 +170,7 @@ class Mapper(ModuleRecordListener, Configurable):
             full_class_name = FCN(cls)
             if isinstance(cls, type) and self.add_class(cls):
                 res.append(cls)
-
-        return sorted(res, key=_ClassOrderable, reverse=True)
+        return res # sorted(res, key=_ClassOrderable, reverse=True)
 
     def lookup_class(self, cname):
         """ Gets the class corresponding to a fully-qualified class name """
