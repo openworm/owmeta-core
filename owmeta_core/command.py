@@ -1036,12 +1036,12 @@ class OWM(object):
             return dat.get(*args)
         return dat
 
+    _init_store = _conf
+
     def _disconnect(self):
         from owmeta_core import disconnect
         if self._owm_connection is not None:
             disconnect(self._owm_connection)
-
-    _init_store = _conf
 
     def clone(self, url=None, update_existing_config=False, branch=None):
         """Clone a data store

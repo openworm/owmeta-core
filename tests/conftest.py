@@ -11,8 +11,11 @@ import shutil
 import shlex
 import tempfile
 
-import requests
+from owmeta_core.bundle import Descriptor, Installer
 from pytest import fixture
+from rdflib.term import URIRef
+from rdflib.graph import ConjunctiveGraph
+import requests
 
 
 L = logging.getLogger(__name__)
@@ -190,3 +193,49 @@ class Data(object):
         return outputs[0] if len(outputs) == 1 else outputs
 
     __repr__ = __str__
+
+
+@fixture
+def bundle():
+    with bundle_helper(Descriptor('test')) as data:
+        yield data
+
+
+@fixture
+def custom_bundle():
+    yield bundle_helper
+
+
+@contextmanager
+def bundle_helper(descriptor, graph=None, bundles_directory=None):
+    res = BundleData()
+    res.testdir = tempfile.mkdtemp(prefix=__name__ + '.')
+    res.test_homedir = p(res.testdir, 'homedir')
+    res.bundle_source_directory = p(res.testdir, 'bundle_source')
+    res.bundles_directory = bundles_directory or p(res.testdir, 'homedir', 'bundles')
+    os.mkdir(res.test_homedir)
+    os.mkdir(res.bundle_source_directory)
+    if not bundles_directory:
+        os.mkdir(res.bundles_directory)
+
+    # This is a bit of an integration test since it would be a PITA to maintain the bundle
+    # format separately from the installer
+    res.descriptor = descriptor
+    if graph is None:
+        graph = ConjunctiveGraph()
+        ctxg = graph.get_context(URIRef('http://example.org/ctx'))
+        ctxg.add((URIRef('http://example.org/a'),
+                  URIRef('http://example.org/b'),
+                  URIRef('http://example.org/c')))
+    res.installer = Installer(res.bundle_source_directory,
+                              res.bundles_directory,
+                              graph=graph)
+    res.bundle_directory = res.installer.install(res.descriptor)
+    try:
+        yield res
+    finally:
+        shutil.rmtree(res.testdir)
+
+
+class BundleData(object):
+    pass

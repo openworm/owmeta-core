@@ -24,7 +24,19 @@ import six
 L = logging.getLogger(__name__)
 
 DEFAULT_CONTEXT_KEY = 'default_context_id'
+'''
+Configuration file key for the URI of a default RDF graph context.
+
+This is the URI of the default graph in a project or bundle.
+'''
+
 IMPORTS_CONTEXT_KEY = 'imports_context_id'
+'''
+Configuration file key for the URI of an imports RDF graph context.
+
+The imports context holds the relationships between contexts, especially the imports
+relationship
+'''
 
 
 class ModuleProxy(wrapt.ObjectProxy):

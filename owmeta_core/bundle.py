@@ -21,7 +21,7 @@ from .utils import FCN
 
 from .rdf_utils import transitive_lookup, BatchAddGraph
 from .command_util import DEFAULT_OWM_DIR
-from .context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY
+from .context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY, Context
 from .context_common import CONTEXT_IMPORTS
 from .data import Data
 from .file_match import match_files
@@ -211,6 +211,27 @@ class Descriptor(object):
         res._set(obj)
         return res
 
+    @classmethod
+    def load(cls, descriptor_source):
+        '''
+        Load a descriptor
+
+        Parameters
+        ----------
+        descriptor_source : str
+            The descriptor source
+
+        Raises
+        ------
+        NotADescriptor : Thrown when the object loaded from `descriptor_source` isn't a
+        `dict`
+        '''
+        dat = yaml.safe_load(descriptor_source)
+        if isinstance(dat, dict):
+            return cls.make(dat)
+        else:
+            raise NotADescriptor()
+
     def _set(self, obj):
         self.name = obj.get('name', self.id)
         self.version = obj.get('version', 1)
@@ -291,21 +312,26 @@ class Bundle(object):
         #   delete the existing database if it doesn't match the store config
         return find_bundle_directory(self.bundles_directory, self.ident, self.version)
 
-    def _make_config(self, bundle_directory, progress=None, trip_prog=None):
-        self.conf = Data().copy(self._given_conf)
-        self.conf['rdf.store_conf'] = p(bundle_directory, 'owm.db')
-        self.conf[IMPORTS_CONTEXT_KEY] = fmt_bundle_ctx_id(self.ident)
-        with open(p(bundle_directory, 'manifest')) as mf:
-            for ln in mf:
-                if ln.startswith(DEFAULT_CONTEXT_KEY):
-                    self.conf[DEFAULT_CONTEXT_KEY] = ln[len(DEFAULT_CONTEXT_KEY) + 1:]
-                if ln.startswith(IMPORTS_CONTEXT_KEY):
-                    self.conf[IMPORTS_CONTEXT_KEY] = ln[len(IMPORTS_CONTEXT_KEY) + 1:]
-        # Create the database file and initialize some needed data structures
-        self.conf.init()
-        if not exists(self.conf['rdf.store_conf']):
-            raise Exception('Cannot find the database file at ' + self.conf['rdf.store_conf'])
-        self._load_all_graphs(bundle_directory, progress=progress, trip_prog=trip_prog)
+    def initdb(self, bundle_directory, progress=None, trip_prog=None):
+        if self.conf is None:
+            self.conf = Data().copy(self._given_conf)
+            self.conf['rdf.store_conf'] = p(bundle_directory, 'owm.db')
+            self.conf[IMPORTS_CONTEXT_KEY] = fmt_bundle_ctx_id(self.ident)
+            with open(p(bundle_directory, 'manifest')) as mf:
+                manifest_data = json.load(mf)
+                self.conf[DEFAULT_CONTEXT_KEY] = manifest_data.get(DEFAULT_CONTEXT_KEY)
+                self.conf[IMPORTS_CONTEXT_KEY] = manifest_data.get(IMPORTS_CONTEXT_KEY)
+            # Create the database file and initialize some needed data structures
+            self.conf.init()
+            if not exists(self.conf['rdf.store_conf']):
+                raise Exception('Cannot find the database file at ' + self.conf['rdf.store_conf'])
+            deps = manifest_data.get('dependencies', ())
+            self._load_all_graphs(bundle_directory, progress=progress, trip_prog=trip_prog)
+            for dep in deps:
+                dep_dir = find_bundle_directory(self.bundles_directory, dep['id'], dep['version'])
+                print('loading all graphs from dep_dir', dep_dir)
+                print(listdir(p(dep_dir, 'graphs')))
+                self._load_all_graphs(dep_dir, progress=progress, trip_prog=trip_prog)
 
     @property
     def contexts(self):
@@ -380,16 +406,24 @@ class Bundle(object):
         return self.conf['rdf.graph']
 
     def __enter__(self):
-        self._make_config(self.resolve())
+        self.initdb(self.resolve())
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        # Close the database connection
         self.conf.destroy()
 
     def __call__(self, target):
         if target and hasattr(target, 'contextualize'):
-            return target.contextualize(self)
+            ctx = Context(self.conf.get(DEFAULT_CONTEXT_KEY, None), conf=self.conf)
+            return target.contextualize(ctx.stored)
         return None
+
+
+class BundleContext(Context):
+    '''
+    Marker for the default `Context` for a bundle
+    '''
 
 
 def validate_manifest(bundle_path, manifest_data):
@@ -1360,6 +1394,7 @@ class Installer(object):
         manifest_data['id'] = descriptor.id
         manifest_data['version'] = descriptor.version
         manifest_data['manifest_version'] = BUNDLE_MANIFEST_VERSION
+        manifest_data['dependencies'] = [{'version': x.version, 'id': x.id} for x in descriptor.dependencies]
         with open(p(staging_directory, 'manifest'), 'w') as mf:
             json.dump(manifest_data, mf, separators=(',', ':'))
 
@@ -1407,13 +1442,12 @@ class Installer(object):
             index_out.flush()
 
     def _cover_with_dependencies(self, uncovered_contexts, dependencies):
-        # TODO: Check for contexts being included in dependencies
         # XXX: Will also need to check for the contexts having a given ID being consistent
         # with each other across dependencies
         for d in dependencies:
             bnd = Bundle(d.id, self.bundles_directory, d.version, remotes=self.remotes)
             for b in bnd.contexts:
-                uncovered_contexts.remove(URIRef(b))
+                uncovered_contexts.discard(URIRef(b))
                 if not uncovered_contexts:
                     break
         return uncovered_contexts
@@ -1652,6 +1686,13 @@ class NoRemoteAvailable(Exception):
 class UnarchiveFailed(Exception):
     '''
     Thrown when an `Unarchiver` fails for some reason not covered by other
+    '''
+
+
+class NotADescriptor(Exception):
+    '''
+    Thrown when a given file, string, or other object is offered as a descriptor, but does
+    not represent a `Descriptor`
     '''
 
 

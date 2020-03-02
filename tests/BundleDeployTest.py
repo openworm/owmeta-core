@@ -9,45 +9,9 @@ from rdflib import ConjunctiveGraph, URIRef
 from pytest import fixture, raises
 
 from owmeta_core.bundle import (NoRemoteAvailable,
-                           Remote,
-                           Deployer,
-                           Descriptor,
-                           Installer,
-                           NotABundlePath)
-
-
-@fixture
-def bundle():
-    res = BundleData()
-    res.testdir = tempfile.mkdtemp(prefix=__name__ + '.')
-    res.test_homedir = p(res.testdir, 'homedir')
-    res.bundle_source_directory = p(res.testdir, 'bundle_source')
-    res.bundles_directory = p(res.testdir, 'homedir', 'bundles')
-    os.mkdir(res.test_homedir)
-    os.mkdir(res.bundle_source_directory)
-    os.mkdir(res.bundles_directory)
-
-    # This is a bit of an integration test since it would be a PITA to maintain the bundle
-    # format separately from the installer
-    res.descriptor = Descriptor('test')
-    graph = ConjunctiveGraph()
-    ctxg = graph.get_context(URIRef('http://example.org/ctx'))
-    ctxg.add((URIRef('http://example.org/a'),
-              URIRef('http://example.org/b'),
-              URIRef('http://example.org/c')))
-    res.installer = Installer(
-            res.bundle_source_directory,
-            res.bundles_directory,
-            graph=graph)
-    res.bundle_directory = res.installer.install(res.descriptor)
-    try:
-        yield res
-    finally:
-        shutil.rmtree(res.testdir)
-
-
-class BundleData(object):
-    pass
+                                Remote,
+                                Deployer,
+                                NotABundlePath)
 
 
 def test_bundle_path_does_not_exist(tempdir):

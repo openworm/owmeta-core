@@ -3,11 +3,13 @@ import tempfile
 from os.path import join as p
 from os import makedirs, chmod
 
+import pytest
+from rdflib.term import URIRef
+from rdflib.graph import ConjunctiveGraph
+
+
 from owmeta_core.bundle import (Remote, URLConfig, HTTPBundleLoader, Bundle, BundleNotFound,
                            Descriptor, DependencyDescriptor)
-
-
-import pytest
 
 
 def test_write_read_remote_1():
@@ -139,3 +141,27 @@ def test_descriptor_dependency():
     assert DependencyDescriptor('dep2', 2) in d.dependencies
     assert DependencyDescriptor('dep3', 4) in d.dependencies
     assert DependencyDescriptor('dep4') in d.dependencies
+
+
+def test_bundle_context_with_dependencies(custom_bundle):
+    dep_desc = Descriptor.load('''
+    id: dep
+    includes:
+      - http://example.com/ctx
+    ''')
+
+    test_desc = Descriptor.load('''
+    id: test
+    dependencies:
+      - dep
+    ''')
+
+    depgraph = ConjunctiveGraph()
+    ctx_graph = depgraph.get_context('http://example.com/ctx')
+    trip = (URIRef('http://example.org/sub'), URIRef('http://example.org/prop'), URIRef('http://example.org/obj'))
+    ctx_graph.add(trip)
+
+    with custom_bundle(dep_desc, graph=depgraph) as depbun, \
+            custom_bundle(test_desc, bundles_directory=depbun.bundles_directory) as testbun, \
+            Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
+        assert trip in bnd.rdf

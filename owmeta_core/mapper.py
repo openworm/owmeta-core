@@ -116,7 +116,6 @@ class Mapper(ModuleRecordListener, Configurable):
         self.modules[module_name] = module
         for c in self._module_load_helper(module):
             try:
-                print('processing', c)
                 if hasattr(c, 'after_mapper_module_load'):
                     c.after_mapper_module_load(self)
             except Exception:
