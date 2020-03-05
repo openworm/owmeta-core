@@ -143,7 +143,9 @@ def test_descriptor_dependency():
     assert DependencyDescriptor('dep4') in d.dependencies
 
 
-def test_bundle_context_with_dependencies(custom_bundle):
+def test_triple_in_dependency(custom_bundle):
+    '''
+    '''
     dep_desc = Descriptor.load('''
     id: dep
     includes:
@@ -165,3 +167,177 @@ def test_bundle_context_with_dependencies(custom_bundle):
             custom_bundle(test_desc, bundles_directory=depbun.bundles_directory) as testbun, \
             Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
         assert trip in bnd.rdf
+
+
+def test_quad_in_dependency(custom_bundle):
+    '''
+    '''
+    dep_desc = Descriptor.load('''
+    id: dep
+    includes:
+      - http://example.com/ctx
+    ''')
+
+    test_desc = Descriptor.load('''
+    id: test
+    dependencies:
+      - dep
+    ''')
+
+    depgraph = ConjunctiveGraph()
+    ctx_graph = depgraph.get_context('http://example.com/ctx')
+    quad = (URIRef('http://example.org/sub'), URIRef('http://example.org/prop'), URIRef('http://example.org/obj'),
+            ctx_graph)
+    depgraph.add(quad)
+
+    with custom_bundle(dep_desc, graph=depgraph) as depbun, \
+            custom_bundle(test_desc, bundles_directory=depbun.bundles_directory) as testbun, \
+            Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
+        assert quad in bnd.rdf
+
+
+def test_quad_not_in_dependency(custom_bundle):
+    dep_desc = Descriptor.load('''
+    id: dep
+    includes:
+      - http://example.com/ctx
+    ''')
+
+    test_desc = Descriptor.load('''
+    id: test
+    dependencies:
+      - dep
+    ''')
+
+    depgraph = ConjunctiveGraph()
+    ctx_graph = depgraph.get_context('http://example.com/other_ctx')
+    quad = (URIRef('http://example.org/sub'), URIRef('http://example.org/prop'), URIRef('http://example.org/obj'),
+            ctx_graph)
+    depgraph.add(quad)
+
+    with custom_bundle(dep_desc, graph=depgraph) as depbun, \
+            custom_bundle(test_desc, bundles_directory=depbun.bundles_directory) as testbun, \
+            Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
+        assert quad not in bnd.rdf
+
+
+def test_quad_not_in_dependency(custom_bundle):
+    dep_desc = Descriptor.load('''
+    id: dep
+    includes:
+      - http://example.com/ctx
+    ''')
+
+    test_desc = Descriptor.load('''
+    id: test
+    dependencies:
+      - dep
+    ''')
+
+    depgraph = ConjunctiveGraph()
+    ctx_graph = depgraph.get_context('http://example.com/other_ctx')
+    quad = (URIRef('http://example.org/sub'), URIRef('http://example.org/prop'), URIRef('http://example.org/obj'),
+            ctx_graph)
+    depgraph.add(quad)
+
+    with custom_bundle(dep_desc, graph=depgraph) as depbun, \
+            custom_bundle(test_desc, bundles_directory=depbun.bundles_directory) as testbun, \
+            Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
+        assert quad not in bnd.rdf
+
+
+def test_triples_choices(custom_bundle):
+    dep_desc = Descriptor.load('''
+    id: dep
+    includes:
+      - http://example.com/ctx
+    ''')
+
+    test_desc = Descriptor.load('''
+    id: test
+    dependencies:
+      - dep
+    ''')
+
+    depgraph = ConjunctiveGraph()
+    ctx_graph = depgraph.get_context('http://example.com/ctx')
+    quad = (URIRef('http://example.org/sub'), URIRef('http://example.org/prop'), URIRef('http://example.org/obj'),
+            ctx_graph)
+    depgraph.add(quad)
+
+    with custom_bundle(dep_desc, graph=depgraph) as depbun, \
+            custom_bundle(test_desc, bundles_directory=depbun.bundles_directory) as testbun, \
+            Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
+        match = False
+        for x in bnd.rdf.triples_choices(
+                (URIRef('http://example.org/sub'),
+                 URIRef('http://example.org/prop'),
+                 [URIRef('http://example.org/obj')])):
+            match = True
+            break
+        assert match
+
+
+def test_triples_choices_context(custom_bundle):
+    dep_desc = Descriptor.load('''
+    id: dep
+    includes:
+      - http://example.com/ctx
+    ''')
+
+    test_desc = Descriptor.load('''
+    id: test
+    dependencies:
+      - dep
+    ''')
+
+    depgraph = ConjunctiveGraph()
+    ctx_graph = depgraph.get_context('http://example.com/ctx')
+    quad = (URIRef('http://example.org/sub'), URIRef('http://example.org/prop'), URIRef('http://example.org/obj'),
+            ctx_graph)
+    depgraph.add(quad)
+
+    with custom_bundle(dep_desc, graph=depgraph) as depbun, \
+            custom_bundle(test_desc, bundles_directory=depbun.bundles_directory) as testbun, \
+            Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
+        match = False
+        for x in bnd.rdf.triples_choices(
+                (URIRef('http://example.org/sub'),
+                 URIRef('http://example.org/prop'),
+                 [URIRef('http://example.org/obj')]),
+                context=ctx_graph):
+            match = True
+            break
+        assert match
+
+
+def test_triples_choices_context_not_included(custom_bundle):
+    dep_desc = Descriptor.load('''
+    id: dep
+    includes:
+      - http://example.com/ctxg
+    ''')
+
+    test_desc = Descriptor.load('''
+    id: test
+    dependencies:
+      - dep
+    ''')
+
+    depgraph = ConjunctiveGraph()
+    ctx_graph = depgraph.get_context('http://example.com/ctx')
+    quad = (URIRef('http://example.org/sub'), URIRef('http://example.org/prop'), URIRef('http://example.org/obj'),
+            ctx_graph)
+    depgraph.add(quad)
+
+    with custom_bundle(dep_desc, graph=depgraph) as depbun, \
+            custom_bundle(test_desc, bundles_directory=depbun.bundles_directory) as testbun, \
+            Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
+        match = False
+        for x in bnd.rdf.triples_choices(
+                (URIRef('http://example.org/sub'),
+                 URIRef('http://example.org/prop'),
+                 [URIRef('http://example.org/obj')]),
+                context=ctx_graph):
+            match = True
+        assert not match
