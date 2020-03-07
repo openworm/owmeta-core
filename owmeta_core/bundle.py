@@ -14,12 +14,13 @@ from itertools import chain
 import tarfile
 import http.client
 
-import six
+from rdflib import plugin
+from rdflib.parser import Parser, create_input_source
 from rdflib.term import URIRef
+import six
+import transaction
 import yaml
-from .utils import FCN
 
-from .rdf_utils import transitive_lookup, BatchAddGraph
 from .command_util import DEFAULT_OWM_DIR
 from .context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY, Context
 from .context_common import CONTEXT_IMPORTS
@@ -27,6 +28,8 @@ from .data import Data
 from .file_match import match_files
 from .file_lock import lock_file
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
+from .rdf_utils import transitive_lookup, BatchAddGraph
+from .utils import FCN
 
 try:
     from urllib.parse import quote as urlquote, unquote as urlunquote, urlparse
@@ -274,7 +277,9 @@ class Bundle(object):
             bundles_directory = expanduser(p('~', '.owmeta', 'bundles'))
         self.bundles_directory = bundles_directory
         if not conf:
-            conf = {'rdf.source': 'zodb'}
+            conf = {}
+
+        conf.update({'rdf.source': 'default'})
         self.version = version
         self.remotes = remotes
         self._given_conf = conf
@@ -312,26 +317,22 @@ class Bundle(object):
         #   delete the existing database if it doesn't match the store config
         return find_bundle_directory(self.bundles_directory, self.ident, self.version)
 
-    def initdb(self, bundle_directory, progress=None, trip_prog=None):
+    def initdb(self, bundle_directory):
         if self.conf is None:
             self.conf = Data().copy(self._given_conf)
-            self.conf['rdf.store_conf'] = p(bundle_directory, 'owm.db')
             self.conf[IMPORTS_CONTEXT_KEY] = fmt_bundle_ctx_id(self.ident)
             with open(p(bundle_directory, 'manifest')) as mf:
                 manifest_data = json.load(mf)
                 self.conf[DEFAULT_CONTEXT_KEY] = manifest_data.get(DEFAULT_CONTEXT_KEY)
                 self.conf[IMPORTS_CONTEXT_KEY] = manifest_data.get(IMPORTS_CONTEXT_KEY)
+            self.conf['rdf.store'] = 'agg'
+            self.conf['rdf.store_conf'] = [('FileStorageZODB', p(bundle_directory, 'owm.db'))] + [
+                ('FileStorageZODB', p(find_bundle_directory(self.bundles_directory, dd['id'], dd.get('version')),
+                    'owm.db'))
+                for dd in manifest_data.get('dependencies')
+            ]
             # Create the database file and initialize some needed data structures
             self.conf.init()
-            if not exists(self.conf['rdf.store_conf']):
-                raise Exception('Cannot find the database file at ' + self.conf['rdf.store_conf'])
-            deps = manifest_data.get('dependencies', ())
-            self._load_all_graphs(bundle_directory, progress=progress, trip_prog=trip_prog)
-            for dep in deps:
-                dep_dir = find_bundle_directory(self.bundles_directory, dep['id'], dep['version'])
-                print('loading all graphs from dep_dir', dep_dir)
-                print(listdir(p(dep_dir, 'graphs')))
-                self._load_all_graphs(dep_dir, progress=progress, trip_prog=trip_prog)
 
     @property
     def contexts(self):
@@ -354,52 +355,6 @@ class Bundle(object):
                 contexts.add(ctx.decode('UTF-8'))
         self._contexts = contexts
         return self._contexts
-
-    def _load_all_graphs(self, bundle_directory, progress=None, trip_prog=None):
-        # This is very similar to the owmeta_core.command.OWM._load_all_graphs, but is
-        # different enough that it's easier to just keep them separate
-        import transaction
-        from rdflib import plugin
-        from rdflib.parser import Parser, create_input_source
-        contexts = set()
-        graphs_directory = p(bundle_directory, 'graphs')
-        idx_fname = p(graphs_directory, 'index')
-        if not exists(idx_fname):
-            raise Exception('Cannot find an index at {}'.format(repr(idx_fname)))
-        triples_read = 0
-        dest = self.rdf
-        with open(idx_fname, 'rb') as index_file:
-            if progress is not None:
-                cnt = 0
-                for l in index_file:
-                    cnt += 1
-                index_file.seek(0)
-
-                progress.total = cnt
-
-            parser = plugin.get('nt', Parser)()
-            with transaction.manager:
-                for l in index_file:
-                    l = l.strip()
-                    if not l:
-                        continue
-                    ctx, fname = l.split(b'\x00')
-                    graph_fname = p(graphs_directory, fname.decode('UTF-8'))
-                    ctx_str = ctx.decode('UTF-8')
-                    contexts.add(ctx_str)
-                    with open(graph_fname, 'rb') as f, \
-                            BatchAddGraph(dest.get_context(ctx_str), batchsize=4000) as g:
-                        parser.parse(create_input_source(f), g)
-
-                    if progress is not None and trip_prog is not None:
-                        progress.update(1)
-                        triples_read += g.count
-                        trip_prog.update(g.count)
-                if progress is not None:
-                    progress.write('Finalizing writes to database...')
-        self._contexts = contexts
-        if progress is not None:
-            progress.write('Loaded {:,} triples'.format(triples_read))
 
     @property
     def rdf(self):
@@ -1358,6 +1313,7 @@ class Installer(object):
         self._write_file_hashes(descriptor, files_directory)
         self._write_context_data(descriptor, graphs_directory)
         self._write_manifest(descriptor, staging_directory)
+        self._build_indexed_database(staging_directory)
 
     def _set_up_directories(self, staging_directory):
         graphs_directory = p(staging_directory, 'graphs')
@@ -1381,28 +1337,8 @@ class Installer(object):
                 hash_out.write(fname.encode('UTF-8') + b'\x00' + pack('B', hsh.digest_size) + hsh.digest() + b'\n')
                 shutil.copy2(source_fname, p(files_directory, fname))
 
-    def _write_manifest(self, descriptor, staging_directory):
-        manifest_data = {}
-        if self.default_ctx:
-            manifest_data[DEFAULT_CONTEXT_KEY] = self.default_ctx
-        if self.imports_ctx:
-            # If an imports context was specified, then we'll need to generate an
-            # imports context with the appropriate imports. We don't use the source
-            # imports context ID for the bundle's imports context because the bundle
-            # imports that we actually need are a subset of the total set of imports
-            manifest_data[IMPORTS_CONTEXT_KEY] = fmt_bundle_ctx_id(descriptor.id)
-        manifest_data['id'] = descriptor.id
-        manifest_data['version'] = descriptor.version
-        manifest_data['manifest_version'] = BUNDLE_MANIFEST_VERSION
-        manifest_data['dependencies'] = [{'version': x.version, 'id': x.id} for x in descriptor.dependencies]
-        with open(p(staging_directory, 'manifest'), 'w') as mf:
-            json.dump(manifest_data, mf, separators=(',', ':'))
-
     def _write_context_data(self, descriptor, graphs_directory):
         contexts = _select_contexts(descriptor, self.graph)
-
-        # XXX: Find out what I was planning to do with these imported contexts...adding
-        # dependencies or something?
         imports_ctxg = None
         if self.imports_ctx:
             imports_ctxg = self.graph.get_context(self.imports_ctx)
@@ -1440,6 +1376,70 @@ class Installer(object):
                 raise UncoveredImports(uncovered_contexts)
             hash_out.flush()
             index_out.flush()
+
+    def _write_manifest(self, descriptor, staging_directory):
+        manifest_data = {}
+        if self.default_ctx:
+            manifest_data[DEFAULT_CONTEXT_KEY] = self.default_ctx
+        if self.imports_ctx:
+            # If an imports context was specified, then we'll need to generate an
+            # imports context with the appropriate imports. We don't use the source
+            # imports context ID for the bundle's imports context because the bundle
+            # imports that we actually need are a subset of the total set of imports
+            manifest_data[IMPORTS_CONTEXT_KEY] = fmt_bundle_ctx_id(descriptor.id)
+        manifest_data['id'] = descriptor.id
+        manifest_data['version'] = descriptor.version
+        manifest_data['manifest_version'] = BUNDLE_MANIFEST_VERSION
+        manifest_data['dependencies'] = [{'version': x.version, 'id': x.id} for x in descriptor.dependencies]
+        self.manifest_data = manifest_data
+        with open(p(staging_directory, 'manifest'), 'w') as mf:
+            json.dump(manifest_data, mf, separators=(',', ':'))
+
+    def _initdb(self, staging_directory):
+        self.conf = Data().copy({
+            'rdf.source': 'default',
+            'rdf.store': 'FileStorageZODB',
+            'rdf.store_conf': p(staging_directory, 'owm.db')
+        })
+        # Create the database file and initialize some needed data structures
+        self.conf.init()
+        if not exists(self.conf['rdf.store_conf']):
+            raise Exception('Could not create the database file at ' + self.conf['rdf.store_conf'])
+
+    def _build_indexed_database(self, staging_directory, progress=None):
+        self._initdb(staging_directory)
+        try:
+            contexts = set()
+            graphs_directory = p(staging_directory, 'graphs')
+            idx_fname = p(graphs_directory, 'index')
+            if not exists(idx_fname):
+                raise Exception('Cannot find an index at {}'.format(repr(idx_fname)))
+            if progress is not None:
+                cnt = 0
+                for l in dest.contexts():
+                    cnt += 1
+                progress.total = cnt
+
+            dest = self.conf['rdf.graph']
+            with transaction.manager:
+                with open(idx_fname, 'rb') as idx_file:
+                    for line in idx_file:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        ctx, _ = line.split(b'\x00')
+                        ctxg = self.graph.get_context(ctx.decode('UTF-8'))
+                        dest.addN(trip + (ctxg,) for trip in ctxg)
+
+                        if progress is not None:
+                            progress.update(1)
+                if progress is not None:
+                    progress.write('Finalizing writes to database...')
+            if progress is not None:
+                progress.write('Wrote indexed database')
+        finally:
+            if self.conf:
+                self.conf.destroy()
 
     def _cover_with_dependencies(self, uncovered_contexts, dependencies):
         # XXX: Will also need to check for the contexts having a given ID being consistent

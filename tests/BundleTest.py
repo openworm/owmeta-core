@@ -10,6 +10,7 @@ from rdflib.graph import ConjunctiveGraph
 
 from owmeta_core.bundle import (Remote, URLConfig, HTTPBundleLoader, Bundle, BundleNotFound,
                            Descriptor, DependencyDescriptor)
+from owmeta_core.agg_store import UnsupportedAggregateOperation
 
 
 def test_write_read_remote_1():
@@ -341,3 +342,32 @@ def test_triples_choices_context_not_included(custom_bundle):
                 context=ctx_graph):
             match = True
         assert not match
+
+
+def test_add_to_graph_not_supported(custom_bundle):
+    dep_desc = Descriptor.load('''
+    id: dep
+    includes:
+      - http://example.com/ctx
+    ''')
+
+    test_desc = Descriptor.load('''
+    id: test
+    dependencies:
+      - dep
+    ''')
+
+    depgraph = ConjunctiveGraph()
+    ctx_graph = depgraph.get_context('http://example.com/ctx')
+    quad = (URIRef('http://example.org/sub'), URIRef('http://example.org/prop'), URIRef('http://example.org/obj'),
+            ctx_graph)
+    depgraph.add(quad)
+
+    with custom_bundle(dep_desc, graph=depgraph) as depbun, \
+            custom_bundle(test_desc, bundles_directory=depbun.bundles_directory) as testbun, \
+            Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
+        with pytest.raises(UnsupportedAggregateOperation):
+            bnd.rdf.add(
+                (URIRef('http://example.org/sub'),
+                 URIRef('http://example.org/prop'),
+                 URIRef('http://example.org/obj')))

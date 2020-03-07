@@ -89,7 +89,10 @@ setup(
     url='https://owmeta-core.readthedocs.io/en/latest/',
     download_url='https://github.com/openworm/owmeta-core/archive/master.zip',
     entry_points={
-        'console_scripts': ['owm = owmeta_core.cli:main']
+        'console_scripts': ['owm = owmeta_core.cli:main'],
+        'rdf.plugins.store': [
+            'agg = owmeta_core.agg_store:AggregateStore',
+        ],
     },
     package_data={'owmeta_core': ['default.conf']},
     classifiers=[
