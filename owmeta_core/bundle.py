@@ -1263,7 +1263,8 @@ class Installer(object):
             are selected from this graph according to the included contexts. optional
         remotes : iterable of Remote
             Remotes to be used for retrieving dependencies when needed during
-            installation. optional
+            installation. If not provided, the remotes will be collected from the
+            owmeta_core project directory. optional
         '''
         self.context_hash = hashlib.sha224
         self.file_hash = hashlib.sha224
