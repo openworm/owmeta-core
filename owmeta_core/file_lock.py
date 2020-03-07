@@ -2,6 +2,7 @@ from time import sleep
 import os
 import errno
 import random
+from struct import pack, unpack
 
 
 class lock_file(object):
@@ -16,20 +17,22 @@ class lock_file(object):
             will not be tolerant to process failures because you cannot restart a process
             with the same key to release the lock.
         wait_interval : int or float
-            How long to wait before
+            How long to wait between attempts to grab the lock
         '''
         if not unique_key:
             self._name = bytes(random.randrange(32, 127) for _ in range(10))
         else:
-            self._name = unique_key.decode('UTF-8')
+            self._name = unique_key.encode('UTF-8')
 
         self.fname = fname
         self.wait_interval = wait_interval
 
     def __enter__(self):
-        self._flocs = []
         self._acq_ll()
         return self
+
+    def acquire(self):
+        self._acq_ll()
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.release()
@@ -47,9 +50,9 @@ class lock_file(object):
                 if oserr.errno != errno.EEXIST:
                     raise
                 try:
-                    with open(self.fname) as f:
-                        if f.read() == self._name:
-                            have_lock_lock = True
+                    with open(self.fname, 'rb') as f:
+                        if f.read(len(self._name)) == self._name:
+                            have_lock = True
                             continue
                 except IOError as e:
                     if e.errno != errno.ENOENT:

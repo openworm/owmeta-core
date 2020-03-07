@@ -50,9 +50,15 @@ def test_remove_lock_file():
 
 
 @pytest.mark.inttest
-def test_early_release():
+def test_acquire_dangling_lock(tempdir):
+    lock_file(p(tempdir, 'lock'), unique_key='test').acquire()
+    lock_file(p(tempdir, 'lock'), unique_key='test').acquire()
+
+
+@pytest.mark.inttest
+def test_early_release(tempdir):
     '''
     Releasing the lock early is allowed although probably not advisable
     '''
-    with TemporaryDirectory() as td, lock_file(p(td, 'lock')) as lock:
+    with lock_file(p(tempdir, 'lock')) as lock:
         lock.release()
