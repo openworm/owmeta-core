@@ -269,6 +269,18 @@ class Descriptor(object):
 
 
 class Bundle(object):
+    '''
+    Main entry point for using bundles
+
+    Typical usage is something like this::
+
+        >>> from owmeta_core.dataobject import DataObject
+        >>> with Bundle('example/bundleId', version=42) as bnd:
+        ...     for do in bnd(DataObject).load():
+        ...         # Do something with `do`
+        ...         pass
+    '''
+
     def __init__(self, ident, bundles_directory=None, version=None, conf=None, remotes=()):
         if not ident:
             raise Exception('ident must be non-None')
@@ -317,8 +329,12 @@ class Bundle(object):
         #   delete the existing database if it doesn't match the store config
         return find_bundle_directory(self.bundles_directory, self.ident, self.version)
 
-    def initdb(self, bundle_directory):
+    def initdb(self):
+        '''
+        Initialize the bundle's `conf` `~owmeta_core.data.Data` instance
+        '''
         if self.conf is None:
+            bundle_directory = self.resolve()
             self.conf = Data().copy(self._given_conf)
             self.conf[IMPORTS_CONTEXT_KEY] = fmt_bundle_ctx_id(self.ident)
             with open(p(bundle_directory, 'manifest')) as mf:
@@ -358,10 +374,11 @@ class Bundle(object):
 
     @property
     def rdf(self):
+        self.initdb()
         return self.conf['rdf.graph']
 
     def __enter__(self):
-        self.initdb(self.resolve())
+        self.initdb()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -397,6 +414,7 @@ def validate_manifest(bundle_path, manifest_data):
     ------
     NotABundlePath
         Thrown in one of these conditions:
+
         - `manifest_data` lacks a `manifest_version`
         - `manifest_data` has a `manifest_version` > BUNDLE_MANIFEST_VERSION
         - `manifest_data` has a `manifest_version` <= 0
@@ -806,7 +824,8 @@ class Loader(object):
 
         Returns
         -------
-            A list of int. Each entry is a version of the bundle available via this loader
+        A list of int
+            Each entry is a version of the bundle available via this loader
         '''
         raise NotImplementedError()
 
@@ -1289,6 +1308,7 @@ class Installer(object):
 
         Returns
         -------
+        str
             The directory where the bundle is installed
         '''
         # Create the staging directory in the base directory to reduce the chance of
@@ -1299,6 +1319,13 @@ class Installer(object):
             makedirs(staging_directory)
         except OSError:
             pass
+
+        target_empty = True
+        for _ in scandir(staging_directory):
+            target_empty = False
+            break
+        if not target_empty:
+            raise TargetIsNotEmpty(staging_directory)
 
         with lock_file(p(staging_directory, '.lock'), unique_key=self.installer_id):
             self.progress_reporter = progress_reporter
@@ -1478,29 +1505,6 @@ def hash_file(hsh, fh, blocksize=None):
         hsh.update(block)
 
 
-class IndexManager(object):
-    def __init__(self):
-        self.index = None
-
-    def add_entry(self, bundle):
-        bundle_descriptor.files
-
-
-class IndexEntry(object):
-    '''
-    An index entry.
-
-    Points to the attached files and contexts
-    '''
-
-    def __init__(self):
-        self.file_refs = set()
-        ''' References to files in this bundle '''
-
-        self.context_files = set()
-        ''' A list of files in this bundle '''
-
-
 class FilesDescriptor(object):
     '''
     Descriptor for files
@@ -1654,6 +1658,16 @@ class UncoveredImports(InstallFailed):
         msg = 'Missing {} imports'.format(len(imports))
         super(UncoveredImports, self).__init__(msg)
         self.imports = imports
+
+
+class TargetIsNotEmpty(InstallFailed):
+    '''
+    Thrown when the target directory of an installation is not empty
+    '''
+    def __init__(self, target):
+        msg = 'Bundle installation target directory, %s, is not empty' % target
+        super(TargetIsNotEmpty, self).__init__(msg)
+        self.directory = target
 
 
 class FetchFailed(Exception):

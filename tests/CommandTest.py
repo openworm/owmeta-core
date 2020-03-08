@@ -40,7 +40,7 @@ class BaseTest(unittest.TestCase):
     def tearDown(self):
         os.chdir(self.startdir)
         shutil.rmtree(self.testdir)
-        self.cut._disconnect()
+        self.cut.disconnect()
 
     def _init_conf(self, conf=None):
         my_conf = dict(self._default_conf)

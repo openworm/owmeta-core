@@ -5,10 +5,10 @@ import transaction
 from collections import namedtuple
 from rdflib.term import Literal, URIRef
 from owmeta_core.bundle import (Installer, Descriptor, make_include_func, FilesDescriptor,
-                           UncoveredImports, DependencyDescriptor)
+                                UncoveredImports, DependencyDescriptor, TargetIsNotEmpty)
 from owmeta_core.context_common import CONTEXT_IMPORTS
 from os.path import join as p, isdir, isfile
-from os import listdir
+from os import listdir, makedirs
 from unittest.mock import patch
 
 import pytest
@@ -107,6 +107,12 @@ def test_multiple_context_hash(dirs):
 
 
 def test_no_dupe(dirs):
+    '''
+    Test that if we have two contexts with the same contents that we don't create more
+    than one file for it.
+
+    The index will point to the same file for the two contexts
+    '''
     d = Descriptor('test')
     ctxid_1 = 'http://example.org/ctx1'
     ctxid_2 = 'http://example.org/ctx2'
@@ -298,4 +304,15 @@ def test_imports_in_unfetched_dependencies(dirs):
     loader.bi = bi
 
     with patch('owmeta_core.bundle.LOADER_CLASSES', (loader_class,)):
+        bi.install(d)
+
+
+def test_fail_on_non_empty_target(dirs):
+    d = Descriptor('test')
+    g = rdflib.ConjunctiveGraph()
+    bi = Installer(*dirs, graph=g)
+    bundles_directory = dirs[1]
+    sma = p(bundles_directory, 'test', '1', 'blah')
+    makedirs(sma)
+    with pytest.raises(TargetIsNotEmpty):
         bi.install(d)

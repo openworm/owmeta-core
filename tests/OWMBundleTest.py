@@ -1,9 +1,10 @@
 from __future__ import print_function
-from os.path import join as p
+from os.path import join as p, exists
 from os import makedirs, listdir
 from contextlib import contextmanager
 import shutil
 import subprocess
+import io
 
 from pytest import mark, fixture
 from rdflib.term import URIRef, Literal
@@ -30,10 +31,7 @@ def test_load(owm_project):
     )
 
 
-def test_install(owm_project):
-    '''
-    Install a bundle and make sure we can use it with Bundle
-    '''
+def add_bundle(owm_project):
     owm_project.writefile('abundle.yml', '''\
     ---
     id: abundle
@@ -50,9 +48,17 @@ def test_install(owm_project):
 
     homedir = p(owm_project.testdir, 'home')
     makedirs(homedir)
+    owm_project.homedir = homedir
     owm_project.sh('owm bundle register abundle.yml')
+
+
+def test_install(owm_project):
+    '''
+    Install a bundle and make sure we can use it with Bundle
+    '''
+    add_bundle(owm_project)
     print(owm_project.sh('owm bundle install abundle',
-        env={'HOME': homedir}))
+        env={'HOME': owm_project.homedir}))
     owm_project.writefile('use.py', '''\
     from owmeta_core.bundle import Bundle
     from rdflib.term import URIRef, Literal
@@ -62,8 +68,49 @@ def test_install(owm_project):
                URIRef('http://example.org/b'),
                Literal('c')) in bnd.rdf, end='')
     ''')
-    assert owm_project.sh('python use.py',
-        env={'HOME': homedir}) == 'True'
+    assert owm_project.sh('python use.py', env={'HOME': owm_project.homedir}) == 'True'
+
+
+def test_install_prompt_delete_when_target_directory_not_empty(owm_project):
+    add_bundle(owm_project)
+    # Install once
+    bundle_directory = owm_project.sh('owm bundle install abundle',
+            env={'HOME': owm_project.homedir}).strip()
+    if not bundle_directory:
+        pytest.fail("Bundle directory not provided in install output")
+    # Place a marker in the bundle directory
+    marker = p(bundle_directory, 'marker')
+    open(marker, 'w').close()
+
+    # Attempt another install. Should fail and prompt to overwrite
+    fname = p(owm_project.testdir, 'input')
+    with open(fname, 'w') as inp:
+        inp.write('yes\n')
+
+    with open(fname, 'r') as inp:
+        owm_project.sh('owm bundle install abundle', stdin=inp, env={'HOME': owm_project.homedir})
+    assert not exists(marker)
+
+
+def test_install_prompt_keep_when_target_directory_not_empty(owm_project):
+    add_bundle(owm_project)
+    # Install once
+    bundle_directory = owm_project.sh('owm bundle install abundle',
+            env={'HOME': owm_project.homedir}).strip()
+    if not bundle_directory:
+        pytest.fail("Bundle directory not provided in install output")
+    # Place a marker in the bundle directory
+    marker = p(bundle_directory, 'marker')
+    open(marker, 'w').close()
+
+    # Attempt another install. Should fail and prompt to overwrite
+    fname = p(owm_project.testdir, 'input')
+    with open(fname, 'w') as inp:
+        inp.write('no\n')
+
+    with open(fname, 'r') as inp:
+        owm_project.sh('owm bundle install abundle', stdin=inp, env={'HOME': owm_project.homedir})
+    assert exists(marker)
 
 
 def test_register(owm_project):

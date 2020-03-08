@@ -19,7 +19,9 @@ from ..bundle import (Descriptor,
                       Unarchiver,
                       retrieve_remotes,
                       fmt_bundle_directory,
-                      NoBundleLoader as _NoBundleLoader)
+                      NoBundleLoader as _NoBundleLoader,
+                      UncoveredImports,
+                      TargetIsNotEmpty)
 
 import hashlib
 
@@ -208,7 +210,22 @@ class OWMBundle(object):
                        self._parent.rdf,
                        imports_ctx=imports_ctx,
                        default_ctx=default_ctx)
-        return bi.install(descr)
+        return self._install_helper(bi, descr)
+
+    def _install_helper(self, bi, descr):
+        try:
+            return bi.install(descr)
+        except UncoveredImports as ui:
+            raise GenericUserError('{}:\n{}'.format(ui, '\n'.join('- %s' % uri for uri in ui.imports)))
+        except TargetIsNotEmpty as tine:
+            answer = self._parent.prompt('The target directory, "%s", is not empty. Would you'
+                    ' like to delete the contents and continue installation? [yes/no]' %
+                    tine.directory)
+            if str(answer).lower() == 'yes':
+                shutil.rmtree(tine.directory)
+                return self._install_helper(bi, descr)
+        except InstallFailed as ife:
+            raise GenericUserError('Installation failed: %s'.format(ife))
 
     def register(self, descriptor):
         '''

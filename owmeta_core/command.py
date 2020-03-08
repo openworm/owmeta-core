@@ -25,6 +25,7 @@ from tempfile import TemporaryDirectory
 
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
                            DEFAULT_OWM_DIR)
+from . import connect
 from .commands.bundle import OWMBundle
 from .context import Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY
 from .capability import provide
@@ -993,7 +994,6 @@ class OWM(object):
 
     def _conf(self, *args):
         from owmeta_core.data import Data
-        from owmeta_core import connect
         import six
         dat = getattr(self, '_dat', None)
         if not dat or self._dat_file != self.config_file:
@@ -1038,7 +1038,7 @@ class OWM(object):
 
     _init_store = _conf
 
-    def _disconnect(self):
+    def disconnect(self):
         from owmeta_core import disconnect
         if self._owm_connection is not None:
             disconnect(self._owm_connection)

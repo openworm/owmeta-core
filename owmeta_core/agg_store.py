@@ -23,9 +23,7 @@ class AggregateStore(Store):
 
     def triples(self, triple, context=None):
         for store in self.__stores:
-            print('getting triples for', triple, 'in', store)
             for trip in store.triples(triple, context=context):
-                print('yielding', triple)
                 yield trip
 
     def triples_choices(self, triple, context=None):
