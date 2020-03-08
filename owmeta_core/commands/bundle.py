@@ -166,7 +166,7 @@ class OWMBundle(object):
         output : str
             The target file
         '''
-        raise NotImplementedError()
+        Archiver(bundles_directory=self._bundles_directory()).archive()
 
     def install(self, bundle):
         '''

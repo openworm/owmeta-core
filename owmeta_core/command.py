@@ -59,9 +59,9 @@ class OWMSourceData(object):
             The file name of the archive. If this ends with an extension like
             '.zip', and no `archive_type` argument is given, then an archive
             will be created of that type. The archive name will *not* have any
-            extension appended in any case.
+            extension appended in any case. optional
         archive_type : str
-            The type of the archive to create.
+            The type of the archive to create. optional
         '''
         from owmeta_core.datasource import DataSource
         sid = self._owm_command._den3(source)

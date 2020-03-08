@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from itertools import chain
-from os import makedirs, rename, scandir, listdir
-from os.path import join as p, exists, relpath, realpath, abspath, expanduser, isdir, isfile
+from os import makedirs, rename, scandir, listdir, walk
+from os.path import join as p, exists, relpath, realpath, abspath, expanduser, isdir, isfile, dirname
 from struct import pack
 import errno
 import hashlib
@@ -49,6 +49,13 @@ Current version number of the bundle manifest. Written by `Installer` and antici
 BUNDLE_ARCHIVE_MIME_TYPE = 'application/x-gtar'
 '''
 MIME type for bundle archive files
+'''
+
+
+BUNDLE_INDEXED_DB_NAME = 'owm.db'
+'''
+Base name of the indexed database that gets built in a bundle directory during
+installation
 '''
 
 
@@ -342,11 +349,12 @@ class Bundle(object):
                 self.conf[DEFAULT_CONTEXT_KEY] = manifest_data.get(DEFAULT_CONTEXT_KEY)
                 self.conf[IMPORTS_CONTEXT_KEY] = manifest_data.get(IMPORTS_CONTEXT_KEY)
             self.conf['rdf.store'] = 'agg'
-            self.conf['rdf.store_conf'] = [('FileStorageZODB', p(bundle_directory, 'owm.db'))] + [
-                ('FileStorageZODB', p(find_bundle_directory(self.bundles_directory, dd['id'], dd.get('version')),
-                    'owm.db'))
-                for dd in manifest_data.get('dependencies')
-            ]
+            self.conf['rdf.store_conf'] = [('FileStorageZODB', p(bundle_directory,
+                BUNDLE_INDEXED_DB_NAME))] + [
+                ('FileStorageZODB', p(
+                    find_bundle_directory(self.bundles_directory, dd['id'], dd.get('version')),
+                    BUNDLE_INDEXED_DB_NAME))
+                for dd in manifest_data.get('dependencies')]
             # Create the database file and initialize some needed data structures
             self.conf.init()
 
@@ -1080,7 +1088,9 @@ class Unarchiver(object):
         input_file : str or :term:`file object`
             The archive file
         target_directory : str
-            The path where the archive should be unpacked. optional
+            The path where the archive should be unpacked. If this argument is not
+            provided, then the target directory is derived from `bundles_directory` (see
+            `fmt_bundle_directory`). optional
 
         Raises
         ------
@@ -1217,6 +1227,7 @@ class ArchiveExtractor(object):
 
     def _badlink(self, info):
         # Links are interpreted relative to the directory containing the link
+        # TODO: Test this
         tip = self._realpath(p(self._targetdir, dirname(info.name)))
         return self._badpath(info.linkname, base=tip)
 
@@ -1251,8 +1262,72 @@ class Archiver(object):
     '''
     Archives a bundle directory tree
     '''
-    def __init__(self):
-        pass
+    def __init__(self, target_directory, bundles_directory):
+        '''
+        Parameters
+        ----------
+        target_directory : str
+            Where to place archives
+        bundles_directory : str
+            Where the bundles are
+        '''
+        self.target_directory = target_directory
+        self.bundles_directory = bundles_directory
+
+    def pack(self, bundle_id, version=None, target_file_name=None):
+        '''
+        Pack an installed bundle into an archive file
+
+        Parameters
+        ----------
+        bundle_id : str
+            ID of the bundle to pack
+        version : int, optional
+            Bundle version
+        target_file_name : str, optional
+            Name of the archive file. If not provided, the name will be 'bundle.tar.xz'
+            and will placed in the `target_directory`. Relative paths are relative to
+            `target_directory`
+        Raises
+        ------
+        BundleNotFound
+            Thrown when the bundle with the given ID cannot be found, or cannot be found
+            at the demanded version
+        ArchiveTargetPathDoesNotExist
+            Thrown when the path to the desired target file does not exist
+        '''
+        if not target_file_name:
+            target_file_name = 'bundle.tar.xz'
+
+        target_path = p(self.target_directory, target_file_name)
+
+        bnd_directory = find_bundle_directory(self.bundles_directory, bundle_id, version)
+        accept = self._filter
+        try:
+            _tf = tarfile.open(target_path, mode='w:xz')
+        except FileNotFoundError as e:
+            if e.filename == target_path:
+                raise ArchiveTargetPathDoesNotExist(target_path)
+            raise
+        else:
+            with _tf as tf:
+                for dirpath, dirs, files in walk(bnd_directory):
+                    for f in files:
+                        fpath = p(dirpath, f)
+                        rpath = relpath(fpath, start=bnd_directory)
+                        if accept(rpath, fpath):
+                            tf.add(fpath, rpath)
+        return target_path
+
+    def _filter(self, path, fullpath):
+        '''
+        Filters out file names that are not to be included in a bundle
+        '''
+        if path.startswith(BUNDLE_INDEXED_DB_NAME):
+            # Skip the indexed DB -- the format isn't really designed for sharability and
+            # we can regenerate it anyway.
+            return False
+        return True
 
 
 class Installer(object):
@@ -1432,7 +1507,7 @@ class Installer(object):
         self.conf = Data().copy({
             'rdf.source': 'default',
             'rdf.store': 'FileStorageZODB',
-            'rdf.store_conf': p(staging_directory, 'owm.db')
+            'rdf.store_conf': p(staging_directory, BUNDLE_INDEXED_DB_NAME)
         })
         # Create the database file and initialize some needed data structures
         self.conf.init()
@@ -1707,6 +1782,12 @@ class NoRemoteAvailable(Exception):
 class UnarchiveFailed(Exception):
     '''
     Thrown when an `Unarchiver` fails for some reason not covered by other
+    '''
+
+
+class ArchiveTargetPathDoesNotExist(Exception):
+    '''
+    Thrown when the `Archiver` target path does not exist
     '''
 
 
