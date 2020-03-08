@@ -1665,7 +1665,7 @@ class TargetIsNotEmpty(InstallFailed):
     Thrown when the target directory of an installation is not empty
     '''
     def __init__(self, target):
-        msg = 'Bundle installation target directory, %s, is not empty' % target
+        msg = 'Bundle installation target directory, "%s", is not empty' % target
         super(TargetIsNotEmpty, self).__init__(msg)
         self.directory = target
 

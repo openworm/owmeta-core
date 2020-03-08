@@ -218,6 +218,8 @@ class OWMBundle(object):
         except UncoveredImports as ui:
             raise GenericUserError('{}:\n{}'.format(ui, '\n'.join('- %s' % uri for uri in ui.imports)))
         except TargetIsNotEmpty as tine:
+            if self._parent.non_interactive:
+                raise GenericUserError(str(tine))
             answer = self._parent.prompt('The target directory, "%s", is not empty. Would you'
                     ' like to delete the contents and continue installation? [yes/no]' %
                     tine.directory)

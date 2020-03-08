@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import io
 
+import pytest
 from pytest import mark, fixture
 from rdflib.term import URIRef, Literal
 import transaction
@@ -110,6 +111,23 @@ def test_install_prompt_keep_when_target_directory_not_empty(owm_project):
 
     with open(fname, 'r') as inp:
         owm_project.sh('owm bundle install abundle', stdin=inp, env={'HOME': owm_project.homedir})
+    assert exists(marker)
+
+
+def test_non_interactive_install_fail_when_target_directory_not_empty(owm_project):
+    add_bundle(owm_project)
+    # Install once
+    bundle_directory = owm_project.sh('owm bundle install abundle',
+            env={'HOME': owm_project.homedir}).strip()
+    if not bundle_directory:
+        pytest.fail("Bundle directory not provided in install output")
+    # Place a marker in the bundle directory
+    marker = p(bundle_directory, 'marker')
+    open(marker, 'w').close()
+
+    # Attempt another install. Should fail
+    with pytest.raises(subprocess.CalledProcessError):
+        owm_project.sh('owm -b bundle install abundle', env={'HOME': owm_project.homedir})
     assert exists(marker)
 
 
