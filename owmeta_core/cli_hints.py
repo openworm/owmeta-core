@@ -67,7 +67,7 @@ CLI_HINTS = {
         'non_interactive': {
             'names': ['--non-interactive', '-b']
         },
-        'IGNORE': ['message', 'progress_reporter',  'prompt']
+        'IGNORE': ['message', 'progress_reporter', 'prompt', 'disconnect']
     },
     'owmeta_core.command.OWMContexts': {
         'edit': {

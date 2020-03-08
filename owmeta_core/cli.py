@@ -136,6 +136,8 @@ def main():
             # In case someone forgets to add a helpful message for their user error
             s = 'Received error: ' + FCN(type(e))
         die(s)
+    finally:
+        p.disconnect()
 
     if environ.get('OWM_CLI_PROFILE'):
         profiler.disable()
