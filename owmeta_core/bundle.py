@@ -1,18 +1,18 @@
-import re
-import tempfile
-from os.path import join as p, exists, relpath, realpath, abspath, expanduser, isdir, isfile
-from os import makedirs, rename, scandir, listdir
 from contextlib import contextmanager
-import logging
-import hashlib
-import shutil
-import errno
-import io
-from struct import pack
-import json
 from itertools import chain
-import tarfile
+from os import makedirs, rename, scandir, listdir
+from os.path import join as p, exists, relpath, realpath, abspath, expanduser, isdir, isfile
+from struct import pack
+import errno
+import hashlib
 import http.client
+import io
+import json
+import logging
+import re
+import shutil
+import tarfile
+import tempfile
 
 from rdflib import plugin
 from rdflib.parser import Parser, create_input_source
@@ -1328,26 +1328,25 @@ class Installer(object):
             raise TargetIsNotEmpty(staging_directory)
 
         with lock_file(p(staging_directory, '.lock'), unique_key=self.installer_id):
-            self.progress_reporter = progress_reporter
             try:
-                self._install(descriptor, staging_directory)
+                self._install(descriptor, staging_directory,
+                        progress_reporter=progress_reporter)
                 return staging_directory
             except Exception:
                 self._cleanup_failed_install(staging_directory)
                 raise
-            finally:
-                del self.progress_reporter
 
     def _cleanup_failed_install(self, staging_directory):
         shutil.rmtree(p(staging_directory, 'graphs'))
         shutil.rmtree(p(staging_directory, 'files'))
 
-    def _install(self, descriptor, staging_directory):
+    def _install(self, descriptor, staging_directory, progress_reporter=None):
         graphs_directory, files_directory = self._set_up_directories(staging_directory)
         self._write_file_hashes(descriptor, files_directory)
         self._write_context_data(descriptor, graphs_directory)
         self._write_manifest(descriptor, staging_directory)
-        self._build_indexed_database(staging_directory)
+        self._build_indexed_database(staging_directory,
+                progress_reporter=progress_reporter)
 
     def _set_up_directories(self, staging_directory):
         graphs_directory = p(staging_directory, 'graphs')
@@ -1440,13 +1439,13 @@ class Installer(object):
         if not exists(self.conf['rdf.store_conf']):
             raise Exception('Could not create the database file at ' + self.conf['rdf.store_conf'])
 
-    def _build_indexed_database(self, staging_directory):
+    def _build_indexed_database(self, staging_directory, progress_reporter=None):
         self._initdb(staging_directory)
         try:
             contexts = set()
             graphs_directory = p(staging_directory, 'graphs')
             idx_fname = p(graphs_directory, 'index')
-            progress = self.progress_reporter
+            progress = progress_reporter
             if not exists(idx_fname):
                 raise Exception('Cannot find an index at {}'.format(repr(idx_fname)))
             if progress is not None:

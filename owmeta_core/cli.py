@@ -137,7 +137,11 @@ def main():
             s = 'Received error: ' + FCN(type(e))
         die(s)
     finally:
-        p.disconnect()
+        # Call 'disconnect' to clean up. If our top_command doesn't have a disconnect(), we
+        # don't want to error-out, so check it actually exists.
+        disconnect_method = getattr(p, 'disconnect', None)
+        if disconnect_method:
+            disconnect_method()
 
     if environ.get('OWM_CLI_PROFILE'):
         profiler.disable()
