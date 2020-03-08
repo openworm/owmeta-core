@@ -35,15 +35,6 @@ class Mapper(ModuleRecordListener, Configurable):
     '''
     Keeps track of relationships between classes, between modules, and between classes and modules
     '''
-    _instances = dict()
-
-    @classmethod
-    def get_instance(cls, *args):
-        if args not in cls._instances:
-            cls._instances[args] = Mapper(*args)
-
-        return cls._instances[args]
-
     def __init__(self, base_namespace=None, imported=(), name=None, **kwargs):
         super(Mapper, self).__init__(**kwargs)
 
