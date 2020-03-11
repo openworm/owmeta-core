@@ -1,6 +1,8 @@
 from os.path import join as p
 import logging
 
+import pytest
+
 from owmeta_core.bundle import HTTPBundleUploader, HTTPSURLConfig, BUNDLE_ARCHIVE_MIME_TYPE
 
 
@@ -54,4 +56,4 @@ def test_bundle_upload_directory_to_https_by_urlconfig(https_server, tempdir):
 
 
 def test_bundle_upload_archive(http_server):
-    pass
+    pytest.fail('Not implemented')

@@ -611,7 +611,10 @@ class Deployer(_RemoteHandlerMixin):
     Deploys bundles to `Remotes <Remote>`.
 
     A deployer takes a bundle directory tree or bundle archive and uploads it to a remote.
-    `Fetcher` is, functionally, the dual of this class. The specific
+    `Fetcher` is, functionally, the dual of this class.
+
+    Deployer is responsible for selecting remotes and corresponding uploaders among a set
+    of options. `.Uploader`s are responsible for actually doing the upload.
     '''
 
     def __init__(self, remotes=()):
@@ -647,7 +650,7 @@ class Deployer(_RemoteHandlerMixin):
             validate_manifest(bundle_path, manifest_data)
         elif isfile(bundle_path):
             # TODO: Handle bundle archives
-            pass
+            raise NotImplementedError('Archive deploy not implemented yet')
 
         for uploader in self._get_bundle_uploaders(bundle_path, remotes=remotes):
             uploader(bundle_path)
@@ -897,9 +900,8 @@ class HTTPBundleUploader(Uploader):
 
         with tempfile.TemporaryDirectory() as tempdir:
             if isdir(bundle_path):
-                with tarfile.open(p(tempdir, 'bundle.tar.xz'), mode='w:xz') as ba:
-                    archive_path = p(tempdir, 'bundle.tar.xz')
-                    ba.add(bundle_path, arcname='.')
+                archive_path = Archiver(tempdir).pack(bundle_directory=bundle_path,
+                        target_file_name='bundle.tar.xz')
             if not tarfile.is_tarfile(archive_path):
                 raise NotABundlePath(bundle_path, 'Expected a directory or a tar file')
             self._post(archive_path)
@@ -1262,32 +1264,37 @@ class Archiver(object):
     '''
     Archives a bundle directory tree
     '''
-    def __init__(self, target_directory, bundles_directory):
+    def __init__(self, target_directory, bundles_directory=None):
         '''
         Parameters
         ----------
         target_directory : str
-            Where to place archives
-        bundles_directory : str
-            Where the bundles are
+            Where to place archives.
+        bundles_directory : str, optional
+            Where the bundles are. If not provided, then this archiver can only pack
+            bundles when given a specific bundle's directory
         '''
         self.target_directory = target_directory
         self.bundles_directory = bundles_directory
 
-    def pack(self, bundle_id, version=None, target_file_name=None):
+    def pack(self, bundle_id=None, version=None, *, bundle_directory=None, target_file_name=None):
         '''
         Pack an installed bundle into an archive file
 
         Parameters
         ----------
-        bundle_id : str
-            ID of the bundle to pack
+        bundle_id : str, optional
+            ID of the bundle to pack. If omitted, the `bundle_directory` must be provided
         version : int, optional
             Bundle version
+        bundle_directory : str, optional
+            Bundle directory. If omitted, `bundle_id` must be provided. If provided,
+            `bundle_id` and `version` are ignored
         target_file_name : str, optional
             Name of the archive file. If not provided, the name will be 'bundle.tar.xz'
             and will placed in the `target_directory`. Relative paths are relative to
             `target_directory`
+
         Raises
         ------
         BundleNotFound
@@ -1296,12 +1303,22 @@ class Archiver(object):
         ArchiveTargetPathDoesNotExist
             Thrown when the path to the desired target file does not exist
         '''
+        if not (bundle_id or bundle_directory):
+            raise ValueError('Either bundle_id or bundle_directory arguments must be provided')
+
         if not target_file_name:
             target_file_name = 'bundle.tar.xz'
 
         target_path = p(self.target_directory, target_file_name)
 
-        bnd_directory = find_bundle_directory(self.bundles_directory, bundle_id, version)
+        if bundle_directory:
+            bnd_directory = bundle_directory
+        else:
+            if self.bundles_directory is None:
+                raise Exception('Cannot generate a bundle directory -- bundles_directory'
+                        ' has not been provided')
+            bnd_directory = find_bundle_directory(self.bundles_directory, bundle_id, version)
+
         accept = self._filter
         try:
             _tf = tarfile.open(target_path, mode='w:xz')
