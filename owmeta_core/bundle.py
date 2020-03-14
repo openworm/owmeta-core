@@ -637,23 +637,48 @@ class Deployer(_RemoteHandlerMixin):
         if not exists(bundle_path):
             raise NotABundlePath(bundle_path, 'the file does not exist')
 
-        if isdir(bundle_path):
-            try:
-                with open(p(bundle_path, 'manifest')) as mf:
-                    manifest_data = json.load(mf)
-            except (OSError, IOError) as e:
-                if e.errno == errno.ENOENT: # FileNotFound
-                    raise NotABundlePath(bundle_path, 'no bundle manifest found')
-                if e.errno == errno.EISDIR: # IsADirectoryError
-                    raise NotABundlePath(bundle_path, 'manifest is not a regular file')
-                raise
-            validate_manifest(bundle_path, manifest_data)
-        elif isfile(bundle_path):
-            # TODO: Handle bundle archives
-            raise NotImplementedError('Archive deploy not implemented yet')
+        manifest_data = self._extract_manifest_data_from_path(bundle_path)
+        validate_manifest(bundle_path, manifest_data)
 
         for uploader in self._get_bundle_uploaders(bundle_path, remotes=remotes):
             uploader(bundle_path)
+
+    def _extract_manifest_data_from_path(self, bundle_path):
+        if isdir(bundle_path):
+            manifest_data = self._get_directory_manifest_data(bundle_path)
+        elif isfile(bundle_path):
+            manifest_data = self._get_archive_manifest_data(bundle_path)
+        else:
+            raise NotABundlePath(bundle_path, 'path does not point to a file or directory')
+
+    def _get_directory_manifest_data(self, bundle_path):
+        try:
+            with open(p(bundle_path, 'manifest')) as mf:
+                return json.load(mf)
+        except (OSError, IOError) as e:
+            if e.errno == errno.ENOENT: # FileNotFound
+                raise NotABundlePath(bundle_path, 'no bundle manifest found')
+            if e.errno == errno.EISDIR: # IsADirectoryError
+                raise NotABundlePath(bundle_path, 'manifest is not a regular file')
+            raise
+        except json.decoder.JSONDecodeError:
+            raise NotABundlePath(bundle_path, 'manifest is malformed: expected a'
+                    ' JSON file')
+
+    def _get_archive_manifest_data(self, bundle_path):
+        with Unarchiver().to_tarfile(bundle_path) as tf:
+            try:
+                mf0 = tf.extractfile('manifest')
+                if mf0 is None:
+                    raise NotABundlePath(bundle_path, 'manifest is not a regular file')
+                # Would like to pull the
+                with mf0 as mf:
+                    return json.load(mf)
+            except KeyError:
+                raise NotABundlePath(bundle_path, 'no bundle manifest found')
+            except json.decoder.JSONDecodeError:
+                raise NotABundlePath(bundle_path, 'manifest is malformed: expected a'
+                        ' JSON file')
 
     def _get_bundle_uploaders(self, bundle_directory, remotes=None):
         for rem in self._get_remotes(remotes):
@@ -900,8 +925,7 @@ class HTTPBundleUploader(Uploader):
 
         with tempfile.TemporaryDirectory() as tempdir:
             if isdir(bundle_path):
-                archive_path = Archiver(tempdir).pack(bundle_directory=bundle_path,
-                        target_file_name='bundle.tar.xz')
+                archive_path = Archiver(tempdir).pack(bundle_directory=bundle_path, target_file_name='bundle.tar.xz')
             if not tarfile.is_tarfile(archive_path):
                 raise NotABundlePath(bundle_path, 'Expected a directory or a tar file')
             self._post(archive_path)
@@ -1136,7 +1160,7 @@ class Unarchiver(object):
         return file_name
 
     def _unpack(self, input_file, target_directory):
-        with self._to_tarfile(input_file) as ba:
+        with self.to_tarfile(input_file) as ba:
             expected_target_directory = self._process_manifest(input_file, ba)
 
             if (target_directory and expected_target_directory and
@@ -1189,7 +1213,7 @@ class Unarchiver(object):
         return self.unpack(*args, **kwargs)
 
     @contextmanager
-    def _to_tarfile(self, input_file):
+    def to_tarfile(self, input_file):
         if isinstance(input_file, str):
             try:
                 archive_file = open(input_file, 'rb')

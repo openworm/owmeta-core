@@ -1,12 +1,15 @@
 import os
 from os.path import join as p
+import io
 import json
 import tempfile
 import shutil
+import tarfile
 
 import rdflib
 from rdflib import ConjunctiveGraph, URIRef
 from pytest import fixture, raises
+from unittest.mock import patch
 
 from owmeta_core.bundle import (NoRemoteAvailable,
                                 Remote,
@@ -50,7 +53,19 @@ def test_bundle_directory_manifest_has_no_version(tempdir):
     with open(p(bdir, 'manifest'), 'w') as mf:
         json.dump({}, mf)
     with raises(NotABundlePath):
-        cut.deploy(p(tempdir, 'notabundle'))
+        cut.deploy(bdir)
+
+
+def test_bundle_directory_manifest_empty(tempdir):
+    '''
+    An empty file is not a valid manifest
+    '''
+    cut = Deployer()
+    bdir = p(tempdir, 'notabundle')
+    os.makedirs(bdir)
+    open(p(bdir, 'manifest'), 'w').close()
+    with raises(NotABundlePath):
+        cut.deploy(bdir)
 
 
 def test_bundle_directory_manifest_has_unknown_manifest_version(tempdir):
@@ -60,7 +75,7 @@ def test_bundle_directory_manifest_has_unknown_manifest_version(tempdir):
     with open(p(bdir, 'manifest'), 'w') as mf:
         json.dump({'manifest_version': 2}, mf)
     with raises(NotABundlePath):
-        cut.deploy(p(tempdir, 'notabundle'))
+        cut.deploy(bdir)
 
 
 def test_bundle_directory_manifest_has_no_bundle_version(tempdir):
@@ -70,7 +85,7 @@ def test_bundle_directory_manifest_has_no_bundle_version(tempdir):
     with open(p(bdir, 'manifest'), 'w') as mf:
         json.dump({'manifest_version': 1}, mf)
     with raises(NotABundlePath):
-        cut.deploy(p(tempdir, 'notabundle'))
+        cut.deploy(bdir)
 
 
 def test_bundle_directory_manifest_has_no_bundle_id(tempdir):
@@ -80,7 +95,7 @@ def test_bundle_directory_manifest_has_no_bundle_id(tempdir):
     with open(p(bdir, 'manifest'), 'w') as mf:
         json.dump({'manifest_version': 1, 'version': 1}, mf)
     with raises(NotABundlePath):
-        cut.deploy(p(tempdir, 'notabundle'))
+        cut.deploy(bdir)
 
 
 def test_deploy_directory_from_installer(bundle):
@@ -97,6 +112,71 @@ def test_deploy_directory_no_remotes(bundle):
     ''' We can't deploy if we don't have any remotes '''
     with raises(NoRemoteAvailable):
         Deployer().deploy(bundle.bundle_directory)
+
+
+def test_deploy_archive_no_remotes(bundle_archive):
+    '''
+    Test deploying an archive
+    '''
+    cut = Deployer()
+    with raises(NoRemoteAvailable):
+        cut.deploy(bundle_archive.archive_path)
+
+
+def test_deploy_archive_validate_manifest(bundle_archive):
+    '''
+    Test manifest validation
+    '''
+    rem = Remote('remote')
+    cut = Deployer()
+    with patch('owmeta_core.bundle.validate_manifest') as vm:
+        cut.deploy(bundle_archive.archive_path, remotes=(rem,))
+        vm.assert_called()
+
+
+def test_deploy_archive_no_manifest_not_a_bundle(tempdir):
+    '''
+    Test missing manifest
+    '''
+    bundle_path = p(tempdir, 'bundle.tar.xz')
+    with tarfile.open(bundle_path, 'w:xz') as tf:
+        pass
+
+    rem = Remote('remote')
+    cut = Deployer()
+    with raises(NotABundlePath):
+        cut.deploy(bundle_path, remotes=(rem,))
+
+
+def test_deploy_archive_manifest_isdir_not_a_bundle(tempdir):
+    '''
+    Test missing manifest
+    '''
+    bundle_path = p(tempdir, 'bundle.tar.xz')
+    with tarfile.open(bundle_path, 'w:xz') as tf:
+        tinfo = tarfile.TarInfo('manifest')
+        tinfo.type = tarfile.DIRTYPE
+        tf.addfile(tinfo)
+
+    rem = Remote('remote')
+    cut = Deployer()
+    with raises(NotABundlePath):
+        cut.deploy(bundle_path, remotes=(rem,))
+
+
+def test_deploy_archive_manifest_emptyfile_not_a_bundle(tempdir):
+    '''
+    Test manifest empty/malformed
+    '''
+    bundle_path = p(tempdir, 'bundle.tar.xz')
+    with tarfile.open(bundle_path, 'w:xz') as tf:
+        tinfo = tarfile.TarInfo('manifest')
+        tf.addfile(tinfo)
+
+    rem = Remote('remote')
+    cut = Deployer()
+    with raises(NotABundlePath):
+        cut.deploy(bundle_path, remotes=(rem,))
 
 
 def test_deploy_directory_ignore_archive_only_remotes():

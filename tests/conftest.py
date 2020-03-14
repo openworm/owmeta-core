@@ -11,7 +11,7 @@ import shutil
 import shlex
 import tempfile
 
-from owmeta_core.bundle import Descriptor, Installer
+from owmeta_core.bundle import Descriptor, Installer, Archiver
 from pytest import fixture
 from rdflib.term import URIRef
 from rdflib.graph import ConjunctiveGraph
@@ -202,6 +202,17 @@ def bundle():
 
 
 @fixture
+def bundle_archive():
+    with bundle_archive_helper(Descriptor('test')) as data:
+        yield data
+
+
+@fixture
+def custom_bundle_archive():
+    yield bundle_archive_helper
+
+
+@fixture
 def custom_bundle():
     yield bundle_helper
 
@@ -209,7 +220,8 @@ def custom_bundle():
 @contextmanager
 def bundle_helper(descriptor, graph=None, bundles_directory=None):
     res = BundleData()
-    res.testdir = tempfile.mkdtemp(prefix=__name__ + '.')
+    testdir = tempfile.mkdtemp(prefix=__name__ + '.')
+    res.testdir = testdir
     res.test_homedir = p(res.testdir, 'homedir')
     res.bundle_source_directory = p(res.testdir, 'bundle_source')
     res.bundles_directory = bundles_directory or p(res.testdir, 'homedir', 'bundles')
@@ -234,7 +246,18 @@ def bundle_helper(descriptor, graph=None, bundles_directory=None):
     try:
         yield res
     finally:
-        shutil.rmtree(res.testdir)
+        shutil.rmtree(testdir)
+
+
+@contextmanager
+def bundle_archive_helper(*args, pre_pack_callback=None, **kwargs):
+    with bundle_helper(*args, **kwargs) as bundle_data:
+        if pre_pack_callback:
+            pre_pack_callback(bundle_data)
+        bundle_data.archive_path = Archiver(bundle_data.testdir).pack(
+                bundle_directory=bundle_data.bundle_directory,
+                target_file_name='bundle.tar.xz')
+        yield bundle_data
 
 
 class BundleData(object):
