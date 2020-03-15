@@ -2,6 +2,7 @@ from io import StringIO
 import tempfile
 from os.path import join as p
 from os import makedirs, chmod
+from unittest.mock import patch, Mock
 
 import pytest
 from rdflib.term import URIRef
@@ -25,8 +26,8 @@ def test_write_read_remote_1():
 def test_write_read_remote_2():
     out = StringIO()
     r0 = Remote('remote')
-    r0.accessor_configs.append(URLConfig('http://example.org/bundle_remote0'))
-    r0.accessor_configs.append(URLConfig('http://example.org/bundle_remote1'))
+    r0.add_config(URLConfig('http://example.org/bundle_remote0'))
+    r0.add_config(URLConfig('http://example.org/bundle_remote1'))
     r0.write(out)
     out.seek(0)
     r1 = Remote.read(out)
@@ -39,12 +40,37 @@ def test_get_http_url_loaders():
     '''
     out = StringIO()
     r0 = Remote('remote')
-    r0.accessor_configs.append(URLConfig('http://example.org/bundle_remote0'))
+    r0.add_config(URLConfig('http://example.org/bundle_remote0'))
     for l in r0.generate_loaders():
         if isinstance(l, HTTPBundleLoader):
             return
 
     raise AssertionError('No HTTPBundleLoader was created')
+
+
+def test_remote_generate_uploaders_skip():
+    mock = Mock()
+    with patch('owmeta_core.bundle.UPLOADER_CLASSES', [mock]):
+        out = StringIO()
+        r0 = Remote('remote')
+        r0.add_config(URLConfig('http://example.org/bundle_remote0'))
+        for ul in r0.generate_uploaders():
+            pass
+    mock.can_upload_to.assert_called()
+
+
+def test_remote_generate_uploaders_no_skip():
+    mock = Mock()
+    mock.can_upload_to.return_value = True
+    ac = URLConfig('http://example.org/bundle_remote0')
+    with patch('owmeta_core.bundle.UPLOADER_CLASSES', [mock]):
+        out = StringIO()
+        r0 = Remote('remote')
+        r0.add_config(ac)
+        loader = None
+        for ul in r0.generate_uploaders():
+            pass
+    mock.assert_called_with(ac)
 
 
 def test_latest_bundle_fetched():

@@ -176,6 +176,28 @@ def test_clear_target_directory_on_invalid_file_path(tempdir):
     assert not isdir(fmt_bundle_directory(tempdir, 'example/abundle', 12))
 
 
+def test_unpack_fail_message_on_fileobj_missing_manifest(tempdir):
+    '''
+    Test that file name is displayed for
+    '''
+    fname = p(tempdir, 'file_name')
+    tarfile.open(fname, 'w:xz').close()
+    with open(fname, 'rb') as f:
+        with pytest.raises(NotABundlePath, match='file_name.*manifest'):
+            Unarchiver(tempdir).unpack(f)
+
+
+def test_unpack_fail_message_on_unnamed_fileobj_missing_manifest(tempdir):
+    '''
+    Test that fallback string is displayed for input file object without a name
+    '''
+    bio = BytesIO()
+    tarfile.open(fileobj=bio, mode='w:xz').close()
+    bio.seek(0)
+    with pytest.raises(NotABundlePath, match='.*bundle archive file.*manifest'):
+        Unarchiver(tempdir).unpack(bio)
+
+
 def _write_archive(tempdir, manifest_contents, *files):
     manifest_contents = json.dumps(manifest_contents).encode('UTF-8')
     with tarfile.open(p(tempdir, 'file_name'), 'w:xz') as f:
