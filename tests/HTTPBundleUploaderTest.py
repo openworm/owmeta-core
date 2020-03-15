@@ -55,5 +55,13 @@ def test_bundle_upload_directory_to_https_by_urlconfig(https_server, tempdir):
     assert req['headers']['content-type'] == BUNDLE_ARCHIVE_MIME_TYPE
 
 
-def test_bundle_upload_archive(http_server):
-    pytest.fail('Not implemented')
+def test_bundle_upload_archive(http_server, bundle_archive):
+    cut = HTTPBundleUploader(http_server.url)
+
+    cut(bundle_archive.archive_path)
+
+    req = http_server.requests.get()
+    while req['method'] != 'POST':
+        req = http_server.requests.get()
+
+    assert req['headers']['content-type'] == BUNDLE_ARCHIVE_MIME_TYPE

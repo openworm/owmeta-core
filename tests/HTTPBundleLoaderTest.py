@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, Mock
+from unittest.mock import patch, Mock, ANY
 import re
 
 from owmeta_core.bundle import HTTPBundleLoader, URLConfig, LoadFailed
@@ -151,6 +151,24 @@ def test_load_no_cachedir():
         get().raw.read.return_value = b'bytes bytes bytes'
         cut.load('test_bundle')
         Unarchiver().unpack.assert_called_with(MatchingBytesIO(BytesIO(b'bytes bytes bytes')), 'bdir')
+
+
+def test_load_cachedir(bundle_archive, tempdir):
+    from io import BytesIO
+    cut = HTTPBundleLoader('index_url', cachedir=tempdir)
+    cut.base_directory = 'bdir'
+    with patch('requests.get') as get, patch('owmeta_core.bundle.Unarchiver') as Unarchiver:
+        raw_response = Mock(name='raw_response')
+        get().json.return_value = {'test_bundle': {'1': 'http://some_host'}}
+        with open(bundle_archive.archive_path, 'rb') as bf:
+            get().iter_content.return_value = [bf.read()]
+        cut.load('test_bundle')
+        Unarchiver().unpack.assert_called_with(ANY, 'bdir')
+
+
+def test_load_urlconfig():
+    cut = HTTPBundleLoader(URLConfig('index_url'))
+    assert cut.index_url == 'index_url'
 
 
 class MatchingBytesIO(object):

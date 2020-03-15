@@ -614,7 +614,7 @@ class Deployer(_RemoteHandlerMixin):
     `Fetcher` is, functionally, the dual of this class.
 
     Deployer is responsible for selecting remotes and corresponding uploaders among a set
-    of options. `.Uploader`s are responsible for actually doing the upload.
+    of options. `Uploaders <Uploader>` are responsible for actually doing the upload.
     '''
 
     def __init__(self, remotes=()):
@@ -633,23 +633,39 @@ class Deployer(_RemoteHandlerMixin):
             Path to a bundle directory tree or archive
         remotes : iterable of Remote or str
             A subset of remotes to deploy to and additional remotes to deploy to
+
+        Raises
+        ------
+        NoAcceptableUploaders
+            Thrown when none of the selected uploaders could upload the bundle
         '''
         if not exists(bundle_path):
             raise NotABundlePath(bundle_path, 'the file does not exist')
 
-        manifest_data = self._extract_manifest_data_from_path(bundle_path)
+        manifest_data = self._extract_manifest_data_from_bundle_path(bundle_path)
         validate_manifest(bundle_path, manifest_data)
 
+        uploaded = False
         for uploader in self._get_bundle_uploaders(bundle_path, remotes=remotes):
             uploader(bundle_path)
+            uploaded = True
 
-    def _extract_manifest_data_from_path(self, bundle_path):
+        if not uploaded:
+            raise NoAcceptableUploaders(bundle_path)
+
+    def _extract_manifest_data_from_bundle_path(self, bundle_path):
         if isdir(bundle_path):
-            manifest_data = self._get_directory_manifest_data(bundle_path)
+            return self._get_directory_manifest_data(bundle_path)
         elif isfile(bundle_path):
-            manifest_data = self._get_archive_manifest_data(bundle_path)
+            return self._get_archive_manifest_data(bundle_path)
         else:
             raise NotABundlePath(bundle_path, 'path does not point to a file or directory')
+
+    def _get_bundle_uploaders(self, bundle_directory, remotes=None):
+        for rem in self._get_remotes(remotes):
+            for uploader in rem.generate_uploaders():
+                if uploader.can_upload(bundle_directory):
+                    yield uploader
 
     def _get_directory_manifest_data(self, bundle_path):
         try:
@@ -679,12 +695,6 @@ class Deployer(_RemoteHandlerMixin):
             except json.decoder.JSONDecodeError:
                 raise NotABundlePath(bundle_path, 'manifest is malformed: expected a'
                         ' JSON file')
-
-    def _get_bundle_uploaders(self, bundle_directory, remotes=None):
-        for rem in self._get_remotes(remotes):
-            for uploader in rem.generate_uploaders():
-                if uploader.can_upload(bundle_directory):
-                    yield loader
 
 
 class Uploader(object):
@@ -927,6 +937,9 @@ class HTTPBundleUploader(Uploader):
             if isdir(bundle_path):
                 archive_path = Archiver(tempdir).pack(bundle_directory=bundle_path, target_file_name='bundle.tar.xz')
             if not tarfile.is_tarfile(archive_path):
+                # We don't really care about the TAR file being properly formatted here --
+                # it's up to the server to tell us it can't process the bundle. We just
+                # check if it's a TAR file for the convenience of the user.
                 raise NotABundlePath(bundle_path, 'Expected a directory or a tar file')
             self._post(archive_path)
 
@@ -947,7 +960,6 @@ class HTTPBundleUploader(Uploader):
 
 
 class HTTPBundleLoader(Loader):
-    # TODO: Test this class...
     '''
     Loads bundles from HTTP(S) resources listed in an index file
     '''
@@ -963,6 +975,8 @@ class HTTPBundleLoader(Loader):
             If provided, the index and bundle archive is cached in the given directory. If
             not provided, the index will be cached in memory and the bundle will not be
             cached.
+        **kwargs
+            Passed on to `.Loader`
         '''
         super(HTTPBundleLoader, self).__init__(**kwargs)
 
@@ -1081,13 +1095,12 @@ class HTTPBundleLoader(Loader):
         response = requests.get(bundle_url, stream=True)
         if self.cachedir is not None:
             bfn = urlquote(bundle_id)
-            with open(p(self.cachedir, bfn), 'w') as f:
+            with open(p(self.cachedir, bfn), 'wb') as f:
                 for chunk in response.iter_content(chunk_size=1024):
                     f.write(chunk)
-            with open(p(self.cachedir, bfn), 'r') as f:
+            with open(p(self.cachedir, bfn), 'rb') as f:
                 Unarchiver().unpack(f, self.base_directory)
         else:
-            # XXX Does this work?
             bio = io.BytesIO()
             bio.write(response.raw.read())
             bio.seek(0)
@@ -1850,3 +1863,21 @@ class TargetDirectoryMismatch(UnarchiveFailed):
                 % (target_directory, expected_target_directory))
         self.target_directory = target_directory
         self.expected_target_directory = expected_target_directory
+
+
+class DeployFailed(Exception):
+    '''
+    Thrown when bundle deployment fails for an apparently valid bundle
+    '''
+
+
+class NoAcceptableUploaders(DeployFailed):
+    '''
+    Thrown when, for all selected `Remotes <Remote>`, no `Uploaders <Uploader>` report
+    that they can upload a given bundle
+    '''
+    def __init__(self, bundle_path):
+        super(NoAcceptableUploaders, self).__init__(
+                'Could not upload "%s" because no uploaders could handle it' %
+                bundle_path)
+        self.bundle_path = bundle_path

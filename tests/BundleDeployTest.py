@@ -9,12 +9,21 @@ import tarfile
 import rdflib
 from rdflib import ConjunctiveGraph, URIRef
 from pytest import fixture, raises
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 from owmeta_core.bundle import (NoRemoteAvailable,
                                 Remote,
                                 Deployer,
                                 NotABundlePath)
+
+
+@fixture
+def remote():
+    uploader = Mock()
+    rem = Mock(spec=Remote)
+    rem.name = 'remote'
+    rem.generate_uploaders.return_value = [uploader]
+    return rem
 
 
 def test_bundle_path_does_not_exist(tempdir):
@@ -98,13 +107,11 @@ def test_bundle_directory_manifest_has_no_bundle_id(tempdir):
         cut.deploy(bdir)
 
 
-def test_deploy_directory_from_installer(bundle):
+def test_deploy_directory_from_installer(bundle, remote):
     ''' Test that we can deploy an installed bundle '''
-
-    rem = Remote('remote')
     Deployer().deploy(
         bundle.bundle_directory,
-        remotes=(rem,)
+        remotes=(remote,)
     )
 
 
@@ -123,14 +130,13 @@ def test_deploy_archive_no_remotes(bundle_archive):
         cut.deploy(bundle_archive.archive_path)
 
 
-def test_deploy_archive_validate_manifest(bundle_archive):
+def test_deploy_archive_validate_manifest(bundle_archive, remote):
     '''
     Test manifest validation
     '''
-    rem = Remote('remote')
     cut = Deployer()
     with patch('owmeta_core.bundle.validate_manifest') as vm:
-        cut.deploy(bundle_archive.archive_path, remotes=(rem,))
+        cut.deploy(bundle_archive.archive_path, remotes=(remote,))
         vm.assert_called()
 
 
