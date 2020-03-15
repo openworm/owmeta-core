@@ -1316,11 +1316,25 @@ class Unarchiver(object):
 
 
 class ArchiveExtractor(object):
+    '''
+    Extracts `tarfile` archives
+    '''
     def __init__(self, targetdir, tarfile):
+        '''
+        Parameters
+        ----------
+        targetdir : str
+            The directory to which the archive will be extracted
+        tarfile : tarfile.TarFile
+            The file to extract
+        '''
         self._targetdir = targetdir
         self._tarfile = tarfile
 
     def extract(self):
+        '''
+        Extract the tarfile to the target directory
+        '''
         self._tarfile.extractall(self._targetdir, members=self._safemembers())
 
     def _realpath(self, path):
@@ -1358,6 +1372,14 @@ class _BadArchiveFilePath(Exception):
     Thrown when an archive file path points outside of a given base directory
     '''
     def __init__(self, archive_file_path, error):
+        '''
+        Parameters
+        ----------
+        archive_file_path : str
+            The path to the archive file
+        error : str
+            Explanation of why the archive path is bad
+        '''
         super(_BadArchiveFilePath, self).__init__(
                 'Disallowed archive file %s: %s' %
                 (archive_file_path, error))
@@ -1867,8 +1889,16 @@ class LoadFailed(Exception):
     '''
     def __init__(self, bundle_id, loader, *args):
         '''
+        Parameters
+        ----------
         bundle_id : str
             ID of the bundle on which a download was attempted
+        loader : Loader
+            The loader that attempted to download the bundle
+        args[0] : str
+            Explanation of why the download failed
+        *args[1:]
+            Passed on to `Exception`
         '''
         msg = args[0]
         mmsg = 'Failed to load {} bundle with loader {}{}'.format(
@@ -1887,9 +1917,17 @@ class InstallFailed(Exception):
 
 class UncoveredImports(InstallFailed):
     '''
-    Thrown when a bundle to be installed is missing
+    Thrown when a bundle to be installed has declared imports but is missing dependencies
+    to cover those imports
     '''
     def __init__(self, imports):
+        '''
+        Parameters
+        ----------
+        imports : list of URIRef
+            List of imports declared for a bundle which are not covered by any of the
+            bundle's dependencies
+        '''
         msg = 'Missing {} imports'.format(len(imports))
         super(UncoveredImports, self).__init__(msg)
         self.imports = imports
