@@ -1,5 +1,4 @@
 from io import StringIO
-import tempfile
 from os.path import join as p
 from os import makedirs, chmod
 from unittest.mock import patch, Mock
@@ -9,6 +8,8 @@ from rdflib.term import URIRef
 from rdflib.graph import ConjunctiveGraph
 
 
+from owmeta_core.context import Context
+from owmeta_core.contextualize import Contextualizable
 from owmeta_core.bundle import (Remote, URLConfig, HTTPBundleLoader, Bundle, BundleNotFound,
                                 Descriptor, DependencyDescriptor, _RemoteHandlerMixin)
 from owmeta_core.agg_store import UnsupportedAggregateOperation
@@ -73,85 +74,77 @@ def test_remote_generate_uploaders_no_skip():
     mock.assert_called_with(ac)
 
 
-def test_latest_bundle_fetched():
-    with tempfile.TemporaryDirectory(prefix=__name__ + '.') as tempdir:
-        bundles_directory = p(tempdir, 'bundles')
-        makedirs(p(bundles_directory, 'example', '1'))
-        makedirs(p(bundles_directory, 'example', '2'))
-        expected = p(bundles_directory, 'example', '3')
-        makedirs(expected)
-        b = Bundle('example', bundles_directory=bundles_directory)
-        assert expected == b._get_bundle_directory()
+def test_latest_bundle_fetched(tempdir):
+    bundles_directory = p(tempdir, 'bundles')
+    makedirs(p(bundles_directory, 'example', '1'))
+    makedirs(p(bundles_directory, 'example', '2'))
+    expected = p(bundles_directory, 'example', '3')
+    makedirs(expected)
+    b = Bundle('example', bundles_directory=bundles_directory)
+    assert expected == b._get_bundle_directory()
 
 
-def test_specified_version_fetched():
-    with tempfile.TemporaryDirectory(prefix=__name__ + '.') as tempdir:
-        bundles_directory = p(tempdir, 'bundles')
-        makedirs(p(bundles_directory, 'example', '1'))
-        expected = p(bundles_directory, 'example', '2')
-        makedirs(expected)
-        makedirs(p(bundles_directory, 'example', '3'))
-        b = Bundle('example', version=2, bundles_directory=bundles_directory)
-        assert expected == b._get_bundle_directory()
+def test_specified_version_fetched(tempdir):
+    bundles_directory = p(tempdir, 'bundles')
+    makedirs(p(bundles_directory, 'example', '1'))
+    expected = p(bundles_directory, 'example', '2')
+    makedirs(expected)
+    makedirs(p(bundles_directory, 'example', '3'))
+    b = Bundle('example', version=2, bundles_directory=bundles_directory)
+    assert expected == b._get_bundle_directory()
 
 
-def test_no_versioned_bundles():
-    with tempfile.TemporaryDirectory(prefix=__name__ + '.') as tempdir:
-        bundles_directory = p(tempdir, 'bundles')
-        makedirs(p(bundles_directory, 'example'))
-        b = Bundle('example', bundles_directory=bundles_directory)
-        with pytest.raises(BundleNotFound, match='No versioned bundle directories'):
+def test_no_versioned_bundles(tempdir):
+    bundles_directory = p(tempdir, 'bundles')
+    makedirs(p(bundles_directory, 'example'))
+    b = Bundle('example', bundles_directory=bundles_directory)
+    with pytest.raises(BundleNotFound, match='No versioned bundle directories'):
+        b._get_bundle_directory()
+
+
+def test_specified_bundle_does_not_exist(tempdir):
+    bundles_directory = p(tempdir, 'bundles')
+    makedirs(p(bundles_directory, 'example'))
+    b = Bundle('example', bundles_directory=bundles_directory, version=2)
+    with pytest.raises(BundleNotFound, match='at version 2.*specified version'):
+        b._get_bundle_directory()
+
+
+def test_specified_bundle_directory_does_not_exist(tempdir):
+    bundles_directory = p(tempdir, 'bundles')
+    makedirs(bundles_directory)
+    b = Bundle('example', bundles_directory=bundles_directory)
+    with pytest.raises(BundleNotFound, match='Bundle directory'):
+        b._get_bundle_directory()
+
+
+def test_specified_bundles_root_directory_does_not_exist(tempdir):
+    bundles_directory = p(tempdir, 'bundles')
+    b = Bundle('example', bundles_directory=bundles_directory)
+    with pytest.raises(BundleNotFound, match='Bundle directory'):
+        b._get_bundle_directory()
+
+
+def test_specified_bundles_root_permission_denied(tempdir):
+    bundles_directory = p(tempdir, 'bundles')
+    b = Bundle('example', bundles_directory=bundles_directory)
+    makedirs(bundles_directory)
+    chmod(bundles_directory, 0)
+    try:
+        with pytest.raises(OSError, match='[Pp]ermission denied'):
             b._get_bundle_directory()
+    finally:
+        chmod(bundles_directory, 0o777)
 
 
-def test_specified_bundle_does_not_exist():
-    with tempfile.TemporaryDirectory(prefix=__name__ + '.') as tempdir:
-        bundles_directory = p(tempdir, 'bundles')
-        makedirs(p(bundles_directory, 'example'))
-        b = Bundle('example', bundles_directory=bundles_directory, version=2)
-        with pytest.raises(BundleNotFound, match='at version 2.*specified version'):
-            b._get_bundle_directory()
-
-
-def test_specified_bundle_directory_does_not_exist():
-    with tempfile.TemporaryDirectory(prefix=__name__ + '.') as tempdir:
-        bundles_directory = p(tempdir, 'bundles')
-        makedirs(bundles_directory)
-        b = Bundle('example', bundles_directory=bundles_directory)
-        with pytest.raises(BundleNotFound, match='Bundle directory'):
-            b._get_bundle_directory()
-
-
-def test_specified_bundles_root_directory_does_not_exist():
-    with tempfile.TemporaryDirectory(prefix=__name__ + '.') as tempdir:
-        bundles_directory = p(tempdir, 'bundles')
-        b = Bundle('example', bundles_directory=bundles_directory)
-        with pytest.raises(BundleNotFound, match='Bundle directory'):
-            b._get_bundle_directory()
-
-
-def test_specified_bundles_root_permission_denied():
-    with tempfile.TemporaryDirectory(prefix=__name__ + '.') as tempdir:
-        bundles_directory = p(tempdir, 'bundles')
-        b = Bundle('example', bundles_directory=bundles_directory)
-        makedirs(bundles_directory)
-        chmod(bundles_directory, 0)
-        try:
-            with pytest.raises(OSError, match='[Pp]ermission denied'):
-                b._get_bundle_directory()
-        finally:
-            chmod(bundles_directory, 0o777)
-
-
-def test_ignore_non_version_number():
-    with tempfile.TemporaryDirectory(prefix=__name__ + '.') as tempdir:
-        bundles_directory = p(tempdir, 'bundles')
-        b = Bundle('example', bundles_directory=bundles_directory)
-        makedirs(p(bundles_directory, 'example', 'ignore_me'))
-        expected = p(bundles_directory, 'example', '5')
-        makedirs(expected)
-        actual = b._get_bundle_directory()
-        assert actual == expected
+def test_ignore_non_version_number(tempdir):
+    bundles_directory = p(tempdir, 'bundles')
+    b = Bundle('example', bundles_directory=bundles_directory)
+    makedirs(p(bundles_directory, 'example', 'ignore_me'))
+    expected = p(bundles_directory, 'example', '5')
+    makedirs(expected)
+    actual = b._get_bundle_directory()
+    assert actual == expected
 
 
 def test_descriptor_dependency():
@@ -425,3 +418,41 @@ def test_remote_handler_mixin_selected_configured_remotes():
     for r in cut._get_remotes(('a_remote',)):
         remote = r
     assert remote is not None
+
+
+def test_bundle_contextualize_non_contextualizable(tempdir, bundle):
+    cut = Bundle(bundle.descriptor.id, version=bundle.descriptor.version,
+            bundles_directory=bundle.bundles_directory)
+    token = object()
+    assert cut(token) == token
+
+
+def test_bundle_contextualize_no_default_ctx(tempdir, bundle):
+    with Bundle(bundle.descriptor.id, version=bundle.descriptor.version,
+            bundles_directory=bundle.bundles_directory) as cut:
+        ctxble = Mock(spec=Contextualizable)
+        cut(ctxble)
+        ctxble.contextualize.assert_called_with(ContextWithNoId())
+
+
+def test_bundle_contextualize_with_default_ctx(tempdir, custom_bundle):
+    descr = Descriptor('test')
+    with custom_bundle(descr, default_ctx='http://example.org/ctx') as bundle:
+        with Bundle(bundle.descriptor.id, version=bundle.descriptor.version,
+                bundles_directory=bundle.bundles_directory) as cut:
+            ctxble = Mock(spec=Contextualizable)
+            cut(ctxble)
+            ctxble.contextualize.assert_called_with(ContextWithId('http://example.org/ctx'))
+
+
+class ContextWithNoId(Context):
+    def __eq__(self, other):
+        return isinstance(other, Context) and other.identifier is None
+
+
+class ContextWithId(Context):
+    def __init__(self, ident):
+        self.identifier = ident
+
+    def __eq__(self, other):
+        return isinstance(other, Context) and other.identifier == URIRef(self.identifier)

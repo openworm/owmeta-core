@@ -206,7 +206,10 @@ class HTTPSURLConfig(URLConfig):
 
 class Descriptor(object):
     '''
-    Descriptor for a bundle
+    Descriptor for a bundle.
+
+    The descriptor is sufficient to build a distributable bundle directory tree from a
+    `~rdflib.graph.ConjunctiveGraph` and a set of files (see `Installer`).
     '''
     def __init__(self, ident, **kwargs):
         self.id = ident
@@ -216,6 +219,16 @@ class Descriptor(object):
     def make(cls, obj):
         '''
         Makes a descriptor from the given object.
+
+        Parameters
+        ----------
+        obj : a `dict-like object <dict>`
+            An object with parameters for the Descriptor. Typically a dict
+
+        Returns
+        -------
+        Descriptor
+            The created descriptor
         '''
         res = cls(ident=obj['id'])
         res._set(obj)
@@ -224,17 +237,18 @@ class Descriptor(object):
     @classmethod
     def load(cls, descriptor_source):
         '''
-        Load a descriptor
+        Load a descriptor from a YAML record
 
         Parameters
         ----------
-        descriptor_source : str
-            The descriptor source
+        descriptor_source : str or :term:`file object`
+            The descriptor source. Handled by `yaml.safe_load
+            <https://pyyaml.org/wiki/PyYAMLDocumentation#the-yaml-package>`_
 
         Raises
         ------
-        NotADescriptor : Thrown when the object loaded from `descriptor_source` isn't a
-        `dict`
+        NotADescriptor
+            Thrown when the object loaded from `descriptor_source` isn't a `dict`
         '''
         dat = yaml.safe_load(descriptor_source)
         if isinstance(dat, dict):
@@ -395,14 +409,14 @@ class Bundle(object):
 
     def __call__(self, target):
         if target and hasattr(target, 'contextualize'):
-            ctx = Context(self.conf.get(DEFAULT_CONTEXT_KEY, None), conf=self.conf)
+            ctx = BundleContext(self.conf.get(DEFAULT_CONTEXT_KEY, None), conf=self.conf)
             return target.contextualize(ctx.stored)
-        return None
+        return target
 
 
 class BundleContext(Context):
     '''
-    Marker for the default `Context` for a bundle
+    `Context` for a bundle.
     '''
 
 
@@ -1020,6 +1034,14 @@ class HTTPBundleLoader(Loader):
 
     @classmethod
     def can_load_from(cls, ac):
+        '''
+        Returns `True` for ``http://`` or ``https://`` `URLConfigs <URLConfig>`
+
+        Parameters
+        ----------
+        ac : AccessorConfig
+            The config which we may be able to load from
+        '''
         return (isinstance(ac, URLConfig) and
                 (ac.url.startswith('https://') or
                     ac.url.startswith('http://')))
@@ -1035,6 +1057,19 @@ class HTTPBundleLoader(Loader):
           and that entry gives a URL for the bundle, then we return `True`.
 
         - Otherwise, we return `False`
+
+        Parameters
+        ----------
+        bundle_id : str
+            ID of the bundle to look for
+        bundle_version : int, optional
+            Version number of the bundle to look for. If not provided, then any version is
+            deemed acceptable
+
+        Returns
+        -------
+        bool
+            `True` if the bundle can be loaded; otherwise, `False`
         '''
         self._setup_index()
         binfo = self._index.get(bundle_id)
@@ -1127,9 +1162,16 @@ class HTTPBundleLoader(Loader):
 
 class Unarchiver(object):
     '''
-    Unpacks an archive file (e.g., a `tar.gz`) of a bundle
+    Unpacks an archive file (e.g., a `tar.xz`) of a bundle
     '''
     def __init__(self, bundles_directory=None):
+        '''
+        Parameters
+        ----------
+        bundles_directory : str, optional
+            The directory under which bundles should be unpacked. Typically the bundle
+            cache directory.
+        '''
         self.bundles_directory = bundles_directory
 
     def unpack(self, input_file, target_directory=None):
@@ -1144,22 +1186,26 @@ class Unarchiver(object):
         ----------
         input_file : str or :term:`file object`
             The archive file
-        target_directory : str
+        target_directory : str, optional
             The path where the archive should be unpacked. If this argument is not
             provided, then the target directory is derived from `bundles_directory` (see
-            `fmt_bundle_directory`). optional
+            `fmt_bundle_directory`)
 
         Raises
         ------
         NotABundlePath
             Thrown in one of these conditions:
 
-            - If the `input_file` is not an expected format (lzma-zipped TAR file)
+            - If the `input_file` is not in an expected format (lzma-zipped TAR file)
             - If the `input_file` does not have a "manifest" file
             - If the `input_file` manifest file is invalid or is not a regular file (see
               `validate_manifest` for further details)
             - If the `input_file` is a file path and the corresponding file is not found
-
+        TargetDirectoryMismatch
+            Thrown when both a `bundles_directory` has been set at initialization and a
+            `target_directory` is passed to this method and the path under
+            `bundles_directory` indicated by the manifest in the `input_file` does not
+            agree with `target_directory`
         '''
 
         # - If we were given a target directory, just unpack there...no complications
@@ -1406,16 +1452,17 @@ class Installer(object):
     Installs a bundle locally
     '''
 
-    # TODO: Make source_directory optional -- not every bundle needs files
     def __init__(self, source_directory, bundles_directory, graph,
                  imports_ctx=None, default_ctx=None, installer_id=None, remotes=()):
         '''
         Parameters
         ----------
         source_directory : str
-            Directory where files come from
+            Directory where files come from. All files for a bundle must be below this
+            directory
         bundles_directory : str
-            Directory where the bundles files go
+            Directory where the bundles files go. Usually this is the bundle cache
+            directory
         installer_id : str
             Name of this installer for purposes of mutual exclusion. optional
         graph : rdflib.graph.ConjunctiveGraph
@@ -1456,6 +1503,11 @@ class Installer(object):
         -------
         str
             The directory where the bundle is installed
+
+        Raises
+        ------
+        TargetIsNotEmpty
+            Thrown when the target directory for installation is not empty.
         '''
         # Create the staging directory in the base directory to reduce the chance of
         # moving across file systems
@@ -1645,13 +1697,13 @@ def hash_file(hsh, fh, blocksize=None):
 
     Parameters
     ----------
-    hsh : hashlib.hash
+    hsh : `hashlib.hash <hashlib>`
         The hash object to update
     fh : :term:`file object`
         The file to hash
     blocksize : int, optional
         The number of bytes to read at a time. If not provided, will use
-        `hsh.block_size` instead.
+        `hsh.block_size <hashlib.hash.block_size>` instead.
     '''
     if not blocksize:
         blocksize = hsh.block_size
@@ -1783,18 +1835,39 @@ UPLOADER_CLASSES = [
 
 
 class BundleNotFound(Exception):
-    def __init__(self, bundle_ident, msg=None, version=None):
-        msg = 'Missing bundle "{}"{}{}'.format(bundle_ident,
+    '''
+    Thrown when a bundle cannot be found on a local or remote resource with the given
+    parameters.
+    '''
+    def __init__(self, bundle_id, msg=None, version=None):
+        '''
+        Parameters
+        ----------
+        bundle_id : str
+            ID of the bundle that was sought
+        msg : str, optional
+            An explanation of why the bundle could not be found
+        version : int, optional
+            Version number of the bundle
+        '''
+        msg = 'Missing bundle "{}"{}{}'.format(bundle_id,
                 '' if version is None else ' at version ' + str(version),
                 ': ' + str(msg) if msg is not None else '')
         super(BundleNotFound, self).__init__(msg)
 
 
 class LoadFailed(Exception):
-    def __init__(self, bundle, loader, *args):
+    '''
+    Thrown when a bundle could not be downloaded
+    '''
+    def __init__(self, bundle_id, loader, *args):
+        '''
+        bundle_id : str
+            ID of the bundle on which a download was attempted
+        '''
         msg = args[0]
         mmsg = 'Failed to load {} bundle with loader {}{}'.format(
-                bundle, loader, ': ' + msg if msg else '')
+                bundle_id, loader, ': ' + msg if msg else '')
         super(LoadFailed, self).__init__(mmsg, *args[1:])
 
 
@@ -1829,7 +1902,6 @@ class TargetIsNotEmpty(InstallFailed):
 
 class FetchFailed(Exception):
     ''' Generic message for when a fetch fails '''
-    pass
 
 
 class NoBundleLoader(FetchFailed):

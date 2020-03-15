@@ -218,35 +218,50 @@ def custom_bundle():
 
 
 @contextmanager
-def bundle_helper(descriptor, graph=None, bundles_directory=None):
-    res = BundleData()
-    testdir = tempfile.mkdtemp(prefix=__name__ + '.')
-    res.testdir = testdir
-    res.test_homedir = p(res.testdir, 'homedir')
-    res.bundle_source_directory = p(res.testdir, 'bundle_source')
-    res.bundles_directory = bundles_directory or p(res.testdir, 'homedir', 'bundles')
-    os.mkdir(res.test_homedir)
-    os.mkdir(res.bundle_source_directory)
-    if not bundles_directory:
-        os.mkdir(res.bundles_directory)
+def bundle_helper(descriptor, graph=None, bundles_directory=None, **kwargs):
+    '''
+    Helper for creating bundles for testing.
 
-    # This is a bit of an integration test since it would be a PITA to maintain the bundle
-    # format separately from the installer
-    res.descriptor = descriptor
-    if graph is None:
-        graph = ConjunctiveGraph()
-        ctxg = graph.get_context(URIRef('http://example.org/ctx'))
-        ctxg.add((URIRef('http://example.org/a'),
-                  URIRef('http://example.org/b'),
-                  URIRef('http://example.org/c')))
-    res.installer = Installer(res.bundle_source_directory,
-                              res.bundles_directory,
-                              graph=graph)
-    res.bundle_directory = res.installer.install(res.descriptor)
-    try:
+    Uses `~owmeta_core.bundle.Installer` to lay out a bundle
+
+    Parameters
+    ----------
+    descriptor : Descriptor
+        Describes the bundle
+    graph : rdflib.graph.ConjunctiveGraph, optional
+        Graph from which the bundle contexts will be generated. If not provided, a graph
+        will be created with the triple ``(ex:a, ex:b, ex:c)`` in a context named ``ex:ctx``,
+        where ``ex:`` expands to ``http://example.org/``
+    bundles_directory : str, optional
+        The directory where the bundles should be installed. If not provided, creates a
+        temporary directory to house the bundles and cleans them up afterwards
+    '''
+    res = BundleData()
+    with tempfile.TemporaryDirectory(prefix=__name__ + '.') as testdir:
+        res.testdir = testdir
+        res.test_homedir = p(res.testdir, 'homedir')
+        res.bundle_source_directory = p(res.testdir, 'bundle_source')
+        res.bundles_directory = bundles_directory or p(res.testdir, 'homedir', 'bundles')
+        os.mkdir(res.test_homedir)
+        os.mkdir(res.bundle_source_directory)
+        if not bundles_directory:
+            os.mkdir(res.bundles_directory)
+
+        # This is a bit of an integration test since it would be a PITA to maintain the bundle
+        # format separately from the installer
+        res.descriptor = descriptor
+        if graph is None:
+            graph = ConjunctiveGraph()
+            ctxg = graph.get_context(URIRef('http://example.org/ctx'))
+            ctxg.add((URIRef('http://example.org/a'),
+                      URIRef('http://example.org/b'),
+                      URIRef('http://example.org/c')))
+        res.installer = Installer(res.bundle_source_directory,
+                                  res.bundles_directory,
+                                  graph=graph,
+                                  **kwargs)
+        res.bundle_directory = res.installer.install(res.descriptor)
         yield res
-    finally:
-        shutil.rmtree(testdir)
 
 
 @contextmanager
