@@ -547,11 +547,20 @@ class Fetcher(_RemoteHandlerMixin):
     '''
     Fetches bundles from `Remotes <Remote>`
 
-    A fetcher takes a list of remotes and a bundle bundle directory tree or bundle archive and uploads it to a remote.
-    `Fetcher` is, functionally, the dual of this class. The specific
+    A fetcher takes a list of remotes, a bundle ID, and, optionally, a version number and
+    downloads the bundle to a local directory. `Deployer` is, functionally, the dual of
+    this class.
     '''
 
     def __init__(self, bundles_root, remotes):
+        '''
+        Parameters
+        ----------
+        bundles_root : str
+            The root directory of the bundle cache
+        remotes : list of Remote or str
+            List of pre-configured remotes used in calls to `fetch`
+        '''
         self.bundles_root = bundles_root
         self.remotes = remotes
 
@@ -563,10 +572,9 @@ class Fetcher(_RemoteHandlerMixin):
 
     def fetch(self, bundle_id, bundle_version=None, remotes=None):
         '''
-        Retrieve a bundle by name from a remote and put it in the local bundle index and
-        cache.
+        Retrieve a bundle by name from a remote and put it in the local bundle cache.
 
-        The first remote that can retrieve the bundle will be tried. Each bundle will be
+        The first remote that can retrieve the bundle will be tried. Each remote will be
         tried in succession until one downloads the bundle.
 
         Parameters
@@ -579,6 +587,16 @@ class Fetcher(_RemoteHandlerMixin):
             A subset of remotes and additional remotes to fetch from. If an entry in the
             iterable is a string, then it will be looked for amongst the remotes passed in
             initially.
+
+        Returns
+        -------
+        str
+            returns the directory where the bundle has been placed
+
+        Raises
+        ------
+        NoBundleLoader
+            Thrown when none of the loaders are able to download the bundle
         '''
         loaders = self._get_bundle_loaders(bundle_id, bundle_version, remotes)
 
@@ -1621,10 +1639,22 @@ def fmt_bundle_ctx_id(id):
 
 def hash_file(hsh, fh, blocksize=None):
     '''
-    Hash a file in chunks to avoid eating up too much memory at a time
+    Updates the given hash object with the contents of a file.
+
+    The file is read in `blocksize` chunks to avoid eating up too much memory at a time.
+
+    Parameters
+    ----------
+    hsh : hashlib.hash
+        The hash object to update
+    fh : :term:`file object`
+        The file to hash
+    blocksize : int, optional
+        The number of bytes to read at a time. If not provided, will use
+        `hsh.block_size` instead.
     '''
     if not blocksize:
-        blocksize = hsh.block_size << 15
+        blocksize = hsh.block_size
     while True:
         block = fh.read(blocksize)
         if not block:

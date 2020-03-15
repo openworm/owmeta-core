@@ -10,7 +10,7 @@ from rdflib.graph import ConjunctiveGraph
 
 
 from owmeta_core.bundle import (Remote, URLConfig, HTTPBundleLoader, Bundle, BundleNotFound,
-                           Descriptor, DependencyDescriptor)
+                                Descriptor, DependencyDescriptor, _RemoteHandlerMixin)
 from owmeta_core.agg_store import UnsupportedAggregateOperation
 
 
@@ -397,3 +397,31 @@ def test_add_to_graph_not_supported(custom_bundle):
                 (URIRef('http://example.org/sub'),
                  URIRef('http://example.org/prop'),
                  URIRef('http://example.org/obj')))
+
+
+def test_remote_handler_mixin_configured_remotes():
+    class A(_RemoteHandlerMixin):
+        def __init__(self):
+            m = Mock()
+            m.name = 'a_remote'
+            self.remotes = [m]
+
+    cut = A()
+    remote = None
+    for r in cut._get_remotes(()):
+        remote = r
+    assert remote is not None
+
+
+def test_remote_handler_mixin_selected_configured_remotes():
+    class A(_RemoteHandlerMixin):
+        def __init__(self):
+            m = Mock()
+            m.name = 'a_remote'
+            self.remotes = [m]
+
+    cut = A()
+    remote = None
+    for r in cut._get_remotes(('a_remote',)):
+        remote = r
+    assert remote is not None
