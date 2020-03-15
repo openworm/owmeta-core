@@ -14,8 +14,6 @@ import shutil
 import tarfile
 import tempfile
 
-from rdflib import plugin
-from rdflib.parser import Parser, create_input_source
 from rdflib.term import URIRef
 import six
 import transaction
@@ -27,8 +25,8 @@ from .context_common import CONTEXT_IMPORTS
 from .data import Data
 from .file_match import match_files
 from .file_lock import lock_file
-from .graph_serialization import write_canonical_to_file, gen_ctx_fname
-from .rdf_utils import transitive_lookup, BatchAddGraph
+from .graph_serialization import write_canonical_to_file
+from .rdf_utils import transitive_lookup
 from .utils import FCN
 
 try:
@@ -875,7 +873,14 @@ class Loader(object):
 
     @classmethod
     def can_load_from(cls, accessor_config):
-        ''' Returns True if the given accessor_config is a valid config for this loader '''
+        '''
+        Returns `True` if the given `accessor_config` is a valid config for this loader
+
+        Parameters
+        ----------
+        accessor_config : AccessorConfig
+            The config which we may be able to load from
+        '''
         return False
 
     def can_load(self, bundle_id, bundle_version=None):
@@ -1463,20 +1468,20 @@ class Installer(object):
         bundles_directory : str
             Directory where the bundles files go. Usually this is the bundle cache
             directory
-        installer_id : str
-            Name of this installer for purposes of mutual exclusion. optional
         graph : rdflib.graph.ConjunctiveGraph
             The graph from which we source contexts for this bundle
-        default_ctx : str
+        default_ctx : str, optional
             The ID of the default context -- the target of a query when not otherwise
-            specified. optional
-        imports_ctx : str
+            specified.
+        imports_ctx : str, optional
             The ID of the imports context this installer should use. Imports relationships
-            are selected from this graph according to the included contexts. optional
-        remotes : iterable of Remote
+            are selected from this graph according to the included contexts.
+        installer_id : str, optional
+            Name of this installer for purposes of mutual exclusion
+        remotes : iterable of Remote, optional
             Remotes to be used for retrieving dependencies when needed during
             installation. If not provided, the remotes will be collected from the
-            owmeta_core project directory. optional
+            owmeta_core project directory.
         '''
         self.context_hash = hashlib.sha224
         self.file_hash = hashlib.sha224
@@ -1486,7 +1491,7 @@ class Installer(object):
         self.installer_id = installer_id
         self.imports_ctx = imports_ctx
         self.default_ctx = default_ctx
-        self.remotes = remotes
+        self.remotes = list(remotes)
 
     def install(self, descriptor, progress_reporter=None):
         '''
