@@ -18,6 +18,8 @@ class DataSourceDirLoader(object):
 
     The loader is expected to organize files for each data source within the given
     base directory.
+
+    .. automethod:: __call__
     '''
     def __init__(self, base_directory=None):
         if base_directory:
@@ -30,17 +32,19 @@ class DataSourceDirLoader(object):
 
         Parameters
         ----------
-        data_source : owmeta_core.datasource.DataSource
+        data_source : .DataSource
             The data source to load files for
 
         Returns
         -------
-        A path to the loaded resource
+        str
+            A path to the loaded resource
 
         Raises
         ------
         LoadFailed
             If `load`:
+
             * throws an exception
             * doesn't return anything
             * returns a path that isn't under `base_directory`
@@ -97,23 +101,24 @@ class DataSourceDirLoader(object):
 
         Parameters
         ----------
-        data_source : owmeta_core.datasource.DataSource
+        data_source : .DataSource
             The data source to load files for
 
         Returns
         -------
-        A path to the loaded resource
+        str
+            A path to the loaded resource
         '''
         raise NotImplementedError()
 
     def can_load(self, data_source):
         '''
-        Returns true if the `~owmeta_core.datasource.DataSource` can be loaded by this
+        Returns true if the `.DataSource` can be loaded by this
         loader
 
         Parameters
         ----------
-        data_source : owmeta_core.datasource.DataSource
+        data_source : .DataSource
             The data source to load files for
         '''
         return False
@@ -123,7 +128,22 @@ class DataSourceDirLoader(object):
 
 
 class LoadFailed(Exception):
+    '''
+    Thrown when loading fails for a .DataSourceDirLoader
+    '''
     def __init__(self, data_source, loader, *args):
+        '''
+        Parameters
+        ----------
+        data_source : .DataSource
+            The `.DataSource` on which loading was attempted
+        loader : DataSourceDirLoader
+            The loader that attempted to load the data source
+        args[0] : str
+            Message explaining why loading failed
+        args[1:]
+            Passed on to `Exception`
+        '''
         msg = args[0]
         mmsg = 'Failed to load {} data with loader {}{}'.format(data_source, loader, ': ' + msg if msg else '')
         super(LoadFailed, self).__init__(mmsg, *args[1:])

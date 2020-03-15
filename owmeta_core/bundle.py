@@ -1149,7 +1149,6 @@ class Unarchiver(object):
         # - If we weren't given a target directory, then we have to extract the manifest,
         # read the version and name, then create the target directory
         if not self.bundles_directory and not target_directory:
-            # TODO: Devise a better exception here
             raise UnarchiveFailed('Neither a bundles_directory nor a target_directory was'
                     ' provided. Cannot determine where to extract %s archive to.' %
                     input_file)

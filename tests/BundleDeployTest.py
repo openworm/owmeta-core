@@ -183,13 +183,3 @@ def test_deploy_archive_manifest_emptyfile_not_a_bundle(tempdir):
     cut = Deployer()
     with raises(NotABundlePath):
         cut.deploy(bundle_path, remotes=(rem,))
-
-
-def test_deploy_directory_ignore_archive_only_remotes():
-    '''
-    Deploy can deploy directories or archives. A remote that doesn't allow.
-    '''
-
-
-def test_deploy_archive_ignore_directory_only_remotes():
-    ''' Deploy can deploy directories or archives. '''
