@@ -21,7 +21,8 @@ from ..bundle import (Descriptor,
                       fmt_bundle_directory,
                       NoBundleLoader as _NoBundleLoader,
                       UncoveredImports,
-                      TargetIsNotEmpty)
+                      TargetIsNotEmpty,
+                      InstallFailed)
 
 import hashlib
 
