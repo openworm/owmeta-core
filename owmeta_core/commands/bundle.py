@@ -268,6 +268,8 @@ class OWMBundle(object):
                 idx_id, fn = line.split(' ', 1)
                 if idx_id == descr.id:
                     continue
+                if fn == file_name:
+                    continue
                 print(line, file=f)
             print('{descr.id} {file_name}\n'.format(**vars()), file=f)
 

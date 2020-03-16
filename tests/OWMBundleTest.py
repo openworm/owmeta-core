@@ -187,6 +187,25 @@ def test_reregister(owm_project):
     )
 
 
+def test_reregister_new_id(owm_project):
+    owm_project.writefile('abundle.yml', '''\
+    ---
+    id: abundle
+    description: I'm a description
+    ''')
+    owm_project.sh('owm bundle register abundle.yml')
+    owm_project.writefile('abundle.yml', '''\
+    ---
+    id: bubble
+    description: I'm a description
+    ''')
+    owm_project.sh('owm bundle register abundle.yml')
+    assertNotRegexpMatches(
+        owm_project.sh('owm bundle list'),
+        r"abundle"
+    )
+
+
 def test_cache_list(owm_project):
     '''
     List bundles in the cache
