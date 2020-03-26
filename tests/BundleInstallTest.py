@@ -307,6 +307,47 @@ def test_imports_in_unfetched_dependencies(dirs):
         bi.install(d)
 
 
+def test_imports_in_transitive_dependency_not_included(dirs):
+    '''
+    If we have imports and a transitive dependency includes the context, then we should
+    still have an error.
+
+    Versioned bundles are assumed to be immutable, so we won't re-fetch a bundle already
+    in the local index
+    '''
+    imports_ctxid = 'http://example.org/imports'
+    ctxid_1 = 'http://example.org/ctx1'
+    ctxid_2 = 'http://example.org/ctx2'
+
+    # Make a descriptor that includes ctx1 and the imports, but not ctx2
+    d = Descriptor('test')
+    d.includes.add(make_include_func(ctxid_1))
+    d.includes.add(make_include_func(imports_ctxid))
+    d.dependencies.add(DependencyDescriptor('dep'))
+
+    dep_d = Descriptor('dep')
+    dep_d.dependencies.add(DependencyDescriptor('dep_dep'))
+
+    dep_dep_d = Descriptor('dep_dep')
+    dep_dep_d.includes.add(make_include_func(ctxid_2))
+
+    # Add some triples so the contexts aren't empty -- we can't save an empty context
+    g = rdflib.ConjunctiveGraph()
+    cg_1 = g.get_context(ctxid_1)
+    cg_2 = g.get_context(ctxid_2)
+    cg_imp = g.get_context(imports_ctxid)
+    with transaction.manager:
+        cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
+        cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
+        cg_imp.add((URIRef(ctxid_1), CONTEXT_IMPORTS, URIRef(ctxid_2)))
+
+    bi = Installer(*dirs, imports_ctx=imports_ctxid, graph=g)
+    bi.install(dep_dep_d)
+    bi.install(dep_d)
+    with pytest.raises(UncoveredImports):
+        bi.install(d)
+
+
 def test_fail_on_non_empty_target(dirs):
     d = Descriptor('test')
     g = rdflib.ConjunctiveGraph()
