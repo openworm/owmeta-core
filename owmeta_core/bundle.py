@@ -361,14 +361,31 @@ class Bundle(object):
                 self.conf[DEFAULT_CONTEXT_KEY] = manifest_data.get(DEFAULT_CONTEXT_KEY)
                 self.conf[IMPORTS_CONTEXT_KEY] = manifest_data.get(IMPORTS_CONTEXT_KEY)
             self.conf['rdf.store'] = 'agg'
-            self.conf['rdf.store_conf'] = [('FileStorageZODB', p(bundle_directory,
-                BUNDLE_INDEXED_DB_NAME))] + [
-                ('FileStorageZODB', p(
-                    find_bundle_directory(self.bundles_directory, dd['id'], dd.get('version')),
-                    BUNDLE_INDEXED_DB_NAME))
-                for dd in manifest_data.get('dependencies')]
+            dependency_configs = self._gather_dependency_directories(manifest_data)
+
+            self.conf['rdf.store_conf'] = [('FileStorageZODB', dict(url=p(bundle_directory, BUNDLE_INDEXED_DB_NAME),
+                read_only=True))] + dependency_configs
+
             # Create the database file and initialize some needed data structures
             self.conf.init()
+
+    def _gather_dependency_directories(self, manifest_data, seen=None):
+        if seen is None:
+            seen = set()
+        dependency_configs = [
+                ('FileStorageZODB',
+                    dict(url=p(find_bundle_directory(self.bundles_directory, dd['id'], dd.get('version')),
+                        BUNDLE_INDEXED_DB_NAME), read_only=True))
+                for dd in manifest_data.get('dependencies', ())
+                if (dd['id'], dd.get('version')) not in seen]
+        seen |= set((dd['id'], dd.get('version')) for dd in manifest_data.get('dependencies', ()))
+        for dd in manifest_data.get('dependencies', ()):
+            bundle_directory = find_bundle_directory(self.bundles_directory, dd['id'], dd.get('version'))
+            manifest_fname = p(bundle_directory, 'manifest')
+            with open(manifest_fname) as mf:
+                manifest_data = json.load(mf)
+            dependency_configs += self._gather_dependency_directories(manifest_data, seen)
+        return dependency_configs
 
     @property
     def contexts(self):
@@ -1698,7 +1715,7 @@ class Installer(object):
                 progress.write('Wrote indexed database')
         finally:
             if self.conf:
-                self.conf.destroy()
+                self.conf.close()
 
     def _cover_with_dependencies(self, uncovered_contexts, dependencies):
         # XXX: Will also need to check for the contexts having a given ID being consistent

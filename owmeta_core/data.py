@@ -352,7 +352,7 @@ class Data(Configuration):
         except ValueError:
             L.debug("Attempted to close a database which was already closed")
 
-    closeDatabase = destroy
+    close = closeDatabase = destroy
 
     def _init_rdf_graph(self):
         # Set these in case they were left out
