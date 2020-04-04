@@ -471,6 +471,12 @@ class BundleDependencyStore(Store):
             return 0
         return sum(1 for _ in self.triples((None, None, None), context=context))
 
+    def contexts(self):
+        cgen = self._contexts_filter(self.wrapped.contexts())
+        next(cgen)
+        for c in cgen:
+            yield c
+
     def _contexts_filter(self, contexts):
         contexts_iter = iter(contexts)
         excludes = self.excludes
@@ -487,12 +493,6 @@ class BundleDependencyStore(Store):
             ctxid = getattr(c, 'identifier', c)
             if ctxid not in excludes:
                 yield c
-
-    def contexts(self):
-        cgen = self._contexts_filter(self.wrapped.contexts())
-        next(cgen)
-        for c in cgen:
-            yield c
 
 
 def validate_manifest(bundle_path, manifest_data):
