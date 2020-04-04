@@ -440,7 +440,8 @@ class BundleContext(Context):
 
 class BundleDependencyStore(Store):
     '''
-    RDFLib `~rdflib.store.Store` that supports the extra stuff we need from dependencies
+    A read-only RDFLib `~rdflib.store.Store` that supports the extra stuff we need from
+    dependencies
     '''
     def __init__(self, wrapped, excludes=()):
         self.wrapped = wrapped
@@ -454,6 +455,21 @@ class BundleDependencyStore(Store):
             has_valid_contexts = next(self._contexts_filter(contexts))
             if has_valid_contexts:
                 yield triple, contexts
+
+    def triples_choices(self, pattern, context=None):
+        ctxid = getattr(context, 'identifier', context)
+        if ctxid in self.excludes:
+            return
+        for triple, contexts in self.wrapped.triples_choices(pattern, context=context):
+            has_valid_contexts = next(self._contexts_filter(contexts))
+            if has_valid_contexts:
+                yield triple, contexts
+
+    def __len__(self, context=None):
+        ctxid = getattr(context, 'identifier', context)
+        if ctxid in self.excludes:
+            return 0
+        return sum(1 for _ in self.triples((None, None, None), context=context))
 
     def _contexts_filter(self, contexts):
         contexts_iter = iter(contexts)

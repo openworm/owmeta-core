@@ -115,3 +115,97 @@ def test_empty_contexts_without_excludes():
     iom = IOMemory()
     bds = BundleDependencyStore(iom)
     assert set([]) == set(bds.contexts())
+
+
+def test_len_some_excludes():
+    iom = IOMemory()
+    iom.add((URIRef('http://example.org/a'),
+             URIRef('http://example.org/b'),
+             URIRef('http://example.org/c')),
+            context='http://example.org/ctx1')
+    iom.add((URIRef('http://example.org/a'),
+             URIRef('http://example.org/b'),
+             URIRef('http://example.org/c')),
+            context='http://example.org/ctx2')
+    iom.add((URIRef('http://example.org/a'),
+             URIRef('http://example.org/b'),
+             URIRef('http://example.org/c')),
+            context='http://example.org/ctx3')
+    bds = BundleDependencyStore(iom, excludes=set(['http://example.org/ctx3']))
+    assert 1 == len(bds)
+
+
+def test_len_with_ctx_excluded1():
+    iom = IOMemory()
+    iom.add((URIRef('http://example.org/a'),
+             URIRef('http://example.org/b'),
+             URIRef('http://example.org/c')),
+            context='http://example.org/ctx')
+    bds = BundleDependencyStore(iom, excludes=set(['http://example.org/ctx']))
+    assert 0 == bds.__len__('http://example.org/ctx')
+
+
+def test_len_with_ctx_excluded2():
+    iom = IOMemory()
+    iom.add((URIRef('http://example.org/a'),
+             URIRef('http://example.org/b'),
+             URIRef('http://example.org/c')),
+            context='http://example.org/ctx')
+    iom.add((URIRef('http://example.org/a'),
+             URIRef('http://example.org/b'),
+             URIRef('http://example.org/d')),
+            context='http://example.org/ctx')
+    bds = BundleDependencyStore(iom, excludes=set(['http://example.org/ctx']))
+    assert 0 == bds.__len__('http://example.org/ctx')
+
+
+def test_triples_choices_excluded():
+    iom = IOMemory()
+    iom.add((URIRef('http://example.org/a'),
+             URIRef('http://example.org/b'),
+             URIRef('http://example.org/c')),
+            context='http://example.org/ctx')
+    iom.add((URIRef('http://example.org/e'),
+             URIRef('http://example.org/b'),
+             URIRef('http://example.org/d')),
+            context='http://example.org/ctx')
+    bds = BundleDependencyStore(iom, excludes=set(['http://example.org/ctx']))
+    assert set() == set(bds.triples_choices(
+        (None, None, [URIRef('http://example.org/c'),
+                      URIRef('http://example.org/d')])))
+
+
+def test_triples_choices_with_context_excluded():
+    iom = IOMemory()
+    iom.add((URIRef('http://example.org/a'),
+             URIRef('http://example.org/b'),
+             URIRef('http://example.org/c')),
+            context='http://example.org/ctx')
+    iom.add((URIRef('http://example.org/e'),
+             URIRef('http://example.org/b'),
+             URIRef('http://example.org/d')),
+            context='http://example.org/ctx')
+    bds = BundleDependencyStore(iom, excludes=set(['http://example.org/ctx']))
+    assert set() == set(bds.triples_choices(
+        (None, None, [URIRef('http://example.org/c'),
+                      URIRef('http://example.org/d')]),
+        context='http://example.org/ctx'))
+
+
+def test_triples_choices_with_some_excluded():
+    iom = IOMemory()
+    iom.add((URIRef('http://example.org/a'),
+             URIRef('http://example.org/b'),
+             URIRef('http://example.org/c')),
+            context='http://example.org/ctx')
+    iom.add((URIRef('http://example.org/e'),
+             URIRef('http://example.org/b'),
+             URIRef('http://example.org/d')),
+            context='http://example.org/ctx1')
+    bds = BundleDependencyStore(iom, excludes=set(['http://example.org/ctx']))
+    assert set([(URIRef('http://example.org/e'),
+                 URIRef('http://example.org/b'),
+                 URIRef('http://example.org/d'))]) == set(t for t, _ in
+                         bds.triples_choices(
+                             (None, None, [URIRef('http://example.org/c'),
+                                           URIRef('http://example.org/d')])))
