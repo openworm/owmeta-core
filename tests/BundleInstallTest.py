@@ -273,10 +273,10 @@ def test_imports_in_unfetched_dependencies(dirs):
     cg_1 = g.get_context(ctxid_1)
     cg_2 = g.get_context(ctxid_2)
     cg_imp = g.get_context(imports_ctxid)
-    with transaction.manager:
-        cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
-        cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
-        cg_imp.add((URIRef(ctxid_1), CONTEXT_IMPORTS, URIRef(ctxid_2)))
+
+    cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
+    cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
+    cg_imp.add((URIRef(ctxid_1), CONTEXT_IMPORTS, URIRef(ctxid_2)))
 
     class loader_class(object):
         def __init__(self, *args):
@@ -336,10 +336,9 @@ def test_imports_in_transitive_dependency_not_included(dirs):
     cg_1 = g.get_context(ctxid_1)
     cg_2 = g.get_context(ctxid_2)
     cg_imp = g.get_context(imports_ctxid)
-    with transaction.manager:
-        cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
-        cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
-        cg_imp.add((URIRef(ctxid_1), CONTEXT_IMPORTS, URIRef(ctxid_2)))
+    cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
+    cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
+    cg_imp.add((URIRef(ctxid_1), CONTEXT_IMPORTS, URIRef(ctxid_2)))
 
     bi = Installer(*dirs, imports_ctx=imports_ctxid, graph=g)
     bi.install(dep_dep_d)
@@ -372,10 +371,8 @@ def test_bundle_transitive_dependencies_conf(dirs):
     g = rdflib.ConjunctiveGraph()
     cg_1 = g.get_context(ctxid_1)
     cg_2 = g.get_context(ctxid_2)
-    cg_imp = g.get_context(imports_ctxid)
-    with transaction.manager:
-        cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
-        cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
+    cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
+    cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
 
     bi = Installer(*dirs, imports_ctx=imports_ctxid, graph=g)
     depdepd = bi.install(dep_dep_d)
@@ -414,13 +411,11 @@ def test_bundle_transitive_dependencies_conf_no_dupes(dirs):
     g = rdflib.ConjunctiveGraph()
     cg_1 = g.get_context(ctxid_1)
     cg_2 = g.get_context(ctxid_2)
-    cg_imp = g.get_context(imports_ctxid)
-    with transaction.manager:
-        cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
-        cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
+    cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
+    cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
 
     bi = Installer(*dirs, imports_ctx=imports_ctxid, graph=g)
-    depdepd = bi.install(dep_dep_d)
+    bi.install(dep_dep_d)
     bi.install(dep_d)
     bi.install(d)
     # End setup
