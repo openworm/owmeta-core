@@ -14,7 +14,9 @@ import shutil
 import tarfile
 import tempfile
 
+from wrapt import ObjectProxy
 from rdflib.term import URIRef
+from rdflib.store import Store
 import six
 import transaction
 import yaml
@@ -142,12 +144,13 @@ class Remote(object):
 
 
 class DependencyDescriptor(object):
-    __slots__ = ('id', 'version')
+    __slots__ = ('id', 'version', 'excludes')
 
-    def __new__(cls, id, version=None):
+    def __new__(cls, id, version=None, excludes=()):
         res = super(DependencyDescriptor, cls).__new__(cls)
         res.id = id
         res.version = version
+        res.excludes = excludes
         return res
 
     def __eq__(self, other):
@@ -433,6 +436,41 @@ class BundleContext(Context):
     '''
     `Context` for a bundle.
     '''
+
+
+class BundleDependencyStore(Store):
+    '''
+    RDFLib `~rdflib.store.Store` that supports the extra stuff we need from dependencies
+    '''
+    def __init__(self, wrapped, excludes=()):
+        self.wrapped = wrapped
+        self.excludes = set(excludes)
+
+    def triples(self, pattern, context=None):
+        ctxid = getattr(context, 'identifier', context)
+        if ctxid in self.excludes:
+            return
+        for triple, contexts in self.wrapped.triples(pattern, context=context):
+            has_valid_contexts = next(self._contexts_filter(contexts))
+            if has_valid_contexts:
+                yield triple, contexts
+
+    def _contexts_filter(self, contexts):
+        contexts_iter = iter(contexts)
+        excludes = self.excludes
+        for c in contexts_iter:
+            ctxid = getattr(c, 'identifier', c)
+            if ctxid not in excludes:
+                yield True
+                yield c
+                break
+        else:  # no break
+            yield False
+            return
+        for c in contexts_iter:
+            ctxid = getattr(c, 'identifier', c)
+            if ctxid not in excludes:
+                yield c
 
 
 def validate_manifest(bundle_path, manifest_data):
