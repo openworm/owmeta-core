@@ -472,6 +472,12 @@ class BundleDependencyStore(Store):
             if ctxid not in excludes:
                 yield c
 
+    def contexts(self):
+        cgen = self._contexts_filter(self.wrapped.contexts())
+        next(cgen)
+        for c in cgen:
+            yield c
+
 
 def validate_manifest(bundle_path, manifest_data):
     '''
