@@ -14,15 +14,28 @@ class ContextStoreException(Exception):
 
 
 class ContextStore(Store):
+    '''
+    A store specific to a `~owmeta_core.context.Context`
+
+
+    A `ContextStore` may have triples
+    '''
+
     context_aware = True
 
     def __init__(self, context=None, include_stored=False, imports_graph=None, **kwargs):
         """
         Parameters
         ----------
-            context : owmeta_core.context.Context
-                context
-
+        context : ~owmeta_core.context.Context
+            The context to which this store belongs
+        include_stored : bool
+            If `True`, the backing store will be queried as well as the staged triples in
+            `context`
+        imports_graph : ~rdflib.store.Store or ~rdflib.graph.Graph
+            The graph to query for imports relationships between contexts
+        **kwargs
+            Passed on to `Store <rdflib.store.Store.__init__>`
         """
         super(ContextStore, self).__init__(**kwargs)
         self._memory_store = None
