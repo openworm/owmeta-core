@@ -1,12 +1,13 @@
 from itertools import chain
+from time import time
+
+import rdflib
 from rdflib.store import Store, VALID_STORE, NO_STORE
 from rdflib.plugins.memory import IOMemory
 from rdflib.term import Variable
-from time import time
-import rdflib
-from .rdf_utils import transitive_lookup
 
 from .context_common import CONTEXT_IMPORTS
+from .rdf_utils import transitive_lookup
 
 
 class ContextStoreException(Exception):
