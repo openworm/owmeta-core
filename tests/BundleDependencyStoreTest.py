@@ -1,7 +1,7 @@
 from rdflib.term import URIRef
 from rdflib.plugins.memory import IOMemory
 
-from owmeta_core.bundle import BundleDependencyStore
+from owmeta_core.bundle_dependency_store import BundleDependencyStore
 
 
 def test_excludes_no_triples():

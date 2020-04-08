@@ -347,44 +347,6 @@ def test_imports_in_transitive_dependency_not_included(dirs):
         bi.install(d)
 
 
-def test_bundle_transitive_dependencies_conf(dirs):
-    '''
-    Test that transitive dependenices added to aggregate conf
-    '''
-    imports_ctxid = 'http://example.org/imports'
-    ctxid_1 = 'http://example.org/ctx1'
-    ctxid_2 = 'http://example.org/ctx2'
-
-    # Make a descriptor that includes ctx1 and the imports, but not ctx2
-    d = Descriptor('test')
-    d.includes.add(make_include_func(ctxid_1))
-    d.includes.add(make_include_func(imports_ctxid))
-    d.dependencies.add(DependencyDescriptor('dep'))
-
-    dep_d = Descriptor('dep')
-    dep_d.dependencies.add(DependencyDescriptor('dep_dep'))
-
-    dep_dep_d = Descriptor('dep_dep')
-    dep_dep_d.includes.add(make_include_func(ctxid_2))
-
-    # Add some triples so the contexts aren't empty -- we can't save an empty context
-    g = rdflib.ConjunctiveGraph()
-    cg_1 = g.get_context(ctxid_1)
-    cg_2 = g.get_context(ctxid_2)
-    cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
-    cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
-
-    bi = Installer(*dirs, imports_ctx=imports_ctxid, graph=g)
-    depdepd = bi.install(dep_dep_d)
-    bi.install(dep_d)
-    bi.install(d)
-    # End setup
-
-    with Bundle('test', bundles_directory=dirs.bundles_directory) as bnd:
-        expected = ('FileStorageZODB', dict(url=p(depdepd, BUNDLE_INDEXED_DB_NAME), read_only=True))
-        assert expected in bnd.conf['rdf.store_conf']
-
-
 def test_bundle_transitive_dependencies_conf_no_dupes(dirs):
     '''
     Test that transitive dependenices shared by multiple bundles are not included more

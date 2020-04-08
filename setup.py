@@ -92,6 +92,7 @@ setup(
         'console_scripts': ['owm = owmeta_core.cli:main'],
         'rdf.plugins.store': [
             'agg = owmeta_core.agg_store:AggregateStore',
+            'owmeta_core_bds = owmeta_core.bundle_dependency_store:BundleDependencyStore',
         ],
     },
     package_data={'owmeta_core': ['default.conf']},

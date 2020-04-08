@@ -29,7 +29,7 @@ from .file_match import match_files
 from .file_lock import lock_file
 from .graph_serialization import write_canonical_to_file
 from .rdf_utils import transitive_lookup
-from .utils import FCN
+from .utils import FCN, aslist
 
 try:
     from urllib.parse import quote as urlquote, unquote as urlunquote, urlparse
@@ -365,30 +365,23 @@ class Bundle(object):
                 self.conf[IMPORTS_CONTEXT_KEY] = manifest_data.get(IMPORTS_CONTEXT_KEY)
             self.conf['rdf.store'] = 'agg'
             dependency_configs = self._gather_dependency_directories(manifest_data)
+            indexed_db_path = p(bundle_directory, BUNDLE_INDEXED_DB_NAME)
+            fs_store_config = dict(url=indexed_db_path, read_only=True)
 
-            self.conf['rdf.store_conf'] = [('FileStorageZODB', dict(url=p(bundle_directory, BUNDLE_INDEXED_DB_NAME),
-                read_only=True))] + dependency_configs
+            self.conf['rdf.store_conf'] = [
+                ('owmeta_core_bds', ('FileStorageZODB', fs_store_config))
+            ] + dependency_configs
 
             # Create the database file and initialize some needed data structures
             self.conf.init()
 
-    def _gather_dependency_directories(self, manifest_data, seen=None):
-        if seen is None:
-            seen = set()
-        dependency_configs = [
-                ('FileStorageZODB',
-                    dict(url=p(find_bundle_directory(self.bundles_directory, dd['id'], dd.get('version')),
-                        BUNDLE_INDEXED_DB_NAME), read_only=True))
-                for dd in manifest_data.get('dependencies', ())
-                if (dd['id'], dd.get('version')) not in seen]
-        seen |= set((dd['id'], dd.get('version')) for dd in manifest_data.get('dependencies', ()))
+    @aslist
+    def _gather_dependency_directories(self, manifest_data):
         for dd in manifest_data.get('dependencies', ()):
             bundle_directory = find_bundle_directory(self.bundles_directory, dd['id'], dd.get('version'))
-            manifest_fname = p(bundle_directory, 'manifest')
-            with open(manifest_fname) as mf:
-                manifest_data = json.load(mf)
-            dependency_configs += self._gather_dependency_directories(manifest_data, seen)
-        return dependency_configs
+            indexed_db_path = p(bundle_directory, BUNDLE_INDEXED_DB_NAME)
+            fs_store_config = dict(url=indexed_db_path, read_only=True)
+            yield ('owmeta_core_bds', ('FileStorageZODB', fs_store_config))
 
     @property
     def contexts(self):
@@ -436,63 +429,6 @@ class BundleContext(Context):
     '''
     `Context` for a bundle.
     '''
-
-
-class BundleDependencyStore(Store):
-    '''
-    A read-only RDFLib `~rdflib.store.Store` that supports the extra stuff we need from
-    dependencies
-    '''
-    def __init__(self, wrapped, excludes=()):
-        self.wrapped = wrapped
-        self.excludes = set(excludes)
-
-    def triples(self, pattern, context=None):
-        ctxid = getattr(context, 'identifier', context)
-        if ctxid in self.excludes:
-            return
-        for triple, contexts in self.wrapped.triples(pattern, context=context):
-            has_valid_contexts = next(self._contexts_filter(contexts))
-            if has_valid_contexts:
-                yield triple, contexts
-
-    def triples_choices(self, pattern, context=None):
-        ctxid = getattr(context, 'identifier', context)
-        if ctxid in self.excludes:
-            return
-        for triple, contexts in self.wrapped.triples_choices(pattern, context=context):
-            has_valid_contexts = next(self._contexts_filter(contexts))
-            if has_valid_contexts:
-                yield triple, contexts
-
-    def __len__(self, context=None):
-        ctxid = getattr(context, 'identifier', context)
-        if ctxid in self.excludes:
-            return 0
-        return sum(1 for _ in self.triples((None, None, None), context=context))
-
-    def contexts(self):
-        cgen = self._contexts_filter(self.wrapped.contexts())
-        next(cgen)
-        for c in cgen:
-            yield c
-
-    def _contexts_filter(self, contexts):
-        contexts_iter = iter(contexts)
-        excludes = self.excludes
-        for c in contexts_iter:
-            ctxid = getattr(c, 'identifier', c)
-            if ctxid not in excludes:
-                yield True
-                yield c
-                break
-        else:  # no break
-            yield False
-            return
-        for c in contexts_iter:
-            ctxid = getattr(c, 'identifier', c)
-            if ctxid not in excludes:
-                yield c
 
 
 def validate_manifest(bundle_path, manifest_data):

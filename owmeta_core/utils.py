@@ -3,6 +3,7 @@ Common utilities for translation, massaging data, etc., that don't fit
 elsewhere in owmeta_core
 """
 import re
+import functools
 
 __all__ = ['grouper', 'slice_dict']
 
@@ -29,3 +30,10 @@ def slice_dict(d, s):
 
 def FCN(cls):
     return str(cls.__module__) + '.' + str(cls.__name__)
+
+
+def aslist(fun):
+    @functools.wraps(fun)
+    def wrapper(*args, **kwargs):
+        return list(fun(*args, **kwargs))
+    return wrapper

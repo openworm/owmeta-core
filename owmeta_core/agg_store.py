@@ -1,8 +1,11 @@
 from rdflib import plugin
-from rdflib.store import Store
+from rdflib.store import Store, NO_STORE
 
 
 class AggregateStore(Store):
+    '''
+    A read-only aggregate of RDFLib `stores <rdflib.store.Store>`
+    '''
     context_aware = True
     formula_aware = True
     graph_aware = True
@@ -14,12 +17,13 @@ class AggregateStore(Store):
         self.__stores = []
 
     def open(self, configuration, create=True):
-        if isinstance(configuration, (tuple, list)):
-            self.__stores = []
-            for store_key, store_conf in configuration:
-                store = plugin.get(store_key, Store)()
-                store.open(store_conf)
-                self.__stores.append(store)
+        if not isinstance(configuration, (tuple, list)):
+            return NO_STORE
+        self.__stores = []
+        for store_key, store_conf in configuration:
+            store = plugin.get(store_key, Store)()
+            store.open(store_conf)
+            self.__stores.append(store)
 
     def triples(self, triple, context=None):
         for store in self.__stores:
