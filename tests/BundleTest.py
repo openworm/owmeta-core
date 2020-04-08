@@ -427,7 +427,7 @@ def test_bundle_contextualize_non_contextualizable(tempdir, bundle):
     assert cut(token) == token
 
 
-def test_bundle_contextualize_no_default_ctx(tempdir, bundle):
+def test_bundle_contextualize(tempdir, bundle):
     with Bundle(bundle.descriptor.id, version=bundle.descriptor.version,
             bundles_directory=bundle.bundles_directory) as cut:
         ctxble = Mock(spec=Contextualizable)
@@ -435,24 +435,6 @@ def test_bundle_contextualize_no_default_ctx(tempdir, bundle):
         ctxble.contextualize.assert_called_with(ContextWithNoId())
 
 
-def test_bundle_contextualize_with_default_ctx(tempdir, custom_bundle):
-    descr = Descriptor('test')
-    with custom_bundle(descr, default_ctx='http://example.org/ctx') as bundle:
-        with Bundle(bundle.descriptor.id, version=bundle.descriptor.version,
-                bundles_directory=bundle.bundles_directory) as cut:
-            ctxble = Mock(spec=Contextualizable)
-            cut(ctxble)
-            ctxble.contextualize.assert_called_with(ContextWithId('http://example.org/ctx'))
-
-
 class ContextWithNoId(Context):
     def __eq__(self, other):
         return isinstance(other, Context) and other.identifier is None
-
-
-class ContextWithId(Context):
-    def __init__(self, ident):
-        self.identifier = ident
-
-    def __eq__(self, other):
-        return isinstance(other, Context) and other.identifier == URIRef(self.identifier)
