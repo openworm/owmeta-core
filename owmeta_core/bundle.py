@@ -420,7 +420,7 @@ class Bundle(object):
 
     def __call__(self, target):
         if target and hasattr(target, 'contextualize'):
-            ctx = BundleContext(self.conf.get(DEFAULT_CONTEXT_KEY, None), conf=self.conf)
+            ctx = BundleContext(None, conf=self.conf)
             return target.contextualize(ctx.stored)
         return target
 

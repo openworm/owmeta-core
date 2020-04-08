@@ -1,6 +1,8 @@
 from rdflib import plugin
 from rdflib.store import Store
 
+from .utils import FCN
+
 
 class BundleDependencyStore(Store):
     '''
@@ -35,18 +37,20 @@ class BundleDependencyStore(Store):
         if ctxid in self.excludes:
             return
         for triple, contexts in self.wrapped.triples(pattern, context=context):
-            has_valid_contexts = next(self._contexts_filter(contexts))
+            filtered_contexts = self._contexts_filter(contexts)
+            has_valid_contexts = next(filtered_contexts)
             if has_valid_contexts:
-                yield triple, contexts
+                yield triple, filtered_contexts
 
     def triples_choices(self, pattern, context=None):
         ctxid = getattr(context, 'identifier', context)
         if ctxid in self.excludes:
             return
         for triple, contexts in self.wrapped.triples_choices(pattern, context=context):
-            has_valid_contexts = next(self._contexts_filter(contexts))
+            filtered_contexts = self._contexts_filter(contexts)
+            has_valid_contexts = next(filtered_contexts)
             if has_valid_contexts:
-                yield triple, contexts
+                yield triple, filtered_contexts
 
     def __len__(self, context=None):
         ctxid = getattr(context, 'identifier', context)
@@ -54,8 +58,8 @@ class BundleDependencyStore(Store):
             return 0
         return sum(1 for _ in self.triples((None, None, None), context=context))
 
-    def contexts(self):
-        cgen = self._contexts_filter(self.wrapped.contexts())
+    def contexts(self, triple=None):
+        cgen = self._contexts_filter(self.wrapped.contexts(triple))
         next(cgen)
         for c in cgen:
             yield c
@@ -112,3 +116,6 @@ class BundleDependencyStore(Store):
 
     def rollback(self, *args, **kwargs):
         raise NotImplementedError()
+
+    def __repr__(self):
+        return '%s(%s)' % (FCN(type(self)), repr(self.wrapped))

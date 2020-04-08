@@ -209,3 +209,37 @@ def test_triples_choices_with_some_excluded():
                          bds.triples_choices(
                              (None, None, [URIRef('http://example.org/c'),
                                            URIRef('http://example.org/d')])))
+
+
+def test_triples_contexts():
+    iom = IOMemory()
+    ctx = 'http://example.org/ctx'
+    ctx1 = 'http://example.org/ctx1'
+    iom.add((URIRef('http://example.org/a'),
+             URIRef('http://example.org/b'),
+             URIRef('http://example.org/c')),
+            context=ctx)
+    iom.add((URIRef('http://example.org/a'),
+             URIRef('http://example.org/b'),
+             URIRef('http://example.org/c')),
+            context=ctx1)
+    bds = BundleDependencyStore(iom)
+    for t, ctxs in bds.triples((None, None, None)):
+        assert set([ctx, ctx1]) == set(ctxs)
+
+
+def test_triples_choices_contexts():
+    iom = IOMemory()
+    ctx = 'http://example.org/ctx'
+    ctx1 = 'http://example.org/ctx1'
+    iom.add((URIRef('http://example.org/a'),
+             URIRef('http://example.org/b'),
+             URIRef('http://example.org/c')),
+            context=ctx)
+    iom.add((URIRef('http://example.org/a'),
+             URIRef('http://example.org/b'),
+             URIRef('http://example.org/c')),
+            context=ctx1)
+    bds = BundleDependencyStore(iom)
+    for t, ctxs in bds.triples_choices(([URIRef('http://example.org/a')], None, None)):
+        assert set([ctx, ctx1]) == set(ctxs)

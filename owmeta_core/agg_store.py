@@ -1,6 +1,8 @@
 from rdflib import plugin
 from rdflib.store import Store, NO_STORE
 
+from .utils import FCN
+
 
 class AggregateStore(Store):
     '''
@@ -42,8 +44,8 @@ class AggregateStore(Store):
 
     def contexts(self, triple=None):
         for store in self.__stores:
-            for trip in store.contexts(triple):
-                yield trip
+            for ctx in store.contexts(triple):
+                yield ctx
 
     def prefix(self, namespace):
         prefix = None
@@ -104,6 +106,9 @@ class AggregateStore(Store):
 
     def rollback(self, *args, **kwargs):
         raise UnsupportedAggregateOperation()
+
+    def __repr__(self):
+        return '%s(%s)' % (FCN(type(self)), ', '.join(repr(s) for s in self.__stores))
 
 
 class UnsupportedAggregateOperation(Exception):
