@@ -364,24 +364,29 @@ class Bundle(object):
                 self.conf[DEFAULT_CONTEXT_KEY] = manifest_data.get(DEFAULT_CONTEXT_KEY)
                 self.conf[IMPORTS_CONTEXT_KEY] = manifest_data.get(IMPORTS_CONTEXT_KEY)
             self.conf['rdf.store'] = 'agg'
-            dependency_configs = self._gather_dependency_directories(manifest_data)
-            indexed_db_path = p(bundle_directory, BUNDLE_INDEXED_DB_NAME)
-            fs_store_config = dict(url=indexed_db_path, read_only=True)
-
-            self.conf['rdf.store_conf'] = [
-                ('owmeta_core_bds', ('FileStorageZODB', fs_store_config))
-            ] + dependency_configs
-
+            self.conf['rdf.store_conf'] = self._construct_store_config(
+                    bundle_directory,
+                    manifest_data)
             # Create the database file and initialize some needed data structures
             self.conf.init()
 
+    def _construct_store_config(self, bundle_directory, manifest_data):
+        dependency_configs = self._gather_dependency_configs(manifest_data)
+        indexed_db_path = p(bundle_directory, BUNDLE_INDEXED_DB_NAME)
+        fs_store_config = dict(url=indexed_db_path, read_only=True)
+        return [
+            ('FileStorageZODB', fs_store_config)
+        ] + dependency_configs
+
     @aslist
-    def _gather_dependency_directories(self, manifest_data):
+    def _gather_dependency_configs(self, manifest_data):
         for dd in manifest_data.get('dependencies', ()):
             bundle_directory = find_bundle_directory(self.bundles_directory, dd['id'], dd.get('version'))
-            indexed_db_path = p(bundle_directory, BUNDLE_INDEXED_DB_NAME)
-            fs_store_config = dict(url=indexed_db_path, read_only=True)
-            yield ('owmeta_core_bds', ('FileStorageZODB', fs_store_config))
+            with open(p(bundle_directory, 'manifest')) as mf:
+                manifest_data = json.load(mf)
+            # TODO: Add excludes and stuff like that from the dependency descriptor
+            yield ('owmeta_core_bds', ('agg',
+                        self._construct_store_config(bundle_directory, manifest_data)))
 
     @property
     def contexts(self):

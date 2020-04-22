@@ -438,3 +438,97 @@ def test_bundle_contextualize(tempdir, bundle):
 class ContextWithNoId(Context):
     def __eq__(self, other):
         return isinstance(other, Context) and other.identifier is None
+
+
+def test_transitive_dep_null_context_triples_no_imports(custom_bundle):
+    dep_dep_desc = Descriptor.load('''
+    id: dep_dep
+    includes:
+      - http://example.com/ctx
+    ''')
+
+    dep_desc = Descriptor.load('''
+    id: dep
+    dependencies:
+      - dep_dep
+    ''')
+
+    test_desc = Descriptor.load('''
+    id: test
+    dependencies:
+      - dep
+    ''')
+
+    depgraph = ConjunctiveGraph()
+    ctx_graph = depgraph.get_context('http://example.com/ctx')
+    quad = (URIRef('http://example.org/sub'), URIRef('http://example.org/prop'), URIRef('http://example.org/obj'),
+            ctx_graph)
+    depgraph.add(quad)
+
+    with custom_bundle(dep_dep_desc, graph=depgraph) as depdepbun, \
+            custom_bundle(dep_desc, bundles_directory=depdepbun.bundles_directory) as depbun, \
+            custom_bundle(test_desc, bundles_directory=depbun.bundles_directory) as testbun, \
+            Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
+        assert set([quad[:3]]) == set(bnd.rdf.triples((None, None, None)))
+
+
+def test_bundle_store_conf_with_two_dep_levels(dirs):
+    '''
+    Test that transitive dependenices shared by multiple bundles are not included more
+    than once
+    '''
+    imports_ctxid = 'http://example.org/imports'
+    ctxid_1 = 'http://example.org/ctx1'
+    ctxid_2 = 'http://example.org/ctx2'
+
+    # Make a descriptor that includes ctx1 and the imports, but not ctx2
+    d = Descriptor('test')
+    d.includes.add(make_include_func(ctxid_1))
+    d.includes.add(make_include_func(imports_ctxid))
+    d.dependencies.add(DependencyDescriptor('dep'))
+    d.dependencies.add(DependencyDescriptor('dep_dep'))
+
+    dep_d = Descriptor('dep')
+    dep_d.dependencies.add(DependencyDescriptor('dep_dep'))
+
+    dep_dep_d = Descriptor('dep_dep')
+    dep_dep_d.includes.add(make_include_func(ctxid_2))
+
+    # Add some triples so the contexts aren't empty -- we can't save an empty context
+    g = rdflib.ConjunctiveGraph()
+    cg_1 = g.get_context(ctxid_1)
+    cg_2 = g.get_context(ctxid_2)
+    cg_imp = g.get_context(imports_ctxid)
+    with transaction.manager:
+        cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
+        cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
+
+    bi = Installer(*dirs, imports_ctx=imports_ctxid, graph=g)
+    depdepdir = bi.install(dep_dep_d)
+    depdir = bi.install(dep_d)
+    testbnddir = bi.install(d)
+    # End setup
+
+    with Bundle('test', bundles_directory=dirs.bundles_directory) as bnd:
+        assert bnd.conf['rdf.store_conf'] == [
+                ('FileStorageZODB', dict(
+                    url=p(testbnddir, BUNDLE_INDEXED_DB_NAME),
+                    read_only=True)),
+                # dep
+                ('owmeta_core_bds', ('agg', [
+                    ('FileStorageZODB', dict(
+                        url=p(depdir, BUNDLE_INDEXED_DB_NAME),
+                        read_only=True)),
+                    ('owmeta_core_bds', ('agg', [
+                        ('FileStorageZODB', dict(
+                            url=p(depdepdir, BUNDLE_INDEXED_DB_NAME),
+                            read_only=True))
+                    ]))
+                ])),
+                # depdep
+                ('owmeta_core_bds', ('agg', [
+                    ('FileStorageZODB', dict(
+                        url=p(depdepdir, BUNDLE_INDEXED_DB_NAME),
+                        read_only=True))
+                ]))
+        ]

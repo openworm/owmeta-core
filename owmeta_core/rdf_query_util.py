@@ -3,6 +3,7 @@ import rdflib
 import logging
 from itertools import groupby
 
+from .context import Context
 from .graph_object import (GraphObjectQuerier,
                            ZeroOrMoreTQLayer)
 from .rdf_go_modifiers import SubClassModifier
@@ -24,6 +25,23 @@ def zomifier(target_type):
 
 
 def load(graph, start=None, target_type=None, context=None, idents=None):
+    '''
+    Loads a set of objects based on the graph starting from `start`
+
+    Parameters
+    ----------
+    graph : rdflib.graph.Graph
+        The graph to query from
+    start : .graph_object.GraphObject
+        The graph object to start the query from
+    target_type : rdflib.term.URIRef
+        URI of the target type. Any result will be a sub-class of this type
+    context : .context.Context
+        Limits the scope of the query to statements within or entailed by this context
+    idents : list of rdflib.term.URIRef
+        A list of identifiers to convert into objects
+    '''
+
     L.debug("load: graph %s start %s target_type %s context %s", graph, start, target_type, context)
     if idents is None:
         g = ZeroOrMoreTQLayer(zomifier(target_type), graph)
@@ -34,6 +52,7 @@ def load(graph, start=None, target_type=None, context=None, idents=None):
         choices = graph.triples_choices((list(idents),
                                          rdflib.RDF['type'],
                                          None))
+        # XXX: Don't we need to sort choices by x[0]?
         choices = list(choices)
         grouped_type_triples = groupby(choices, lambda x: x[0])
         hit = False
@@ -119,6 +138,10 @@ def oid(identifier_or_rdf_type=None, rdf_type=None, context=None, base_type=None
     rdf_type : :class:`str`, :class:`rdflib.term.URIRef`, :const:`False`
         If provided, this will be the :attr:`rdf_type` of the newly created
         object.
+    context : Context, optional
+        The context to resolve a class from
+    base_type : type
+        The base type
 
     Returns
     -------
@@ -130,27 +153,27 @@ def oid(identifier_or_rdf_type=None, rdf_type=None, context=None, base_type=None
         rdf_type = identifier_or_rdf_type
         identifier = None
 
-    c = None
+    cls = None
     if context is not None:
-        c = context.resolve_class(rdf_type)
+        cls = context.resolve_class(rdf_type)
 
-    if c is None:
+    if cls is None:
         if base_type is None:
             from .dataobject import DataObject
-            c = DataObject
+            cls = DataObject
         else:
-            c = base_type
-    L.debug("oid: making a {} with ident {}".format(c, identifier))
+            cls = base_type
+    L.debug("oid: making a {} with ident {}".format(cls, identifier))
 
     # if its our class name, then make our own object
     # if there's a part after that, that's the property name
     o = None
 
     if context is not None:
-        c = context(c)
+        cls = context(cls)
 
     if identifier is not None:
-        o = c(ident=identifier)
+        o = cls(ident=identifier)
     else:
-        o = c()
+        o = cls()
     return o
