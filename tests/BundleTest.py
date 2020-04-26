@@ -1,9 +1,12 @@
+from collections import namedtuple
 from io import StringIO
 from os.path import join as p
 from os import makedirs, chmod
+from tempfile import TemporaryDirectory
 from unittest.mock import patch, Mock
 
 import pytest
+import rdflib
 from rdflib.term import URIRef
 from rdflib.graph import ConjunctiveGraph
 
@@ -11,8 +14,19 @@ from rdflib.graph import ConjunctiveGraph
 from owmeta_core.context import Context
 from owmeta_core.contextualize import Contextualizable
 from owmeta_core.bundle import (Remote, URLConfig, HTTPBundleLoader, Bundle, BundleNotFound,
-                                Descriptor, DependencyDescriptor, _RemoteHandlerMixin)
+                                Descriptor, DependencyDescriptor, _RemoteHandlerMixin,
+                                Installer, make_include_func, BUNDLE_INDEXED_DB_NAME)
 from owmeta_core.agg_store import UnsupportedAggregateOperation
+
+
+Dirs = namedtuple('Dirs', ('source_directory', 'bundles_directory'))
+
+
+@pytest.fixture
+def dirs():
+    with TemporaryDirectory() as source_directory,\
+            TemporaryDirectory() as bundles_directory:
+        yield Dirs(source_directory, bundles_directory)
 
 
 def test_write_read_remote_1():
@@ -39,7 +53,6 @@ def test_get_http_url_loaders():
     '''
     Find loaders for HTTP URLs
     '''
-    out = StringIO()
     r0 = Remote('remote')
     r0.add_config(URLConfig('http://example.org/bundle_remote0'))
     for l in r0.generate_loaders():
@@ -52,7 +65,6 @@ def test_get_http_url_loaders():
 def test_remote_generate_uploaders_skip():
     mock = Mock()
     with patch('owmeta_core.bundle.UPLOADER_CLASSES', [mock]):
-        out = StringIO()
         r0 = Remote('remote')
         r0.add_config(URLConfig('http://example.org/bundle_remote0'))
         for ul in r0.generate_uploaders():
@@ -65,10 +77,8 @@ def test_remote_generate_uploaders_no_skip():
     mock.can_upload_to.return_value = True
     ac = URLConfig('http://example.org/bundle_remote0')
     with patch('owmeta_core.bundle.UPLOADER_CLASSES', [mock]):
-        out = StringIO()
         r0 = Remote('remote')
         r0.add_config(ac)
-        loader = None
         for ul in r0.generate_uploaders():
             pass
     mock.assert_called_with(ac)
@@ -214,31 +224,6 @@ def test_quad_in_dependency(custom_bundle):
             custom_bundle(test_desc, bundles_directory=depbun.bundles_directory) as testbun, \
             Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
         assert quad in bnd.rdf
-
-
-def test_quad_not_in_dependency(custom_bundle):
-    dep_desc = Descriptor.load('''
-    id: dep
-    includes:
-      - http://example.com/ctx
-    ''')
-
-    test_desc = Descriptor.load('''
-    id: test
-    dependencies:
-      - dep
-    ''')
-
-    depgraph = ConjunctiveGraph()
-    ctx_graph = depgraph.get_context('http://example.com/other_ctx')
-    quad = (URIRef('http://example.org/sub'), URIRef('http://example.org/prop'), URIRef('http://example.org/obj'),
-            ctx_graph)
-    depgraph.add(quad)
-
-    with custom_bundle(dep_desc, graph=depgraph) as depbun, \
-            custom_bundle(test_desc, bundles_directory=depbun.bundles_directory) as testbun, \
-            Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
-        assert quad not in bnd.rdf
 
 
 def test_quad_not_in_dependency(custom_bundle):
@@ -472,7 +457,7 @@ def test_transitive_dep_null_context_triples_no_imports(custom_bundle):
         assert set([quad[:3]]) == set(bnd.rdf.triples((None, None, None)))
 
 
-def test_bundle_store_conf_with_two_dep_levels(dirs):
+def test_bundle_store_conf_with_two_dep_levels(custom_bundle):
     '''
     Test that transitive dependenices shared by multiple bundles are not included more
     than once
@@ -498,37 +483,33 @@ def test_bundle_store_conf_with_two_dep_levels(dirs):
     g = rdflib.ConjunctiveGraph()
     cg_1 = g.get_context(ctxid_1)
     cg_2 = g.get_context(ctxid_2)
-    cg_imp = g.get_context(imports_ctxid)
-    with transaction.manager:
-        cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
-        cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
+    cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
+    cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
 
-    bi = Installer(*dirs, imports_ctx=imports_ctxid, graph=g)
-    depdepdir = bi.install(dep_dep_d)
-    depdir = bi.install(dep_d)
-    testbnddir = bi.install(d)
     # End setup
 
-    with Bundle('test', bundles_directory=dirs.bundles_directory) as bnd:
+    with custom_bundle(dep_dep_d, graph=g) as depdepbun, \
+            custom_bundle(dep_d, bundles_directory=depdepbun.bundles_directory) as depbun, \
+            custom_bundle(d, bundles_directory=depbun.bundles_directory) as testbun, \
+            Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
         assert bnd.conf['rdf.store_conf'] == [
                 ('FileStorageZODB', dict(
-                    url=p(testbnddir, BUNDLE_INDEXED_DB_NAME),
+                    url=p(testbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
                     read_only=True)),
                 # dep
                 ('owmeta_core_bds', ('agg', [
                     ('FileStorageZODB', dict(
-                        url=p(depdir, BUNDLE_INDEXED_DB_NAME),
+                        url=p(depbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
                         read_only=True)),
                     ('owmeta_core_bds', ('agg', [
                         ('FileStorageZODB', dict(
-                            url=p(depdepdir, BUNDLE_INDEXED_DB_NAME),
+                            url=p(depdepbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
                             read_only=True))
                     ]))
                 ])),
                 # depdep
                 ('owmeta_core_bds', ('agg', [
                     ('FileStorageZODB', dict(
-                        url=p(depdepdir, BUNDLE_INDEXED_DB_NAME),
+                        url=p(depdepbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
                         read_only=True))
-                ]))
-        ]
+                ]))]

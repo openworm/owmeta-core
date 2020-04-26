@@ -1,12 +1,10 @@
-from multiprocessing import Process
 from tempfile import TemporaryDirectory
 import rdflib
 import transaction
 from collections import namedtuple
-from rdflib.term import Literal, URIRef
-from owmeta_core.bundle import (Installer, Descriptor, Bundle, make_include_func, FilesDescriptor,
-                                UncoveredImports, DependencyDescriptor, TargetIsNotEmpty,
-                                BUNDLE_INDEXED_DB_NAME)
+from rdflib.term import URIRef
+from owmeta_core.bundle import (Installer, Descriptor, make_include_func, FilesDescriptor,
+                                UncoveredImports, DependencyDescriptor, TargetIsNotEmpty)
 from owmeta_core.context_common import CONTEXT_IMPORTS
 from os.path import join as p, isdir, isfile
 from os import listdir, makedirs

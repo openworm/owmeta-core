@@ -14,9 +14,7 @@ import shutil
 import tarfile
 import tempfile
 
-from wrapt import ObjectProxy
 from rdflib.term import URIRef
-from rdflib.store import Store
 import six
 import transaction
 import yaml
@@ -179,6 +177,11 @@ class AccessorConfig(object):
         raise NotImplementedError()
 
 
+class _DepList(list):
+    def add(self, dd):
+        self.append(dd)
+
+
 class URLConfig(AccessorConfig):
     '''
     Configuration for accessing a remote with just a URL.
@@ -264,14 +267,18 @@ class Descriptor(object):
         self.patterns = set(make_pattern(x) for x in obj.get('patterns', ()))
         self.includes = set(make_include_func(x) for x in obj.get('includes', ()))
 
-        deps = set()
+        deps_set = set()
+        deps = _DepList()
         for x in obj.get('dependencies', ()):
             if isinstance(x, six.string_types):
-                deps.add(DependencyDescriptor(x))
+                dd = DependencyDescriptor(x)
             elif isinstance(x, dict):
-                deps.add(DependencyDescriptor(**x))
+                dd = DependencyDescriptor(**x)
             else:
-                deps.add(DependencyDescriptor(*x))
+                dd = DependencyDescriptor(*x)
+            if dd not in deps_set:
+                deps.append(dd)
+                deps_set.add(dd)
         self.dependencies = deps
         self.files = FilesDescriptor.make(obj.get('files', None))
 
@@ -1011,7 +1018,8 @@ class HTTPBundleUploader(Uploader):
         with open(archive, 'rb') as f:
             conn.request("POST", "", body=f, headers={'Content-Type':
                 BUNDLE_ARCHIVE_MIME_TYPE})
-        response = conn.getresponse()
+        # XXX: Do something with this response
+        # conn.getresponse()
 
 
 class HTTPBundleLoader(Loader):
@@ -1318,7 +1326,7 @@ class Unarchiver(object):
                 archive_file = open(input_file, 'rb')
             except FileNotFoundError:
                 file_name = self._bundle_file_name(input_file)
-                raise NotABundlePath(input_file, 'file not found')
+                raise NotABundlePath(file_name, 'file not found')
 
             with archive_file as f, self._to_tarfile0(f) as ba:
                 yield ba
@@ -1685,19 +1693,18 @@ class Installer(object):
     def _build_indexed_database(self, staging_directory, progress_reporter=None):
         self._initdb(staging_directory)
         try:
-            contexts = set()
             graphs_directory = p(staging_directory, 'graphs')
             idx_fname = p(graphs_directory, 'index')
             progress = progress_reporter
             if not exists(idx_fname):
                 raise Exception('Cannot find an index at {}'.format(repr(idx_fname)))
+            dest = self.conf['rdf.graph']
             if progress is not None:
                 cnt = 0
                 for l in dest.contexts():
                     cnt += 1
                 progress.total = cnt
 
-            dest = self.conf['rdf.graph']
             with transaction.manager:
                 with open(idx_fname, 'rb') as idx_file:
                     for line in idx_file:
