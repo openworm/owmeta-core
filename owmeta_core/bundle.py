@@ -266,6 +266,10 @@ class Descriptor(object):
         self.description = obj.get('description', None)
         self.patterns = set(make_pattern(x) for x in obj.get('patterns', ()))
         self.includes = set(make_include_func(x) for x in obj.get('includes', ()))
+        self.empties = {uri for uri, options in (inc.popitem()
+            for inc in obj.get('includes', ())
+            if isinstance(inc, dict))
+            if options.get('empty', False) is True}
 
         deps_set = set()
         deps = _DepList()
@@ -1655,7 +1659,7 @@ class Installer(object):
                                                            CONTEXT_IMPORTS,
                                                            seen=imported_contexts)
             uncovered_contexts = imported_contexts - included_context_ids
-            uncovered_contexts = self._cover_with_dependencies(uncovered_contexts, descriptor.dependencies)
+            uncovered_contexts = self._cover_with_dependencies(uncovered_contexts, descriptor)
             if uncovered_contexts:
                 raise UncoveredImports(uncovered_contexts)
             hash_out.flush()
@@ -1725,15 +1729,20 @@ class Installer(object):
             if self.conf:
                 self.conf.close()
 
-    def _cover_with_dependencies(self, uncovered_contexts, dependencies):
+    def _cover_with_dependencies(self, uncovered_contexts, descriptor):
         # XXX: Will also need to check for the contexts having a given ID being consistent
         # with each other across dependencies
+        dependencies = descriptor.dependencies
         for d in dependencies:
             bnd = Bundle(d.id, self.bundles_directory, d.version, remotes=self.remotes)
-            for b in bnd.contexts:
-                uncovered_contexts.discard(URIRef(b))
+            for c in bnd.contexts:
+                uncovered_contexts.discard(URIRef(c))
                 if not uncovered_contexts:
                     break
+        for c in descriptor.empties:
+            uncovered_contexts.discard(URIRef(c))
+            if not uncovered_contexts:
+                break
         return uncovered_contexts
 
 
@@ -1792,7 +1801,19 @@ def make_pattern(s):
 
 
 def make_include_func(s):
-    return URIIncludeFunc(s)
+    if isinstance(s, str):
+        return URIIncludeFunc(s)
+    elif isinstance(s, dict):
+        uri = None
+        for k in s.keys():
+            if uri is not None:
+                raise ValueError(f'Context "includes" entry must have one key--the URI of'
+                        ' the context to include. Extra key is "{k}"')
+            uri = k
+
+        return URIIncludeFunc(uri)
+    else:
+        raise ValueError('Context "includes" entry must be a str or a dict')
 
 
 class URIIncludeFunc(object):

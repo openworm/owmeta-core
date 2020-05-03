@@ -173,6 +173,37 @@ def test_descriptor_dependency():
     assert DependencyDescriptor('dep4') in d.dependencies
 
 
+def test_descriptor_includes_extra_key():
+    with pytest.raises(ValueError, regex=".*empty.*"):
+        Descriptor.load('''
+        id: dep
+        includes:
+            - http://example.org/empty_ctx:
+              empty: true # Oh no, you don't belong here...
+        ''')
+
+
+def test_descriptor_empties():
+    d = Descriptor.load('''
+    id: dep
+    includes:
+        - http://example.org/empty_ctx:
+            empty: true
+    ''')
+    assert 'http://example.org/empty_ctx' in d.empties
+
+
+def test_descriptor_includes_empty_false():
+    d = Descriptor.load('''
+    id: dep
+    includes:
+        - http://example.org/empty_ctx:
+            empty: false
+    ''')
+    assert not d.empties
+
+
+
 def test_triple_in_dependency(custom_bundle):
     '''
     '''

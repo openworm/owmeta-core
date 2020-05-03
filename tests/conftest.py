@@ -130,16 +130,7 @@ def wait_for_started(server_data, max_tries=10):
 
 @fixture
 def owm_project():
-    res = Data()
-    res.testdir = tempfile.mkdtemp(prefix=__name__ + '.')
-    res.test_homedir = p(res.testdir, 'homedir')
-    os.mkdir(res.test_homedir)
-    with open(p('tests', 'pytest-cov-embed.py'), 'r') as f:
-        ptcov = f.read()
-    # Added so pytest_cov gets to run for our subprocesses
-    with open(p(res.testdir, 'sitecustomize.py'), 'w') as f:
-        f.write(ptcov)
-
+    res = _shell_helper()
     try:
         res.sh('owm -b init --default-context-id "http://example.org/data"')
         yield res
@@ -147,8 +138,32 @@ def owm_project():
         shutil.rmtree(res.testdir)
 
 
+@fixture
+def shell_helper():
+    res = _shell_helper()
+    try:
+        yield res
+    finally:
+        shutil.rmtree(res.testdir)
+
+
+def _shell_helper():
+    res = Data()
+    os.mkdir(res.test_homedir)
+    with open(p('tests', 'pytest-cov-embed.py'), 'r') as f:
+        ptcov = f.read()
+    # Added so pytest_cov gets to run for our subprocesses
+    with open(p(res.testdir, 'sitecustomize.py'), 'w') as f:
+        f.write(ptcov)
+    return res
+
+
 class Data(object):
     exception = None
+
+    def __init__(self):
+        self.testdir = tempfile.mkdtemp(prefix=__name__ + '.')
+        self.test_homedir = p(self.testdir, 'homedir')
 
     def __str__(self):
         items = []

@@ -102,6 +102,9 @@ CLI_HINTS = {
             },
         },
         'save': {
+            (METHOD_NAMED_ARG, 'bundle_id'): {
+                'names': ['bundle_id'],
+            },
             (METHOD_NAMED_ARG, 'output'): {
                 'names': ['output'],
             },

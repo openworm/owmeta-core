@@ -1,10 +1,11 @@
 from __future__ import print_function
+import io
 from os.path import join as p, exists
 from os import makedirs, listdir
 from contextlib import contextmanager
 import shutil
 import subprocess
-import io
+import tarfile
 
 import pytest
 from pytest import mark, fixture
@@ -206,38 +207,38 @@ def test_reregister_new_id(owm_project):
     )
 
 
-def test_cache_list(owm_project):
+def test_cache_list(shell_helper):
     '''
     List bundles in the cache
     '''
-    bundle_dir = p(owm_project.test_homedir, '.owmeta', 'bundles',
+    bundle_dir = p(shell_helper.test_homedir, '.owmeta', 'bundles',
                    'test%2Fmain', '1')
     makedirs(bundle_dir)
     with open(p(bundle_dir, 'manifest'), 'w') as mf:
         mf.write('{"version": 1, "id": "test/main"}')
     assertRegexpMatches(
-        owm_project.sh('owm bundle cache list'),
+        shell_helper.sh('owm bundle cache list'),
         r'test/main@1'
     )
 
 
-def test_cache_list_empty(owm_project):
+def test_cache_list_empty(shell_helper):
     '''
     List bundles in the cache
     '''
-    assert owm_project.sh('owm bundle cache list') == ''
+    assert shell_helper.sh('owm bundle cache list') == ''
 
 
-def test_cache_list_multiple_versions(owm_project):
+def test_cache_list_multiple_versions(shell_helper):
     '''
     List bundles in the cache.
 
     For the same bundle ID, they should be in reverse version order (newest versions
     first)
     '''
-    bundle_dir1 = p(owm_project.test_homedir, '.owmeta', 'bundles',
+    bundle_dir1 = p(shell_helper.test_homedir, '.owmeta', 'bundles',
                    'test%2Fmain', '1')
-    bundle_dir2 = p(owm_project.test_homedir, '.owmeta', 'bundles',
+    bundle_dir2 = p(shell_helper.test_homedir, '.owmeta', 'bundles',
                    'test%2Fmain', '2')
     makedirs(bundle_dir1)
     makedirs(bundle_dir2)
@@ -246,18 +247,18 @@ def test_cache_list_multiple_versions(owm_project):
     with open(p(bundle_dir2, 'manifest'), 'w') as mf:
         mf.write('{"version": 2, "id": "test/main"}')
     assertRegexpMatches(
-        owm_project.sh('owm bundle cache list'),
+        shell_helper.sh('owm bundle cache list'),
         r'test/main@2\ntest/main@1'
     )
 
 
-def test_cache_list_different_bundles(owm_project):
+def test_cache_list_different_bundles(shell_helper):
     '''
     List bundles in the cache
     '''
-    bundle_dir1 = p(owm_project.test_homedir, '.owmeta', 'bundles',
+    bundle_dir1 = p(shell_helper.test_homedir, '.owmeta', 'bundles',
                    'test%2Fmain', '1')
-    bundle_dir2 = p(owm_project.test_homedir, '.owmeta', 'bundles',
+    bundle_dir2 = p(shell_helper.test_homedir, '.owmeta', 'bundles',
                    'test%2Fsecondary', '1')
     makedirs(bundle_dir1)
     makedirs(bundle_dir2)
@@ -266,22 +267,22 @@ def test_cache_list_different_bundles(owm_project):
     with open(p(bundle_dir2, 'manifest'), 'w') as mf:
         mf.write('{"version": 1, "id": "test/secondary"}')
     assertRegexpMatches(
-        owm_project.sh('owm bundle cache list'),
+        shell_helper.sh('owm bundle cache list'),
         r'test/main@1'
     )
     assertRegexpMatches(
-        owm_project.sh('owm bundle cache list'),
+        shell_helper.sh('owm bundle cache list'),
         r'test/secondary@1'
     )
 
 
-def test_cache_list_version_check(owm_project):
+def test_cache_list_version_check(shell_helper):
     '''
     bundle cache list filters out bundles with the wrong version
     '''
-    bundle_dir1 = p(owm_project.test_homedir, '.owmeta', 'bundles',
+    bundle_dir1 = p(shell_helper.test_homedir, '.owmeta', 'bundles',
                    'test%2Fmain', '1')
-    bundle_dir2 = p(owm_project.test_homedir, '.owmeta', 'bundles',
+    bundle_dir2 = p(shell_helper.test_homedir, '.owmeta', 'bundles',
                    'test%2Fsecondary', '2')
     makedirs(bundle_dir1)
     makedirs(bundle_dir2)
@@ -290,22 +291,22 @@ def test_cache_list_version_check(owm_project):
     with open(p(bundle_dir2, 'manifest'), 'w') as mf:
         mf.write('{"version": 1, "id": "test/secondary"}')
     assertRegexpMatches(
-        owm_project.sh('owm bundle cache list'),
+        shell_helper.sh('owm bundle cache list'),
         r'test/main@1'
     )
     assertNotRegexpMatches(
-        owm_project.sh('owm bundle cache list'),
+        shell_helper.sh('owm bundle cache list'),
         r'test/secondary@1'
     )
 
 
-def test_cache_list_version_check_warning(owm_project):
+def test_cache_list_version_check_warning(shell_helper):
     '''
     bundle cache list filters out bundles with the wrong version
     '''
-    bundle_dir1 = p(owm_project.test_homedir, '.owmeta', 'bundles',
+    bundle_dir1 = p(shell_helper.test_homedir, '.owmeta', 'bundles',
                    'test%2Fmain', '1')
-    bundle_dir2 = p(owm_project.test_homedir, '.owmeta', 'bundles',
+    bundle_dir2 = p(shell_helper.test_homedir, '.owmeta', 'bundles',
                    'test%2Fsecondary', '2')
     makedirs(bundle_dir1)
     makedirs(bundle_dir2)
@@ -313,23 +314,43 @@ def test_cache_list_version_check_warning(owm_project):
         mf.write('{"version": 1, "id": "test/main"}')
     with open(p(bundle_dir2, 'manifest'), 'w') as mf:
         mf.write('{"version": 1, "id": "test/secondary"}')
-    output = owm_project.sh('owm bundle cache list', stderr=subprocess.STDOUT)
+    output = shell_helper.sh('owm bundle cache list', stderr=subprocess.STDOUT)
     assertRegexpMatches(output, r'manifest.*match')
 
 
-def test_cache_list_description(owm_project):
+def test_cache_list_description(shell_helper):
     '''
     Make sure the bundle description shows up
     '''
-    bundle_dir1 = p(owm_project.test_homedir, '.owmeta', 'bundles',
+    bundle_dir1 = p(shell_helper.test_homedir, '.owmeta', 'bundles',
                    'test%2Fmain', '1')
     makedirs(bundle_dir1)
     with open(p(bundle_dir1, 'manifest'), 'w') as mf:
         mf.write('{"version": 1, "id": "test/main", "description": "Waka waka"}')
     assertRegexpMatches(
-        owm_project.sh('owm bundle cache list'),
+        shell_helper.sh('owm bundle cache list'),
         r'Waka waka'
     )
+
+
+def test_save_creates_file(shell_helper):
+    bundle_dir1 = p(shell_helper.test_homedir, '.owmeta', 'bundles',
+            'test%2Fmain', '1')
+    makedirs(bundle_dir1)
+    with open(p(bundle_dir1, 'manifest'), 'w') as mf:
+        mf.write('{"version": 1, "id": "test/main", "description": "Waka waka"}')
+    shell_helper.sh('owm bundle save test/main test-main.tar.xz')
+    assert exists(p(shell_helper.testdir, 'test-main.tar.xz'))
+
+
+def test_save_is_archive(shell_helper):
+    bundle_dir1 = p(shell_helper.test_homedir, '.owmeta', 'bundles',
+            'test%2Fmain', '1')
+    makedirs(bundle_dir1)
+    with open(p(bundle_dir1, 'manifest'), 'w') as mf:
+        mf.write('{"version": 1, "id": "test/main", "description": "Waka waka"}')
+    shell_helper.sh('owm bundle save test/main test-main.tar.xz')
+    assert tarfile.is_tarfile(p(shell_helper.testdir, 'test-main.tar.xz'))
 
 
 def test_checkout(owm_project):

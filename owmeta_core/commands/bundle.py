@@ -6,7 +6,7 @@ import logging
 import shutil
 import hashlib
 from os.path import join as p, abspath, relpath, isdir
-from os import mkdir, listdir, unlink
+from os import mkdir, listdir, unlink, getcwd
 import yaml
 from ..context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY
 from ..command_util import GenericUserError, GeneratorWithData, SubCommand
@@ -17,6 +17,7 @@ from ..bundle import (Descriptor,
                       Fetcher,
                       Cache,
                       Unarchiver,
+                      Archiver,
                       retrieve_remotes,
                       fmt_bundle_directory,
                       NoBundleLoader as _NoBundleLoader,
@@ -167,7 +168,8 @@ class OWMBundle(object):
         output : str
             The target file
         '''
-        Archiver(bundles_directory=self._bundles_directory()).archive()
+        return Archiver(getcwd(), bundles_directory=self._bundles_directory()).pack(
+                bundle_id=bundle_id, target_file_name=output)
 
     def install(self, bundle):
         '''
@@ -222,7 +224,7 @@ class OWMBundle(object):
             if self._parent.non_interactive:
                 raise GenericUserError(str(tine))
             answer = self._parent.prompt('The target directory, "%s", is not empty. Would you'
-                    ' like to delete the contents and continue installation? [yes/no]' %
+                    ' like to delete the contents and continue installation? [yes/no] ' %
                     tine.directory)
             if str(answer).lower() == 'yes':
                 shutil.rmtree(tine.directory)
