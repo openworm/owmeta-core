@@ -1,7 +1,13 @@
+from unittest.mock import patch, Mock
+from contextlib import contextmanager
+
+from pytest import fixture, raises
 from rdflib.term import URIRef
+from rdflib.plugin import PluginException
 from rdflib.plugins.memory import IOMemory
 
-from owmeta_core.bundle_dependency_store import BundleDependencyStore
+from owmeta_core.bundle_dependency_store import (BundleDependencyStore, _is_cacheable,
+                                                 _cache_key, RDFLIB_PLUGIN_KEY)
 
 
 def test_excludes_no_triples():
@@ -243,3 +249,178 @@ def test_triples_choices_contexts():
     bds = BundleDependencyStore(iom)
     for t, ctxs in bds.triples_choices(([URIRef('http://example.org/a')], None, None)):
         assert set([ctx, ctx1]) == set(ctxs)
+
+
+def test_readonly_FileStorageZODB_is_cacheable():
+    '''
+    A read-only FileStorageZODBStore is cacheable since you should be able to use it any
+    multiple threads without any problem. OTOH, with a writeable store of that type, there
+    is an assumption that only one thread is using the store at a time which cannot easily
+    be assured if we "cache" the store.
+    '''
+    assert _is_cacheable('FileStorageZODB', {'read_only': True})
+
+
+def test_readonly_false_FileStorageZODB_is_not_cacheable():
+    assert not _is_cacheable('FileStorageZODB', {'read_only': False})
+
+
+def test_str_conf_FileStorageZODB_is_not_cacheable():
+    '''
+    By default, FileStorageZODB is a read/write store
+    '''
+    assert not _is_cacheable('FileStorageZODB', '/tmp/blah_blah')
+
+
+def test_cache_key_is_not_none():
+    cc1 = {'read_only': True,
+           'some': 'other',
+           'config': {'values': 'including',
+                      'a': dict()}}
+    ck1 = _cache_key('FileStorageZODB', cc1)
+    assert ck1 is not None
+
+
+def test_cache_key_same():
+    cc1 = {'read_only': True,
+           'some': 'other',
+           'config': {'values': 'including',
+                      'a': dict()}}
+    cc2 = {'some': 'other',
+           'read_only': True,
+           'config': {'a': dict(),
+                      'values': 'including'}}
+    ck1 = _cache_key('FileStorageZODB', cc1)
+    ck2 = _cache_key('FileStorageZODB', cc2)
+    assert ck1 == ck2
+
+
+def test_open_overlong_tuple():
+    cut = BundleDependencyStore()
+    with raises(ValueError):
+        cut.open((1, 2, 3))
+
+
+def test_open_overlong_list():
+    cut = BundleDependencyStore()
+    with raises(ValueError):
+        cut.open([1, 2, 3])
+
+
+def test_open_dict_missing_type():
+    cut = BundleDependencyStore()
+    with raises(ValueError):
+        cut.open({'conf': 'doesntmatter'})
+
+
+def test_open_dict_missing_conf():
+    cut = BundleDependencyStore()
+    with raises(ValueError):
+        cut.open({'type': 'doesntmatter'})
+
+
+def test_open_plugin_missing():
+    with patch('owmeta_core.bundle_dependency_store._is_cacheable') as is_cacheable, \
+          patch('owmeta_core.bundle_dependency_store.plugin') as plugin:
+        plugin.get.side_effect = PluginException
+        cut = BundleDependencyStore()
+        with raises(PluginException):
+            cut.open({'conf': 'doesntmatter',
+                'type': 'doesntmatter'})
+
+
+def test_open_invalid_config():
+    cut = BundleDependencyStore()
+    with raises(ValueError):
+        cut.open(object())
+
+
+def test_not_cacheable():
+    with patch('owmeta_core.bundle_dependency_store._is_cacheable') as is_cacheable, \
+          patch('owmeta_core.bundle_dependency_store.plugin') as plugin:
+        is_cacheable.return_value = False
+        cut = BundleDependencyStore()
+        cut.open(('StoreKey', 'StoreConf'))
+
+        plugin.get.assert_called()
+        assert cut.wrapped == plugin.get()()
+
+
+def test_cached_used_when_cacheable():
+    with patch('owmeta_core.bundle_dependency_store._is_cacheable') as is_cacheable, \
+          patch('owmeta_core.bundle_dependency_store._cache_key') as cache_key, \
+          patch('owmeta_core.bundle_dependency_store._store_cache') as store_cache, \
+          patch('owmeta_core.bundle_dependency_store.plugin') as plugin:
+        is_cacheable.return_value = True
+        cache_key.return_value = 'cache_key'
+        cut = BundleDependencyStore()
+        store_cache.get.return_value = Mock(name='CachedStore')
+        cut.open(('StoreKey', 'StoreConf'))
+
+        # test_use_cached_store_no_plugin
+        plugin.get.assert_not_called()
+
+        # test_cached_sought
+        store_cache.get.assert_called()
+
+        # test_cached_used
+        assert cut.wrapped == store_cache.get()
+
+
+def test_cached_store_created_when_cacheable():
+    with patch('owmeta_core.bundle_dependency_store._is_cacheable') as is_cacheable, \
+          patch('owmeta_core.bundle_dependency_store._cache_key') as cache_key, \
+          patch('owmeta_core.bundle_dependency_store._store_cache') as store_cache, \
+          patch('owmeta_core.bundle_dependency_store.plugin') as plugin:
+        is_cacheable.return_value = True
+        cache_key.return_value = 'cache_key'
+        cut = BundleDependencyStore()
+        store_cache.get.return_value = None
+        cut.open(('StoreKey', 'StoreConf'))
+
+        # test_use_cached_store_no_plugin
+        plugin.get.assert_called()
+
+        # test_cached_sought
+        store_cache.get.assert_called()
+
+        # test_cached_used
+        assert cut.wrapped == plugin.get()()
+
+
+def test_bds_is_cacheable_for_readonly_FileStorageZODB_tuple_config():
+    assert _is_cacheable(RDFLIB_PLUGIN_KEY, ('FileStorageZODB', {'read_only': True}))
+
+
+def test_bds_is_cacheable_for_readonly_FileStorageZODB_list_config():
+    assert _is_cacheable(RDFLIB_PLUGIN_KEY, ['FileStorageZODB', {'read_only': True}])
+
+
+def test_bds_is_cacheable_for_readonly_FileStorageZODB_dict_config():
+    assert _is_cacheable(RDFLIB_PLUGIN_KEY, dict(
+        type='FileStorageZODB',
+        conf={'read_only': True}))
+
+
+def test_bds_is_not_cacheable_for_unknown_config_type():
+    assert not _is_cacheable(RDFLIB_PLUGIN_KEY, object())
+
+
+def test_bds_reuse():
+    with patch('owmeta_core.bundle_dependency_store._is_cacheable') as is_cacheable, \
+          patch('owmeta_core.bundle_dependency_store._cache_key') as cache_key, \
+          patch('owmeta_core.bundle_dependency_store._store_cache') as store_cache, \
+          patch('owmeta_core.bundle_dependency_store.plugin') as plugin:
+        cut = BundleDependencyStore()
+        cut.open(('StoreKey', 'StoreConf'))
+        is_cacheable.assert_called_with(RDFLIB_PLUGIN_KEY, ('StoreKey', 'StoreConf'))
+        assert cut.wrapped == store_cache.get()
+
+
+def test_cached_store_not_closed():
+    '''
+    A cached store, once opened, cannot be closed unilaterally by a BDS holdidng a
+    reference to that store. Consequently, we musts prevent closing of the store. However,
+    calling 'close' on the store must remain an allowed operation (i.e., it must not raise
+    an exception) so that the sharing of the store remains transparent to the BDS user.
+    '''

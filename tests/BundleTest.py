@@ -174,7 +174,7 @@ def test_descriptor_dependency():
 
 
 def test_descriptor_includes_extra_key():
-    with pytest.raises(ValueError, regex=".*empty.*"):
+    with pytest.raises(ValueError, match=r'.*empty.*'):
         Descriptor.load('''
         id: dep
         includes:
@@ -203,10 +203,7 @@ def test_descriptor_includes_empty_false():
     assert not d.empties
 
 
-
 def test_triple_in_dependency(custom_bundle):
-    '''
-    '''
     dep_desc = Descriptor.load('''
     id: dep
     includes:
@@ -231,8 +228,6 @@ def test_triple_in_dependency(custom_bundle):
 
 
 def test_quad_in_dependency(custom_bundle):
-    '''
-    '''
     dep_desc = Descriptor.load('''
     id: dep
     includes:
