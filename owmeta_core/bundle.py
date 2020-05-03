@@ -1807,8 +1807,8 @@ def make_include_func(s):
         uri = None
         for k in s.keys():
             if uri is not None:
-                raise ValueError(f'Context "includes" entry must have one key--the URI of'
-                        ' the context to include. Extra key is "{k}"')
+                raise ValueError('Context "includes" entry must have one key--the URI of'
+                        f' the context to include. Extra key is "{k}"')
             uri = k
 
         return URIIncludeFunc(uri)
