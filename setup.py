@@ -48,7 +48,7 @@ setup(
         'numpydoc>=0.7.0',
         'persistent>=4.0.8',
         'Pint',
-        'pow-store-zodb==0.0.8',
+        'pow-store-zodb==0.0.9',
         'rdflib>=4.1.2',
         'six~=1.10',
         'tqdm~=4.23',
