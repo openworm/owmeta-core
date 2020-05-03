@@ -388,6 +388,22 @@ def test_cached_store_created_when_cacheable():
         assert cut.wrapped == plugin.get()()
 
 
+def test_bds_is_not_cacheable_FileStorageZODB_overlong_list():
+    assert not _is_cacheable(RDFLIB_PLUGIN_KEY, [1, 2, 3])
+
+
+def test_bds_is_not_cacheable_FileStorageZODB_overlong_tuple():
+    assert not _is_cacheable(RDFLIB_PLUGIN_KEY, (1, 2, 3))
+
+
+def test_bds_is_not_cacheable_FileStorageZODB_missing_type_key():
+    assert not _is_cacheable(RDFLIB_PLUGIN_KEY, dict(conf='blahblah'))
+
+
+def test_bds_is_not_cacheable_FileStorageZODB_missing_conf_key():
+    assert not _is_cacheable(RDFLIB_PLUGIN_KEY, dict(type='blahblah'))
+
+
 def test_bds_is_cacheable_for_readonly_FileStorageZODB_tuple_config():
     assert _is_cacheable(RDFLIB_PLUGIN_KEY, ('FileStorageZODB', {'read_only': True}))
 
@@ -424,3 +440,39 @@ def test_cached_store_not_closed():
     calling 'close' on the store must remain an allowed operation (i.e., it must not raise
     an exception) so that the sharing of the store remains transparent to the BDS user.
     '''
+
+
+def test_unimplemented():
+    unimplemented_methods = ['add',
+                             'addN',
+                             'remove',
+                             'add_graph',
+                             'remove_graph',
+                             'create',
+                             'destroy',
+                             'commit',
+                             'rollback',
+                             ]
+    cut = BundleDependencyStore()
+    for method_name in unimplemented_methods:
+        with raises(NotImplementedError):
+            getattr(cut, method_name)()
+
+
+def test_pure_pass_throughs():
+    wrapped = Mock(name='wrapped')
+    cut = BundleDependencyStore(wrapped)
+
+    cut.prefix('blah')
+    wrapped.prefix.assert_called_with('blah')
+
+    cut.namespace('blah')
+    wrapped.namespace.assert_called_with('blah')
+
+    cut.gc()
+    wrapped.gc.assert_called()
+
+
+def test_repr_contains_wrapped():
+    cut = BundleDependencyStore('wrapped')
+    assert repr('wrapped') in repr(cut)
