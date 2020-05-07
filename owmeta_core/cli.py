@@ -111,7 +111,38 @@ def columns_arg_to_list(arg):
 
 def main():
     '''
-    Entry point for the command line interface
+    Entry point for the command line interface.
+
+    Additional sub-commands can be added by specifying them in an entrypoint like this::
+
+        'owmeta_core.commands': [
+            'subcommand_name = module.path.for:TheSubCommand',
+            'sub.sub.subcommand_name = module.path.for:TheSubSubSubCommand',
+        ],
+
+    Where, ``subcommand_name`` will be the name of the sub-command under the top-level
+    ``owm`` command and ``module.path.for.TheSubCommand`` will be the class implementing
+    the command. To add to existing sub-commands one indicate the place in the command
+    hierarchy as in ``sub.sub.subcommand_name``: ``TheSubSubSubCommand`` would be
+    available under the (hypothetical) existing ``owm sub sub`` command as ``owm sub sub
+    subcommand_name``
+
+    So-called "hints" can affect the way command implementations are interepreted such as
+    indicating whether a method argument should be read in as a positional argument or
+    an option and what a command-line option should be named (as opposed to deriving it
+    from a parameter name or member variable). There is a set of hints which are a part of
+    owmeta-core (see `CLI_HINTS`), but these can be augmented and even overriden by
+    specifying entry points like this::
+
+        'owmeta_core.cli_hints': 'hints = module.path.for:CLI_HINTS',
+
+    If ``module.path.for.CLI_HINTS`` is a dictionary, it will get added to the hints,
+    potentially affecting the top-level and all sub-commands. See `owmeta_core.cli_hints`
+    source for the format of hints. Note that pre-existing hints can be *overwritten*
+    rather than merged. The entry point name (``hints`` in the example) is ignored by this
+    module.
+
+    See `CLICommandWrapper` for more details on how the command line options are constructed.
     '''
     logging.basicConfig()
 
