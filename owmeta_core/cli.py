@@ -113,7 +113,8 @@ def main():
     '''
     Entry point for the command line interface.
 
-    Additional sub-commands can be added by specifying them in an entrypoint like this::
+    Additional sub-commands can be added by specifying them in an entry point in your
+    package's setup.py like this::
 
         'owmeta_core.commands': [
             'subcommand_name = module.path.for:TheSubCommand',
@@ -131,16 +132,17 @@ def main():
     indicating whether a method argument should be read in as a positional argument or
     an option and what a command-line option should be named (as opposed to deriving it
     from a parameter name or member variable). There is a set of hints which are a part of
-    owmeta-core (see `CLI_HINTS`), but these can be augmented and even overriden by
-    specifying entry points like this::
+    owmeta-core (see `CLI_HINTS`), but these can be augmented by specifying entry points
+    like this::
 
         'owmeta_core.cli_hints': 'hints = module.path.for:CLI_HINTS',
 
     If ``module.path.for.CLI_HINTS`` is a dictionary, it will get added to the hints,
-    potentially affecting the top-level and all sub-commands. See `owmeta_core.cli_hints`
-    source for the format of hints. Note that pre-existing hints can be *overwritten*
-    rather than merged. The entry point name (``hints`` in the example) is ignored by this
-    module.
+    potentially affecting any sub-commands without hints already available. The entry
+    point name (``hints`` in the example) is only used for error-reporting by this module.
+    Although this is not strictly enforced, adding hints for sub-commands published by
+    other modules, including owmeta-core, should be avoided to ensure consistent behavior
+    across installations. See `owmeta_core.cli_hints` source for the format of hints.
 
     See `CLICommandWrapper` for more details on how the command line options are constructed.
     '''
@@ -183,7 +185,13 @@ def _gather_hints_from_entry_points():
     res = dict()
     for entry_point in iter_entry_points(CLI_HINTS_GROUP):
         try:
-            res.update(entry_point.load())
+            for cmd, hints in entry_point.load():
+                if cmd in res:
+                    L.warning(f'Hints are already defined for {cmd}: {entry_point}'
+                            f' hints for {cmd} will be ignored')
+                    continue
+                res[cmd] = hints
+
         except Exception:
             L.warning('Unable to add CLI hints for %s', entry_point)
     return res

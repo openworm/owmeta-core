@@ -147,9 +147,13 @@ class Remote(object):
         return hash((self.name, self.accessor_configs))
 
 
-DependencyDescriptor = namedtuple('DependencyDescriptor',
+class DependencyDescriptor(namedtuple('_DependencyDescriptor',
         ('id', 'version', 'excludes'),
-        defaults=(None, None, ()))
+        defaults=(None, None, ()))):
+    __slots__ = ()
+
+    def __new__(cls, id, version=None, excludes=()):
+        return super(DependencyDescriptor, cls).__new__(cls, id, version, excludes)
 
 
 class AccessorConfig(object):
@@ -373,7 +377,7 @@ class Bundle(object):
         if paths is None:
             paths = set()
         if current_path is None:
-            current_path = _BDTD()
+            current_path = _BDTD(excludes=())
         dependency_configs = self._gather_dependency_configs(manifest_data, current_path, paths)
         indexed_db_path = p(bundle_directory, BUNDLE_INDEXED_DB_NAME)
         fs_store_config = dict(url=indexed_db_path, read_only=True)
@@ -443,13 +447,16 @@ class Bundle(object):
         return target
 
 
-class _BDTD(namedtuple('_BDTD', ('excludes',), defaults=((),))):
+class _BDTD(namedtuple('_BDTD', ('excludes',))):
     '''
     Bundle Dependency Traversal Data (BDTD)
 
     Holds data we use in traversing bundle dependencies. Looks a lot like a dependency
     descriptor, but without an ID and version
     '''
+    def __new__(cls, *args, excludes=(), **kwargs):
+        return super(_BDTD, cls).__new__(cls, *args, excludes=excludes, **kwargs)
+
     def merge_excludes(self, excludes):
         return self._replace(excludes=self.excludes +
                 tuple(e for e in excludes if e not in self.excludes))
