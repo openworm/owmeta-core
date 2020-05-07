@@ -972,6 +972,9 @@ class TestDSD(unittest.TestCase):
         self.cut = _DSD(dict(), self.testdir, mc)
         self.mc = mc
 
+    def tearDown(self):
+        shutil.rmtree(self.testdir)
+
     def test_no_loaders_key_error(self):
         '''
         Test no loaders can load the data source -> should present a key error
@@ -987,6 +990,9 @@ class TestDSDDirExists(unittest.TestCase):
 
     def setUp(self):
         self.testdir = tempfile.mkdtemp(prefix=__name__ + '.')
+
+    def tearDown(self):
+        shutil.rmtree(self.testdir)
 
     def test_dsd_create(self):
         '''
