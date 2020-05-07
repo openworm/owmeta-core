@@ -57,6 +57,11 @@ Base name of the indexed database that gets built in a bundle directory during
 installation
 '''
 
+BUNDLE_MANIFEST_FILE_NAME = 'manifest'
+'''
+Name of the manifest file in a bundle directory or archive
+'''
+
 
 class Remote(object):
     '''
@@ -353,7 +358,7 @@ class Bundle(object):
             bundle_directory = self.resolve()
             self.conf = Data().copy(self._given_conf)
             self.conf[IMPORTS_CONTEXT_KEY] = fmt_bundle_ctx_id(self.ident)
-            with open(p(bundle_directory, 'manifest')) as mf:
+            with open(p(bundle_directory, BUNDLE_MANIFEST_FILE_NAME)) as mf:
                 manifest_data = json.load(mf)
                 self.conf[DEFAULT_CONTEXT_KEY] = manifest_data.get(DEFAULT_CONTEXT_KEY)
                 self.conf[IMPORTS_CONTEXT_KEY] = manifest_data.get(IMPORTS_CONTEXT_KEY)
@@ -384,7 +389,7 @@ class Bundle(object):
                 return
             paths.add((dep_path, (dd['id'], dd.get('version'))))
             bundle_directory = find_bundle_directory(self.bundles_directory, dd['id'], dd.get('version'))
-            with open(p(bundle_directory, 'manifest')) as mf:
+            with open(p(bundle_directory, BUNDLE_MANIFEST_FILE_NAME)) as mf:
                 manifest_data = json.load(mf)
             # We don't want to include items in the configuration that aren't specified by
             # the dependency descriptor. Also, all of the optionals have defaults that
@@ -737,7 +742,7 @@ class Deployer(_RemoteHandlerMixin):
 
     def _get_directory_manifest_data(self, bundle_path):
         try:
-            with open(p(bundle_path, 'manifest')) as mf:
+            with open(p(bundle_path, BUNDLE_MANIFEST_FILE_NAME)) as mf:
                 return json.load(mf)
         except (OSError, IOError) as e:
             if e.errno == errno.ENOENT: # FileNotFound
@@ -752,7 +757,7 @@ class Deployer(_RemoteHandlerMixin):
     def _get_archive_manifest_data(self, bundle_path):
         with Unarchiver().to_tarfile(bundle_path) as tf:
             try:
-                mf0 = tf.extractfile('manifest')
+                mf0 = tf.extractfile(BUNDLE_MANIFEST_FILE_NAME)
                 if mf0 is None:
                     raise NotABundlePath(bundle_path, 'manifest is not a regular file')
                 # Would like to pull the
@@ -854,7 +859,7 @@ class Cache(object):
                 if not version_directory.is_dir():
                     continue
                 try:
-                    manifest_fname = p(version_directory.path, 'manifest')
+                    manifest_fname = p(version_directory.path, BUNDLE_MANIFEST_FILE_NAME)
                     with open(manifest_fname) as mf:
                         try:
                             manifest_data = json.load(mf)
@@ -1690,7 +1695,7 @@ class Installer(object):
         manifest_data['dependencies'] = [{'version': x.version, 'id': x.id, 'excludes': x.excludes}
                 for x in descriptor.dependencies]
         self.manifest_data = manifest_data
-        with open(p(staging_directory, 'manifest'), 'w') as mf:
+        with open(p(staging_directory, BUNDLE_MANIFEST_FILE_NAME), 'w') as mf:
             json.dump(manifest_data, mf, separators=(',', ':'))
 
     def _initdb(self, staging_directory):

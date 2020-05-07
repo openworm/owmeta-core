@@ -153,9 +153,9 @@ class OWMBundle(object):
         '''
         Unarchiver(bundles_directory=self._bundles_directory()).unpack(input_file_name)
 
-    def save(self, bundle_id, output):
+    def save(self, bundle_id, output, bundle_version=None):
         '''
-        Write a bundle to a file
+        Write an installed bundle to a file
 
         Writing the bundle to a file means writing the bundle manifest, constituent
         graphs, and attached files to an archive. The bundle can be in the local bundle
@@ -167,9 +167,12 @@ class OWMBundle(object):
             The bundle to save
         output : str
             The target file
+        bundle_version : int
+            Version of the bundle to write. optional: defaults to the latest installed
+            bundle
         '''
         return Archiver(getcwd(), bundles_directory=self._bundles_directory()).pack(
-                bundle_id=bundle_id, target_file_name=output)
+                bundle_id=bundle_id, version=bundle_version, target_file_name=output)
 
     def install(self, bundle):
         '''

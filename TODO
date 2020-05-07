@@ -24,8 +24,14 @@ or accepts on the command line, the fields for the data source
 # Bundle commands
 - add version number param to OWMBundle::checkout 
 - add version number param to OWMBundle::deploy
-- add documentation for the CLI hints. indicate that the hints can override the
-  built-in hints
-- determine whether entry_points respects the ordering of dependencies for the listing 
+- determine whether entry_points respects the ordering of dependencies for the
+  listing 
 - add version number param to OWMBundle::save
-- implement owm bundle save
+- write more tests for sub-command augmentation, especially for
+sub-sub-commands attached to non-existing sub-commands.
+
+# Bundle query
+- Limit contexts returned from repeated stores with 'excludes' to only list
+  excluded (as appropriate. see below)
+- Test multiple dependencies excluding/including supersets subsets of each
+  others' contexts

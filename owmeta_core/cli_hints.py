@@ -1,6 +1,6 @@
 '''
 Hints for the CLI wrapper that help mapping from the Python methods to command line
-arguments
+arguments.
 
 :CLI_HINTS: hints accepted by `~.cli_command_wrapper.CLICommandWrapper`
 '''
