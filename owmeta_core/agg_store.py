@@ -8,10 +8,16 @@ class AggregateStore(Store):
     '''
     A read-only aggregate of RDFLib `stores <rdflib.store.Store>`
     '''
-    context_aware = False
-    formula_aware = False
-    graph_aware = False
-    transaction_aware = False
+
+    context_aware = True
+    '''
+    Specified by RDFLib. Required to be True for `~rdflib.graph.ConjunctiveGraph` stores.
+
+    Aggregated stores MUST be context-aware. This is enforced by :meth:`open`.
+    '''
+
+    # Unlike "awareness" attributes, checking for support of range queries is handled
+    # after the store is open, so we don't care if we need to change it to `True` later.
     supports_range_queries = False
 
     def __init__(self, configuration=None, identifier=None):
@@ -21,6 +27,11 @@ class AggregateStore(Store):
     # -- Store methods -- #
 
     def open(self, configuration, create=True):
+        '''
+        Creates and opens all of the stores specified in the configuration
+
+        Also checks for all aggregated stores to be `context_aware`
+        '''
         if not isinstance(configuration, (tuple, list)):
             return NO_STORE
         self.__stores = []
@@ -28,11 +39,9 @@ class AggregateStore(Store):
             store = plugin.get(store_key, Store)()
             store.open(store_conf)
             self.__stores.append(store)
-        context_aware = all(x.context_aware for x in self.__stores)
-        formula_aware = all(x.formula_aware for x in self.__stores)
-        graph_aware = all(x.graph_aware for x in self.__stores)
-        transaction_aware = all(x.transaction_aware for x in self.__stores)
-        supports_range_queries = all(x.supports_range_queries for x in self.__stores)
+        assert all(x.context_aware for x in self.__stores), ('All aggregated stores must be'
+                                                             ' context_aware')
+        supports_range_queries = all(getattr(x, 'supports_range_queries', False) for x in self.__stores)
 
     def triples(self, triple, context=None):
         for store in self.__stores:

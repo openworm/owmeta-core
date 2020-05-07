@@ -18,11 +18,24 @@ class BundleDependencyStore(Store):
     A read-only RDFLib `~rdflib.store.Store` that supports the extra stuff we need from
     dependencies
     '''
+
+    context_aware = True
+    '''
+    Specified by RDFLib. Required to be True for `~rdflib.graph.ConjunctiveGraph` stores.
+
+    Wrapped store MUST be context-aware. This is enforced by :meth:`open`.
+    '''
+
     def __init__(self, wrapped=None, excludes=()):
         self.wrapped = wrapped
         self.excludes = set(excludes)
 
     def open(self, configuration):
+        '''
+        Creates and opens the configured store.
+
+        Also verifies that the provided store is context-aware
+        '''
         if isinstance(configuration, (list, tuple)):
             try:
                 store_key, store_conf = configuration
@@ -61,6 +74,9 @@ class BundleDependencyStore(Store):
             self.wrapped = plugin.get(store_key, Store)()
             self.wrapped.open(store_conf)
 
+        assert self.wrapped.context_aware, 'Wrapped store must be context-aware.'
+        self.supports_range_queries = getattr(self.wrapped, 'supports_range_queries',
+                False)
         if _is_cacheable(RDFLIB_PLUGIN_KEY, configuration):
             # If there were a stored cacheable configuration with the same cache key as
             # ours, we would have already set it as our wrapped (or found we are the
