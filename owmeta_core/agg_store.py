@@ -8,9 +8,7 @@ class AggregateStore(Store):
     '''
     A read-only aggregate of RDFLib `stores <rdflib.store.Store>`
     '''
-    # TODO: Set these all based on whether each of the aggregates indicates that it has
-    # the property
-    context_aware = True
+    context_aware = False
     formula_aware = False
     graph_aware = False
     transaction_aware = False
@@ -30,6 +28,11 @@ class AggregateStore(Store):
             store = plugin.get(store_key, Store)()
             store.open(store_conf)
             self.__stores.append(store)
+        context_aware = all(x.context_aware for x in self.__stores)
+        formula_aware = all(x.formula_aware for x in self.__stores)
+        graph_aware = all(x.graph_aware for x in self.__stores)
+        transaction_aware = all(x.transaction_aware for x in self.__stores)
+        supports_range_queries = all(x.supports_range_queries for x in self.__stores)
 
     def triples(self, triple, context=None):
         for store in self.__stores:
