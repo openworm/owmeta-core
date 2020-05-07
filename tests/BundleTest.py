@@ -523,18 +523,70 @@ def test_bundle_store_conf_with_two_dep_levels(custom_bundle):
                     url=p(testbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
                     read_only=True)),
                 # dep
-                ('owmeta_core_bds', ('agg', [
+                ('owmeta_core_bds', dict(type='agg', conf=[
                     ('FileStorageZODB', dict(
                         url=p(depbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
                         read_only=True)),
-                    ('owmeta_core_bds', ('agg', [
+                    ('owmeta_core_bds', dict(type='agg', conf=[
                         ('FileStorageZODB', dict(
                             url=p(depdepbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
                             read_only=True))
                     ]))
-                ])),
+                ]))]
+
+
+def test_bundle_store_conf_with_two_levels_excludes(custom_bundle):
+    '''
+    Test that transitive dependenices shared by multiple bundles are included more than
+    once if there's an exclude that makes one of them different
+    '''
+    imports_ctxid = 'http://example.org/imports'
+    ctxid_1 = 'http://example.org/ctx1'
+    ctxid_2 = 'http://example.org/ctx2'
+
+    # Make a descriptor that includes ctx1 and the imports, but not ctx2
+    d = Descriptor('test')
+    d.includes.add(make_include_func(ctxid_1))
+    d.includes.add(make_include_func(imports_ctxid))
+    d.dependencies.add(DependencyDescriptor('dep', excludes=(ctxid_1,)))
+    d.dependencies.add(DependencyDescriptor('dep_dep'))
+
+    dep_d = Descriptor('dep')
+    dep_d.dependencies.add(DependencyDescriptor('dep_dep'))
+
+    dep_dep_d = Descriptor('dep_dep')
+    dep_dep_d.includes.add(make_include_func(ctxid_2))
+
+    # Add some triples so the contexts aren't empty -- we can't save an empty context
+    g = rdflib.ConjunctiveGraph()
+    cg_1 = g.get_context(ctxid_1)
+    cg_2 = g.get_context(ctxid_2)
+    cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
+    cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
+
+    # End setup
+
+    with custom_bundle(dep_dep_d, graph=g) as depdepbun, \
+            custom_bundle(dep_d, bundles_directory=depdepbun.bundles_directory) as depbun, \
+            custom_bundle(d, bundles_directory=depbun.bundles_directory) as testbun, \
+            Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
+        assert bnd.conf['rdf.store_conf'] == [
+                ('FileStorageZODB', dict(
+                    url=p(testbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
+                    read_only=True)),
+                # dep
+                ('owmeta_core_bds', dict(type='agg', conf=[
+                    ('FileStorageZODB', dict(
+                        url=p(depbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
+                        read_only=True)),
+                    ('owmeta_core_bds', dict(type='agg', conf=[
+                        ('FileStorageZODB', dict(
+                            url=p(depdepbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
+                            read_only=True))
+                    ]))
+                ], excludes=[ctxid_1])),
                 # depdep
-                ('owmeta_core_bds', ('agg', [
+                ('owmeta_core_bds', dict(type='agg', conf=[
                     ('FileStorageZODB', dict(
                         url=p(depdepbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
                         read_only=True))

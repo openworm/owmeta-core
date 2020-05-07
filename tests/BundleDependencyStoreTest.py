@@ -272,6 +272,16 @@ def test_str_conf_FileStorageZODB_is_not_cacheable():
     assert not _is_cacheable('FileStorageZODB', '/tmp/blah_blah')
 
 
+def test_agg_with_readonly_FileStorageZODB_is_cacheable():
+    assert _is_cacheable('agg', [['FileStorageZODB', {'read_only': True}]])
+
+
+def test_agg_with_writeable_FileStorageZODB_is_not_cacheable():
+    assert not _is_cacheable('agg', [
+        ['FileStorageZODB', '/tmp/blah_blah'],
+        ['FileStorageZODB', {'read_only': True}]])
+
+
 def test_cache_key_is_not_none():
     cc1 = {'read_only': True,
            'some': 'other',

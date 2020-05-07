@@ -8,15 +8,19 @@ class AggregateStore(Store):
     '''
     A read-only aggregate of RDFLib `stores <rdflib.store.Store>`
     '''
+    # TODO: Set these all based on whether each of the aggregates indicates that it has
+    # the property
     context_aware = True
-    formula_aware = True
-    graph_aware = True
-    transaction_aware = True
-    supports_range_queries = True
+    formula_aware = False
+    graph_aware = False
+    transaction_aware = False
+    supports_range_queries = False
 
     def __init__(self, configuration=None, identifier=None):
         super(AggregateStore, self).__init__(configuration, identifier)
         self.__stores = []
+
+    # -- Store methods -- #
 
     def open(self, configuration, create=True):
         if not isinstance(configuration, (tuple, list)):

@@ -1,3 +1,4 @@
+from collections import namedtuple
 from contextlib import contextmanager
 from itertools import chain
 from os import makedirs, rename, scandir, listdir, walk
@@ -141,27 +142,9 @@ class Remote(object):
         return hash((self.name, self.accessor_configs))
 
 
-class DependencyDescriptor(object):
-    __slots__ = ('id', 'version', 'excludes')
-
-    def __new__(cls, id, version=None, excludes=()):
-        res = super(DependencyDescriptor, cls).__new__(cls)
-        res.id = id
-        res.version = version
-        res.excludes = excludes
-        return res
-
-    def __eq__(self, other):
-        return self.id == other.id and self.version == other.version
-
-    def __hash__(self):
-        return hash((self.id, self.version))
-
-    def __repr__(self):
-        return '{}({}{})'.format(
-                FCN(type(self)),
-                repr(self.id),
-                (', ' + repr(self.version)) if self.version is not None else '')
+DependencyDescriptor = namedtuple('DependencyDescriptor',
+        ('id', 'version', 'excludes'),
+        defaults=(None, None, ()))
 
 
 class AccessorConfig(object):
@@ -381,8 +364,12 @@ class Bundle(object):
             # Create the database file and initialize some needed data structures
             self.conf.init()
 
-    def _construct_store_config(self, bundle_directory, manifest_data):
-        dependency_configs = self._gather_dependency_configs(manifest_data)
+    def _construct_store_config(self, bundle_directory, manifest_data, current_path=None, paths=None):
+        if paths is None:
+            paths = set()
+        if current_path is None:
+            current_path = _BDTD()
+        dependency_configs = self._gather_dependency_configs(manifest_data, current_path, paths)
         indexed_db_path = p(bundle_directory, BUNDLE_INDEXED_DB_NAME)
         fs_store_config = dict(url=indexed_db_path, read_only=True)
         return [
@@ -390,14 +377,24 @@ class Bundle(object):
         ] + dependency_configs
 
     @aslist
-    def _gather_dependency_configs(self, manifest_data):
+    def _gather_dependency_configs(self, manifest_data, current_path, paths):
         for dd in manifest_data.get('dependencies', ()):
+            dep_path = current_path.merge_excludes(dd.get('excludes', ()))
+            if (dep_path, (dd['id'], dd.get('version'))) in paths:
+                return
+            paths.add((dep_path, (dd['id'], dd.get('version'))))
             bundle_directory = find_bundle_directory(self.bundles_directory, dd['id'], dd.get('version'))
             with open(p(bundle_directory, 'manifest')) as mf:
                 manifest_data = json.load(mf)
-            # TODO: Add excludes and stuff like that from the dependency descriptor
-            yield ('owmeta_core_bds', ('agg',
-                        self._construct_store_config(bundle_directory, manifest_data)))
+            # We don't want to include items in the configuration that aren't specified by
+            # the dependency descriptor. Also, all of the optionals have defaults that
+            # BundleDependencyStore handles itself, so we don't want to impose them here.
+            addl_dep_confs = {k: v for k, v in dd.items()
+                    if k in ('excludes',) and v}
+            yield ('owmeta_core_bds', dict(type='agg',
+                        conf=self._construct_store_config(bundle_directory, manifest_data,
+                            dep_path, paths),
+                        **addl_dep_confs))
 
     @property
     def contexts(self):
@@ -439,6 +436,18 @@ class Bundle(object):
             ctx = BundleContext(None, conf=self.conf)
             return target.contextualize(ctx.stored)
         return target
+
+
+class _BDTD(namedtuple('_BDTD', ('excludes',), defaults=((),))):
+    '''
+    Bundle Dependency Traversal Data (BDTD)
+
+    Holds data we use in traversing bundle dependencies. Looks a lot like a dependency
+    descriptor, but without an ID and version
+    '''
+    def merge_excludes(self, excludes):
+        return self._replace(excludes=self.excludes +
+                tuple(e for e in excludes if e not in self.excludes))
 
 
 class BundleContext(Context):
@@ -1678,7 +1687,8 @@ class Installer(object):
         manifest_data['id'] = descriptor.id
         manifest_data['version'] = descriptor.version
         manifest_data['manifest_version'] = BUNDLE_MANIFEST_VERSION
-        manifest_data['dependencies'] = [{'version': x.version, 'id': x.id} for x in descriptor.dependencies]
+        manifest_data['dependencies'] = [{'version': x.version, 'id': x.id, 'excludes': x.excludes}
+                for x in descriptor.dependencies]
         self.manifest_data = manifest_data
         with open(p(staging_directory, 'manifest'), 'w') as mf:
             json.dump(manifest_data, mf, separators=(',', ':'))

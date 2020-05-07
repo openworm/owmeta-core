@@ -177,6 +177,8 @@ def _is_cacheable(store_key, store_conf):
     bool
         True If the given store configuration is cacheable
     '''
+    if store_key == 'agg':
+        return all(_is_cacheable(k, c) for k, c in store_conf)
     if store_key == 'FileStorageZODB':
         if isinstance(store_conf, dict) and store_conf.get('read_only', False):
             return True
