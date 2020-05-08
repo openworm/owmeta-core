@@ -148,8 +148,7 @@ class Remote(object):
 
 
 class DependencyDescriptor(namedtuple('_DependencyDescriptor',
-        ('id', 'version', 'excludes'),
-        defaults=(None, None, ()))):
+        ('id', 'version', 'excludes'))):
     __slots__ = ()
 
     def __new__(cls, id, version=None, excludes=()):
