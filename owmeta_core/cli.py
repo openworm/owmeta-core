@@ -181,11 +181,11 @@ def main():
         profiler.dump_stats(environ['OWM_CLI_PROFILE'])
 
 
-def _gather_hints_from_entry_points():
-    res = dict()
-    for entry_point in iter_entry_points(CLI_HINTS_GROUP):
+def _gather_hints_from_entry_points(existing_hints):
+    res = existing_hints
+    for entry_point in iter_entry_points(group=CLI_HINTS_GROUP):
         try:
-            for cmd, hints in entry_point.load():
+            for cmd, hints in entry_point.load().items():
                 if cmd in res:
                     L.warning(f'Hints are already defined for {cmd}: {entry_point}'
                             f' hints for {cmd} will be ignored')
@@ -193,7 +193,7 @@ def _gather_hints_from_entry_points():
                 res[cmd] = hints
 
         except Exception:
-            L.warning('Unable to add CLI hints for %s', entry_point)
+            L.warning('Unable to add CLI hints for %s', entry_point, exc_info=True)
     return res
 
 
@@ -241,9 +241,7 @@ def _augment_subcommands_from_entry_points():
 def _helper(p):
     ns_handler = NSHandler(p)
 
-    hints = dict()
-    hints.update(CLI_HINTS)
-    hints.update(_gather_hints_from_entry_points())
+    hints = _gather_hints_from_entry_points(dict(**CLI_HINTS))
 
     out = CLICommandWrapper(p, hints_map=hints).main(
             argument_callback=additional_args,

@@ -286,6 +286,39 @@ class CLITableOutputModeTest(CLIOutputModeTest):
             self.assertRegexpMatches(so.getvalue(), re.compile('^b *$', flags=re.MULTILINE))
 
 
+def test_existing_hints_preserved():
+    with patch('owmeta_core.cli.iter_entry_points') as iter_entry_points:
+        existing_hints = {'blah.blah': {'myhint': 'isgood'}}
+        entry_point = Mock()
+        entry_point.load.return_value = {'blah.blah': {'myhint': 'isbad'}}
+        iter_entry_points.return_value = [entry_point]
+        augmented_hints = PCLI._gather_hints_from_entry_points(dict(**existing_hints))
+        assert augmented_hints == existing_hints
+
+
+def test_existing_hints_override_attempt_warns(caplog):
+    with patch('owmeta_core.cli.iter_entry_points') as iter_entry_points:
+        existing_hints = {'blah.blah': {'myhint': 'isgood'}}
+        entry_point = Mock(name='my_entry_point')
+        entry_point.load.return_value = {'blah.blah': {'myhint': 'isbad'}}
+        iter_entry_points.return_value = [entry_point]
+        PCLI._gather_hints_from_entry_points(dict(**existing_hints))
+        assert 'my_entry_point' in caplog.text
+        assert 'blah.blah' in caplog.text
+
+
+def test_augmented_hints(caplog):
+    with patch('owmeta_core.cli.iter_entry_points') as iter_entry_points:
+        existing_hints = {'blah.blah': {'myhint': 'isgood'}}
+        entry_point = Mock(name='my_entry_point')
+        entry_point.load.return_value = {'blah.bluh': {'myhint': 'isalsogood'}}
+        iter_entry_points.return_value = [entry_point]
+        augmented_hints = PCLI._gather_hints_from_entry_points(dict(**existing_hints))
+        assert augmented_hints == {
+                'blah.blah': {'myhint': 'isgood'},
+                'blah.bluh': {'myhint': 'isalsogood'}}
+
+
 def with_defaults(func):
     '''
     Sets the default values for options
