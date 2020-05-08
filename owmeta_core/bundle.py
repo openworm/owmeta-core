@@ -376,7 +376,7 @@ class Bundle(object):
         if paths is None:
             paths = set()
         if current_path is None:
-            current_path = _BDTD(excludes=())
+            current_path = _BDTD()
         dependency_configs = self._gather_dependency_configs(manifest_data, current_path, paths)
         indexed_db_path = p(bundle_directory, BUNDLE_INDEXED_DB_NAME)
         fs_store_config = dict(url=indexed_db_path, read_only=True)
@@ -453,6 +453,8 @@ class _BDTD(namedtuple('_BDTD', ('excludes',))):
     Holds data we use in traversing bundle dependencies. Looks a lot like a dependency
     descriptor, but without an ID and version
     '''
+    __slots__ = ()
+
     def __new__(cls, *args, excludes=(), **kwargs):
         return super(_BDTD, cls).__new__(cls, *args, excludes=excludes, **kwargs)
 
