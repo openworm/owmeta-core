@@ -222,14 +222,18 @@ def _augment_subcommands_from_entry_points():
             orig_cmd = command_map.get(level_key)
             if not orig_cmd:
                 last = command_map[()]
+                # Get the commands indicated by the prefixes of the key
                 for idx, component in enumerate(level_key):
                     cmd = command_map.get(level_key[:idx+1])
                     if not cmd:
+                        # Get the SubCommand object matching the current end of the
+                        # prefix, get the class it contains and add it to the command_map
                         cmd = getattr(last, component).cmd
                         command_map[level_key[:idx+1]] = cmd
                     last = cmd
                 orig_cmd = last
 
+            # Subclass the parent command
             override_dict['__module__'] = orig_cmd.__module__
             command_map[level_key] = type(orig_cmd.__name__, (orig_cmd,), override_dict)
             if level_key:

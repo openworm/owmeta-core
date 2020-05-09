@@ -372,10 +372,12 @@ def test_augment_subcommands_level_ordered_with_two():
         pass
 
     class SubCommand:
-        pass
+        def __init__(self, parent):
+            pass
 
     class SubSubCommand:
-        pass
+        def __init__(self, parent):
+            pass
 
     with patch('owmeta_core.cli.iter_entry_points') as iter_entry_points, \
             patch('owmeta_core.cli.OWM', new=Base) as base_cmd:
@@ -389,32 +391,45 @@ def test_augment_subcommands_level_ordered_with_two():
         scep.load.return_value = SubCommand
 
         iter_entry_points.return_value = [scscep, scep]
-        PCLI._augment_subcommands_from_entry_points()
+        augmented = PCLI._augment_subcommands_from_entry_points()
+        assert isinstance(augmented().apple.pear, SubSubCommand)
 
 
-def test_augment_subcommands_level_ordered_with_two():
+def test_augment_mult_subsubcommands():
     class Base:
         pass
 
     class SubCommand:
-        pass
+        def __init__(self, parent):
+            pass
 
-    class SubSubCommand:
-        pass
+    class SubSubCommand1:
+        def __init__(self, parent):
+            pass
+
+    class SubSubCommand2:
+        def __init__(self, parent):
+            pass
 
     with patch('owmeta_core.cli.iter_entry_points') as iter_entry_points, \
             patch('owmeta_core.cli.OWM', new=Base) as base_cmd:
 
-        scscep = Mock(name='entry_point')
-        scscep.name = 'apple.pear'
-        scscep.load.return_value = SubSubCommand
+        scscep1 = Mock(name='entry_point_peach')
+        scscep1.name = 'apple.peach'
+        scscep1.load.return_value = SubSubCommand1
 
-        scep = Mock(name='entry_point')
+        scscep2 = Mock(name='entry_point_pear')
+        scscep2.name = 'apple.pear'
+        scscep2.load.return_value = SubSubCommand2
+
+        scep = Mock(name='entry_point1')
         scep.name = 'apple'
         scep.load.return_value = SubCommand
 
-        iter_entry_points.return_value = [scep, scscep]
-        PCLI._augment_subcommands_from_entry_points()
+        iter_entry_points.return_value = [scscep1, scscep2, scep]
+        augmented = PCLI._augment_subcommands_from_entry_points()
+        assert isinstance(augmented().apple.pear, SubSubCommand2)
+        assert isinstance(augmented().apple.peach, SubSubCommand1)
 
 
 def with_defaults(func):

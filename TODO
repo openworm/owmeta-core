@@ -19,16 +19,9 @@ or accepts on the command line, the fields for the data source
 - Write documentation describing the notion of the (current) data context and
 (current) imports context
 
-- Replace most LoadFailed errors with BundleNotFounds
-
 # Bundle commands
 - add version number param to OWMBundle::checkout 
 - add version number param to OWMBundle::deploy
-- determine whether entry_points respects the ordering of dependencies for the
-  listing 
-- add version number param to OWMBundle::save
-- write more tests for sub-command augmentation, especially for
-sub-sub-commands attached to non-existing sub-commands.
 
 # Bundle query
 - Limit contexts returned from repeated stores with 'excludes' to only list
