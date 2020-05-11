@@ -199,6 +199,12 @@ class HTTPSURLConfig(URLConfig):
         self.ssl_context = ssl_context
 
 
+URL_CONFIG_MAP = {'https': HTTPSURLConfig}
+'''
+`URLConfigs <URLConfig>` by scheme. Can be populated by pkg_resources entry points
+'''
+
+
 class Descriptor(object):
     '''
     Descriptor for a bundle.
@@ -1019,16 +1025,7 @@ class HTTPBundleUploader(Uploader):
                     accessor_config.url.startswith('http://')))
 
     def upload(self, bundle_path):
-        archive_path = bundle_path
-
-        with tempfile.TemporaryDirectory() as tempdir:
-            if isdir(bundle_path):
-                archive_path = Archiver(tempdir).pack(bundle_directory=bundle_path, target_file_name='bundle.tar.xz')
-            if not tarfile.is_tarfile(archive_path):
-                # We don't really care about the TAR file being properly formatted here --
-                # it's up to the server to tell us it can't process the bundle. We just
-                # check if it's a TAR file for the convenience of the user.
-                raise NotABundlePath(bundle_path, 'Expected a directory or a tar file')
+        with ensure_archive(bundle_path) as archive_path:
             self._post(archive_path)
 
     def _post(self, archive):
@@ -1524,6 +1521,29 @@ class Archiver(object):
             # we can regenerate it anyway.
             return False
         return True
+
+
+@contextmanager
+def ensure_archive(bundle_path):
+    '''
+    Produce an archive path from a bundle path whether the given path is an archive or not
+
+    Parameters
+    ----------
+    bundle_path : str
+        The path to a bundle directory or archive
+    '''
+    archive_path = bundle_path
+    with tempfile.TemporaryDirectory() as tempdir:
+        if isdir(bundle_path):
+            archive_path = Archiver(tempdir).pack(
+                    bundle_directory=bundle_path, target_file_name='bundle.tar.xz')
+        if not tarfile.is_tarfile(archive_path):
+            # We don't really care about the TAR file being properly formatted here --
+            # it's up to the server to tell us it can't process the bundle. We just
+            # check if it's a TAR file for the convenience of the user.
+            raise NotABundlePath(bundle_path, 'Expected a directory or a tar file')
+        yield archive_path
 
 
 class Installer(object):
