@@ -1,6 +1,5 @@
 from __future__ import print_function, absolute_import
 import sys
-from time import time
 from contextlib import contextmanager
 import os
 from os.path import (exists,
@@ -32,7 +31,6 @@ from .capability import provide
 from .capabilities import FilePathProvider
 from .datasource_loader import DataSourceDirLoader, LoadFailed
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
-from .dataobject import DataObject
 from .rdf_utils import BatchAddGraph
 
 
@@ -290,7 +288,6 @@ class OWMTranslator(object):
 
                 {module_name}.{class_name}
         '''
-        import importlib as IM
         import transaction
 
         ctx = self._parent._default_ctx
@@ -474,7 +471,8 @@ class OWMContexts(object):
         editor : str
             The program which will be used to edit the context serialization.
         list_formats : bool
-            List the formats available for editing
+            List the formats available for editing (I.O.W., formats that we can both read
+            and write)
         '''
 
         from rdflib.plugin import plugins
@@ -562,7 +560,7 @@ class OWMRegistry(object):
         '''
         List registered classes
         '''
-        from .dataobject import RegistryEntry, PythonClassDescription, PythonModule
+        from .dataobject import RegistryEntry, PythonClassDescription
         ctx = self._parent._default_ctx
 
         def registry_entries():
@@ -1083,7 +1081,6 @@ class OWM(object):
         *args
             arguments to git
         '''
-        import shlex
         from subprocess import Popen, PIPE
         startdir = os.getcwd()
         try:
@@ -1098,6 +1095,11 @@ class OWM(object):
             os.chdir(startdir)
 
     def regendb(self):
+        '''
+        Regenerates the indexed database from graph serializations.
+
+        Note that any uncommitted contents in the indexed database will be deleted.
+        '''
         from glob import glob
         for g in glob(self.store_name + '*'):
             self.message('unlink', g)
@@ -1116,7 +1118,6 @@ class OWM(object):
     def _load_all_graphs(self, progress, trip_prog):
         import transaction
         from rdflib import plugin
-        from rdflib.term import URIRef
         from rdflib.parser import Parser, create_input_source
         idx_fname = pth_join(self.owmdir, 'graphs', 'index')
         triples_read = 0
@@ -1370,8 +1371,6 @@ class OWM(object):
 
     def _serialize_graphs(self, ignore_change_cache=False):
         import transaction
-        from rdflib import plugin
-        from rdflib.serializer import Serializer
         g = self.rdf
         repo = self.repository_provider
 
@@ -1435,10 +1434,8 @@ class OWM(object):
         Show differences between what's in the working context set and what's in the serializations
         """
         import sys
-        import traceback
         from difflib import unified_diff
         from os.path import join, basename
-        from git import Repo
 
         r = self.repository_provider
         try:
