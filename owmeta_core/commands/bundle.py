@@ -2,12 +2,15 @@
 Bundle commands
 '''
 from __future__ import print_function
+import hashlib
 import logging
 import shutil
-import hashlib
 from os.path import join as p, abspath, relpath, isdir
-from os import mkdir, listdir, unlink, getcwd
+from os import mkdir, unlink, getcwd
+from urllib.parse import urlparse
+
 import yaml
+
 from ..context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY
 from ..command_util import GenericUserError, GeneratorWithData, SubCommand
 from ..bundle import (Descriptor,
@@ -19,38 +22,49 @@ from ..bundle import (Descriptor,
                       Unarchiver,
                       Archiver,
                       retrieve_remotes,
-                      fmt_bundle_directory,
                       NoBundleLoader as _NoBundleLoader,
                       UncoveredImports,
                       TargetIsNotEmpty,
-                      InstallFailed)
-
-import hashlib
+                      InstallFailed,
+                      URL_CONFIG_MAP)
 
 
 L = logging.getLogger(__name__)
 
 
-class OWMBundleRemote(object):
-    ''' Commands for dealing with bundle remotes '''
+class OWMBundleRemoteAdd(object):
+    '''
+    Add a remote and, optionally, an accessor to that remote.
+
+    Remotes contain zero or more "accessor configurations" which describe how to upload to
+    and download from a remote. Sub-commands allow for specifying additional parameters
+    specific to a type of accessor.
+    '''
 
     def __init__(self, parent):
-        self._owm_bundle = parent
+        self._parent = parent
+        self._owm_bundle_remote = self._parent
+        self._owm_bundle = self._owm_bundle_remote._owm_bundle
         self._owm = self._owm_bundle._parent
 
-    def add(self, name, url):
+    def __call__(self, name, url=None):
         '''
-        Add a remote
-
         Parameters
         ----------
         name : str
             Name of the remote
         url : str
-            URL for the remote
+            URL for the remote, optional
         '''
-        url = URLConfig(url)
-        r = Remote(name, accessor_configs=(url,))
+        # Initial parse of the URL to get the scheme and the URLConfig that belongs to so
+        # we can get more options
+        acs = ()
+        if url:
+            urldata = urlparse(url)
+            url_config_class = URL_CONFIG_MAP.get(urldata.scheme, URLConfig)
+            url = url_config_class(url)
+            acs = (url,)
+        r = Remote(name, accessor_configs=acs)
         remotes_dir = p(self._owm.owmdir, 'remotes')
         if not isdir(remotes_dir):
             try:
@@ -59,13 +73,23 @@ class OWMBundleRemote(object):
                 L.warning('Could not crerate directory for storage of remote configurations', exc_info=True)
                 raise GenericUserError('Could not create directory for storage of remote configurations')
 
-        fname = self._remote_fname(r.name)
+        fname = self._owm_bundle_remote._remote_fname(r.name)
         try:
             with open(fname, 'w') as out:
                 r.write(out)
         except Exception:
             unlink(fname)
             raise
+
+
+class OWMBundleRemote(object):
+    ''' Commands for dealing with bundle remotes '''
+
+    add = SubCommand(OWMBundleRemoteAdd)
+
+    def __init__(self, parent):
+        self._owm_bundle = parent
+        self._owm = self._owm_bundle._parent
 
     def _remote_fname(self, name):
         return p(self._owm.owmdir, 'remotes', hashlib.sha224(name.encode('UTF-8')).hexdigest() + '.remote')

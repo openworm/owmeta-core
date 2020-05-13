@@ -8,7 +8,8 @@ from .docscrape import parse as npdoc_parse
 from .command_util import IVar, SubCommand
 
 
-# TODO: Use `inspect` module for getting argument names so we aren't depending on docstrings
+# TODO: Use `inspect` module for getting argument names so we aren't depending on
+# docstrings
 from .cli_common import (INSTANCE_ATTRIBUTE,
                          METHOD_NAMED_ARG,
                          METHOD_NARGS,
@@ -356,62 +357,19 @@ class CLICommandWrapper(object):
             if x.startswith('_') or x in self.hints.get('IGNORE', ()):
                 continue
             runner_type_attrs[x] = getattr(runner_type, x)
+        if '__call__' in dir(runner_type):
+            # Handle sub-commands which are, themselves, callable. Summary and details
+            # must be specified on the sub-command class docstring and would have already
+            # been handled by the ``isinstance(val, SubCommand)`` case below
+            _, _, params = self.extract_args(runner_type.__call__)
+            self._handle_method(self.program_name, parser, '__call__',
+                    runner_type.__call__, params)
         for key, val in sorted(runner_type_attrs.items()):
             if isinstance(val, (types.FunctionType, types.MethodType)):
-                sc_hints = self.hints.get(key) if self.hints else None
-                summary, detail, params = self.extract_args(val)
-
                 command_name = key.replace('_', '-')
+                summary, detail, params = self.extract_args(val)
                 subparser = sp().add_parser(command_name, help=summary, description=detail)
-
-                self.mapper.runners[command_name] = _method_runner(self.runner, key)
-                argcount = 0
-                for pindex, param in enumerate(params):
-                    action = CLIStoreAction
-                    if param.val_type == 'bool':
-                        action = CLIStoreTrueAction
-
-                    atype = ARGUMENT_TYPES.get(param.val_type)
-
-                    arg = param.name
-                    arg_cli_name = arg.replace('_', '-')
-                    desc = param.desc
-                    if arg.startswith('**'):
-                        subparser.add_argument('--' + arg_cli_name[2:],
-                                               action=CLIAppendAction,
-                                               mapper=self.mapper,
-                                               key=METHOD_KWARGS,
-                                               type=atype,
-                                               help=desc)
-                    elif arg.startswith('*'):
-                        subparser.add_argument(arg_cli_name[1:],
-                                               action=action,
-                                               nargs='*',
-                                               key=METHOD_NARGS,
-                                               mapper=self.mapper,
-                                               type=atype,
-                                               help=desc)
-                    else:
-                        arg_hints = self._arg_hints(sc_hints, METHOD_NAMED_ARG, arg)
-                        names = None if arg_hints is None else arg_hints.get('names')
-                        if names is None:
-                            names = ['--' + arg_cli_name]
-                        argument_args = dict(action=action,
-                                             key=METHOD_NAMED_ARG,
-                                             mapper=self.mapper,
-                                             index=pindex,
-                                             mapped_name=arg,
-                                             type=atype,
-                                             help=desc)
-                        if arg_hints:
-                            nargs = arg_hints.get('nargs')
-                            if nargs is not None:
-                                argument_args['nargs'] = nargs
-
-                        subparser.add_argument(*names,
-                                               **argument_args)
-                        argcount += 1
-                self.mapper.named_arg_count[key] = argcount
+                self._handle_method(command_name, subparser, key, val, params)
             elif isinstance(val, property):
                 doc = getattr(val, '__doc__', None)
                 parser.add_argument('--' + key, help=doc,
@@ -449,6 +407,57 @@ class CLICommandWrapper(object):
                 parser.add_argument(*names, **arg_kwargs)
 
         return parser
+
+    def _handle_method(self, command_name, subparser, key, val, params):
+        sc_hints = self.hints.get(key) if self.hints else None
+        self.mapper.runners[command_name] = _method_runner(self.runner, key)
+        argcount = 0
+        for pindex, param in enumerate(params):
+            action = CLIStoreAction
+            if param.val_type == 'bool':
+                action = CLIStoreTrueAction
+
+            atype = ARGUMENT_TYPES.get(param.val_type)
+
+            arg = param.name
+            arg_cli_name = arg.replace('_', '-')
+            desc = param.desc
+            if arg.startswith('**'):
+                subparser.add_argument('--' + arg_cli_name[2:],
+                                       action=CLIAppendAction,
+                                       mapper=self.mapper,
+                                       key=METHOD_KWARGS,
+                                       type=atype,
+                                       help=desc)
+            elif arg.startswith('*'):
+                subparser.add_argument(arg_cli_name[1:],
+                                       action=action,
+                                       nargs='*',
+                                       key=METHOD_NARGS,
+                                       mapper=self.mapper,
+                                       type=atype,
+                                       help=desc)
+            else:
+                arg_hints = self._arg_hints(sc_hints, METHOD_NAMED_ARG, arg)
+                names = None if arg_hints is None else arg_hints.get('names')
+                if names is None:
+                    names = ['--' + arg_cli_name]
+                argument_args = dict(action=action,
+                                     key=METHOD_NAMED_ARG,
+                                     mapper=self.mapper,
+                                     index=pindex,
+                                     mapped_name=arg,
+                                     type=atype,
+                                     help=desc)
+                if arg_hints:
+                    nargs = arg_hints.get('nargs')
+                    if nargs is not None:
+                        argument_args['nargs'] = nargs
+
+                subparser.add_argument(*names,
+                                       **argument_args)
+                argcount += 1
+        self.mapper.named_arg_count[key] = argcount
 
     def _arg_hints(self, sc_hints, atype, key):
         return None if sc_hints is None else sc_hints.get((atype, key))
