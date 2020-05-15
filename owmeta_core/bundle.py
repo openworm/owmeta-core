@@ -190,6 +190,10 @@ class URLConfig(AccessorConfig):
     def __str__(self):
         return '{}(url={})'.format(FCN(type(self)), repr(self.url))
 
+    @classmethod
+    def register(cls, scheme):
+        URL_CONFIG_MAP[scheme] = cls
+
     __repr__ = __str__
 
 

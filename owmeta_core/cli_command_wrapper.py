@@ -3,6 +3,8 @@ import sys
 import types
 import argparse
 import copy as _copy
+import functools
+
 from .utils import FCN
 from .docscrape import parse as npdoc_parse
 from .command_util import IVar, SubCommand
@@ -33,8 +35,10 @@ class CLIUserError(Exception):
 
 
 def _method_runner(runner, key):
+    method = getattr(runner, key)
+    @functools.wraps(method)
     def _f(*args, **kwargs):
-        return getattr(runner, key)(*args, **kwargs)
+        return method(*args, **kwargs)
     return _f
 
 
@@ -58,6 +62,8 @@ class CLIArgMapper(object):
         self.named_arg_count = dict()
 
         self.argparser = None
+        # A special little mapper just for callable runners
+        self.runner_mapper = None
 
     def apply(self, runner):
         '''
@@ -89,18 +95,17 @@ class CLIArgMapper(object):
         except StopIteration:
             nargs = ()
 
-        runmethod = None
+        runmethod = self.runners.get(self.methodname, None)
 
-        if self.methodname:
-            runmethod = self.runners.get(self.methodname, None)
+        if callable(runner) and self.runner_mapper:
+            maybe_ret = self.runner_mapper.apply(runner)
+            if runmethod is None:
+                return maybe_ret
 
         if runmethod is None:
-            if callable(runner):
-                runmethod = runner
-            else:
-                self.argparser.print_help(file=sys.stderr)
-                print(file=sys.stderr)
-                raise CLIUserError('Please specify a sub-command')
+            self.argparser.print_help(file=sys.stderr)
+            print(file=sys.stderr)
+            raise CLIUserError('Please specify a sub-command')
         argcount = self.named_arg_count.get(self.methodname)
         if nargs and args and argcount is not None and len(args) != argcount:
             # This means we have passed in positional arguments, and we have a
@@ -362,8 +367,13 @@ class CLICommandWrapper(object):
             # must be specified on the sub-command class docstring and would have already
             # been handled by the ``isinstance(val, SubCommand)`` case below
             _, _, params = self.extract_args(runner_type.__call__)
+            saved_mapper = self.mapper
+            self.mapper = CLIArgMapper()
             self._handle_method(self.program_name, parser, '__call__',
                     runner_type.__call__, params)
+            saved_mapper.runner_mapper = self.mapper
+            self.mapper = saved_mapper
+            # reset our mapper so the methods and such
         for key, val in sorted(runner_type_attrs.items()):
             if isinstance(val, (types.FunctionType, types.MethodType)):
                 command_name = key.replace('_', '-')

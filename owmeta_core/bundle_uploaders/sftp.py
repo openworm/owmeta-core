@@ -90,3 +90,23 @@ class SFTPURLConfig(URLConfig):
         self.password = password or parsed.password
         self.public_key = public_key
         self.host_key = host_key
+
+
+SFTPURLConfig.register('sftp')
+
+
+def sftp_remote(self, password=None, public_key=None, host_key=None):
+    '''
+    Parameters for SFTP connection
+
+    Parameters
+    ----------
+    password : str
+        Password for the SFTP server. CAUTION: Will be stored in plain-text in the project
+        directory, though it will not be shared. optional
+    public_key : str
+        Path to the public key file
+    host_key : str
+        Host key for the remote
+    '''
+    print('self', self, password)

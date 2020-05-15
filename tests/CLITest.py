@@ -2,6 +2,7 @@ import json
 import re
 import unittest
 from unittest.mock import patch, Mock
+from types import MethodType
 
 import pytest
 
@@ -319,7 +320,7 @@ def test_augmented_hints(caplog):
 
 
 def test_augment_subcommands_no_entries():
-    with patch('owmeta_core.cli.iter_entry_points') as iter_entry_points, \
+    with patch('owmeta_core.cli.iter_entry_points'), \
             patch('owmeta_core.cli.OWM') as base_cmd:
         assert base_cmd is PCLI._augment_subcommands_from_entry_points()
 
@@ -328,7 +329,7 @@ def test_augment_subcommands_base_name_matches():
     class Base:
         pass
     with patch('owmeta_core.cli.iter_entry_points') as iter_entry_points, \
-            patch('owmeta_core.cli.OWM', new=Base) as base_cmd:
+            patch('owmeta_core.cli.OWM', new=Base):
         ep = Mock(name='entry_point')
         sc = Mock('subcommand')
         ep.name = 'apple'
@@ -345,7 +346,7 @@ def test_augment_subcommands_subcommand_is_instance():
         def __init__(self, parent):
             pass
     with patch('owmeta_core.cli.iter_entry_points') as iter_entry_points, \
-            patch('owmeta_core.cli.OWM', new=Base) as base_cmd:
+            patch('owmeta_core.cli.OWM', new=Base):
         ep = Mock(name='entry_point')
         sc = SubCommand
         ep.name = 'apple'
@@ -359,7 +360,7 @@ def test_augment_subcommands_subcommand_on_non_existant_fails():
         pass
     with pytest.raises(AttributeError, match=r'apple'):
         with patch('owmeta_core.cli.iter_entry_points') as iter_entry_points, \
-                patch('owmeta_core.cli.OWM', new=Base) as base_cmd:
+                patch('owmeta_core.cli.OWM', new=Base):
             ep = Mock(name='entry_point')
             ep.name = 'apple.pear'
             ep.load.return_value = Mock('sc')
@@ -380,7 +381,7 @@ def test_augment_subcommands_level_ordered_with_two():
             pass
 
     with patch('owmeta_core.cli.iter_entry_points') as iter_entry_points, \
-            patch('owmeta_core.cli.OWM', new=Base) as base_cmd:
+            patch('owmeta_core.cli.OWM', new=Base):
 
         scscep = Mock(name='entry_point')
         scscep.name = 'apple.pear'
@@ -412,7 +413,7 @@ def test_augment_mult_subsubcommands():
             pass
 
     with patch('owmeta_core.cli.iter_entry_points') as iter_entry_points, \
-            patch('owmeta_core.cli.OWM', new=Base) as base_cmd:
+            patch('owmeta_core.cli.OWM', new=Base):
 
         scscep1 = Mock(name='entry_point_peach')
         scscep1.name = 'apple.peach'
@@ -430,6 +431,23 @@ def test_augment_mult_subsubcommands():
         augmented = PCLI._augment_subcommands_from_entry_points()
         assert isinstance(augmented().apple.pear, SubSubCommand2)
         assert isinstance(augmented().apple.peach, SubSubCommand1)
+
+
+def test_augment_function_subcommand():
+    class Base:
+        pass
+
+    def subcommand(self):
+        pass
+
+    with patch('owmeta_core.cli.iter_entry_points') as iter_entry_points, \
+            patch('owmeta_core.cli.OWM', new=Base):
+        ep = Mock(name='entry_point')
+        ep.name = 'apple'
+        ep.load.return_value = subcommand
+        iter_entry_points.return_value = [ep]
+        augmented = PCLI._augment_subcommands_from_entry_points()
+        assert isinstance(augmented().apple, MethodType)
 
 
 def with_defaults(func):

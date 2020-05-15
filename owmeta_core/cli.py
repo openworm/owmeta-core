@@ -158,7 +158,6 @@ def main():
         from cProfile import Profile
         profiler = Profile()
         profiler.enable()
-    out = None
 
     try:
         _helper(p)
@@ -216,7 +215,10 @@ def _augment_subcommands_from_entry_points():
         level_key = None
         for path, cmd in level:
             level_key = path[:-1]
-            override_dict[path[-1]] = SubCommand(cmd)
+            if isinstance(cmd, type):
+                override_dict[path[-1]] = SubCommand(cmd)
+            else:
+                override_dict[path[-1]] = cmd
 
         if level_key is not None:
             orig_cmd = command_map.get(level_key)

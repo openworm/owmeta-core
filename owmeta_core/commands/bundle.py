@@ -46,6 +46,7 @@ class OWMBundleRemoteAdd(object):
         self._owm_bundle_remote = self._parent
         self._owm_bundle = self._owm_bundle_remote._owm_bundle
         self._owm = self._owm_bundle._parent
+        self.remote = None
 
     def __call__(self, name, url=None):
         '''
@@ -64,7 +65,7 @@ class OWMBundleRemoteAdd(object):
             url_config_class = URL_CONFIG_MAP.get(urldata.scheme, URLConfig)
             url = url_config_class(url)
             acs = (url,)
-        r = Remote(name, accessor_configs=acs)
+        self.remote = Remote(name, accessor_configs=acs)
         remotes_dir = p(self._owm.owmdir, 'remotes')
         if not isdir(remotes_dir):
             try:
@@ -73,10 +74,10 @@ class OWMBundleRemoteAdd(object):
                 L.warning('Could not crerate directory for storage of remote configurations', exc_info=True)
                 raise GenericUserError('Could not create directory for storage of remote configurations')
 
-        fname = self._owm_bundle_remote._remote_fname(r.name)
+        fname = self._owm_bundle_remote._remote_fname(self.remote.name)
         try:
             with open(fname, 'w') as out:
-                r.write(out)
+                self.remote.write(out)
         except Exception:
             unlink(fname)
             raise

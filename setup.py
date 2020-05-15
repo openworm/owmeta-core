@@ -94,6 +94,9 @@ setup(
             'agg = owmeta_core.agg_store:AggregateStore',
             'owmeta_core_bds = owmeta_core.bundle_dependency_store:BundleDependencyStore',
         ],
+        'owmeta_core.commands': [
+            'bundle.remote.add.sftp = owmeta_core.bundle_uploaders.sftp:sftp_remote',
+        ]
     },
     package_data={'owmeta_core': ['default.conf']},
     classifiers=[
