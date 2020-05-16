@@ -6,8 +6,11 @@ import pytest
 
 try:
     from paramiko import DSSKey, RSAKey, ECDSAKey, Ed25519Key, SSHException
+    from paramiko.hostkeys import HostKeyEntry
+    from cryptography.hazmat.primitives.asymmetric import ec
 except ImportError:
-    pytest.skip("Skipping SFTP bundle upload tests due to lack of paramiko", allow_module_level=True)
+    pytest.skip('Skipping SFTP bundle upload tests due to lack of "paramiko" or "cryptography"',
+            allow_module_level=True)
 
 from owmeta_core.command_util import GenericUserError
 from owmeta_core.bundle_uploaders.sftp import DumbSFTPUploader, SFTPURLConfig, sftp_remote
@@ -109,26 +112,109 @@ def test_sftp_remote_add_ed25519_identity(genkey):
     assert isinstance(self._url_config.identity, Ed25519Key)
 
 
+def test_sftp_remote_add_rsa_host_key(genhostkey):
+    self, hostkeyfile = genhostkey(RSAKey)
+    sftp_remote(self, host_key=hostkeyfile, host_key_type='RSA')
+
+    assert isinstance(self._url_config.host_key, RSAKey)
+
+
+def test_sftp_remote_add_ecdsa_host_key_without_type_specified(genhostkey):
+    self, hostkeyfile = genhostkey(ECDSAKey)
+    sftp_remote(self, host_key=hostkeyfile)
+
+    assert isinstance(self._url_config.host_key, ECDSAKey)
+
+
+def test_sftp_remote_add_ecdsa_nistp384_host_key_with_type_specified(genhostkey):
+    self, hostkeyfile = genhostkey(ECDSAKey, curve=ec.SECP384R1())
+    sftp_remote(self, host_key=hostkeyfile, host_key_type='ECDSA')
+
+    # Don't really care what curve, but the different key types have different key file
+    # formats. Default is 256P
+    assert isinstance(self._url_config.host_key, ECDSAKey)
+
+
+def test_sftp_remote_add_ecdsa_nistp521_host_key_with_type_specified(genhostkey):
+    self, hostkeyfile = genhostkey(ECDSAKey, curve=ec.SECP521R1())
+    sftp_remote(self, host_key=hostkeyfile, host_key_type='ECDSA')
+
+    # Don't really care what curve, but the different key types have different key file
+    # formats. Default is 256P
+    assert isinstance(self._url_config.host_key, ECDSAKey)
+
+
+def test_sftp_remote_add_host_key_type_not_found(genhostkey):
+    self, hostkeyfile = genhostkey(RSAKey)
+    with pytest.raises(GenericUserError, match=r'DSS'):
+        sftp_remote(self, host_key=hostkeyfile, host_key_type='DSS')
+
+
+def test_sftp_remote_add_hostkey_host_not_found(tempdir):
+    self = Mock()
+    self._url_config = SFTPURLConfig('sftp://example.org')
+    hostkeyfile = p(tempdir, 'known_hosts')
+    open(hostkeyfile, 'w').close()
+    with pytest.raises(GenericUserError):
+        sftp_remote(self, host_key=hostkeyfile)
+
+
+def test_sftp_remote_add_hostkey_file_not_found(tempdir):
+    self = Mock()
+    self._url_config = SFTPURLConfig('sftp://example.org')
+    hostkeyfile = p(tempdir, 'known_hosts')
+    with pytest.raises(GenericUserError):
+        sftp_remote(self, host_key=hostkeyfile)
+
+
+def test_sftp_remote_add_host_key_unrecognized_type(genhostkey):
+    self, hostkeyfile = genhostkey(RSAKey)
+    with pytest.raises(GenericUserError, match=r'UNCE-UNCE-UNCE'):
+        sftp_remote(self, host_key=hostkeyfile, host_key_type='UNCE-UNCE-UNCE')
+
+
 @pytest.fixture
 def genkey(tempdir):
     def fun(keytype, *args, **kwargs):
-        self = Mock()
-        self._url_config = SFTPURLConfig('sftp://example.org')
-        keyfile = p(tempdir, 'blah.key')
-        if keytype is Ed25519Key:
-            # Ed25519Key doesn't have a 'generate' method
-            keydata = '''\
-            -----BEGIN OPENSSH PRIVATE KEY-----
-            b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
-            QyNTUxOQAAACBUzXzTlCOstpcekcQyBc7sUydNML0Mai/qbgAviUd2XwAAAJj2toqH9raK
-            hwAAAAtzc2gtZWQyNTUxOQAAACBUzXzTlCOstpcekcQyBc7sUydNML0Mai/qbgAviUd2Xw
-            AAAEDFOCEqWHTW/7hDx05+gkBFyDuA1Ljk/5xVf/pfeOIb7lTNfNOUI6y2lx6RxDIFzuxT
-            J00wvQxqL+puAC+JR3ZfAAAAFG1hcmt3QGFyY3RpYy1vdXRwb3N0AQ==
-            -----END OPENSSH PRIVATE KEY-----'''
-            with open(keyfile, 'w') as f:
-                f.write(dedent(keydata))
-        else:
-            with open(keyfile, 'w') as f:
-                keytype.generate(*args, **kwargs).write_private_key(f)
+        self, keyfile, key = genkey_func(tempdir, keytype, *args, **kwargs)
         return self, keyfile
     return fun
+
+
+@pytest.fixture
+def genhostkey(tempdir):
+    def fun(keytype, *args, **kwargs):
+        self, keyfile, key = genkey_func(tempdir, keytype, *args, **kwargs)
+        hostkeyfile = p(tempdir, 'known_hosts')
+        with open(hostkeyfile, 'w') as f:
+            print(HostKeyEntry(['example.org'], key).to_line(), file=f)
+        return self, hostkeyfile
+    return fun
+
+
+def genkey_func(tempdir, keytype, *args, **kwargs):
+    self = Mock()
+    self._url_config = SFTPURLConfig('sftp://example.org')
+    keyfile = p(tempdir, 'blah.key')
+    if keytype is Ed25519Key:
+        # Ed25519Key doesn't have a 'generate' method
+        keydata = '''\
+        -----BEGIN OPENSSH PRIVATE KEY-----
+        b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+        QyNTUxOQAAACBUzXzTlCOstpcekcQyBc7sUydNML0Mai/qbgAviUd2XwAAAJj2toqH9raK
+        hwAAAAtzc2gtZWQyNTUxOQAAACBUzXzTlCOstpcekcQyBc7sUydNML0Mai/qbgAviUd2Xw
+        AAAEDFOCEqWHTW/7hDx05+gkBFyDuA1Ljk/5xVf/pfeOIb7lTNfNOUI6y2lx6RxDIFzuxT
+        J00wvQxqL+puAC+JR3ZfAAAAFG1hcmt3QGFyY3RpYy1vdXRwb3N0AQ==
+        -----END OPENSSH PRIVATE KEY-----'''
+        with open(keyfile, 'w+') as f:
+            f.write(dedent(keydata))
+            f.seek(0)
+            key = Ed25519Key(file_obj=f)
+    else:
+        if keytype is RSAKey and not args and 'bits' not in kwargs:
+            args = list(args)
+            args.append(512)
+        with open(keyfile, 'w') as f:
+            key = keytype.generate(*args, **kwargs)
+            key.write_private_key(f)
+    return self, keyfile, key

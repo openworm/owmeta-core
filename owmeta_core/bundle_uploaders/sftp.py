@@ -5,7 +5,7 @@ Logic for a dumb SFTP bundle uploader
 from os.path import basename
 from urllib.parse import urlparse
 
-from paramiko import Transport, SFTPClient, RSAKey, ECDSAKey, DSSKey, Ed25519Key
+from paramiko import Transport, SFTPClient, RSAKey, ECDSAKey, DSSKey, Ed25519Key, HostKeys
 
 from ..command_util import GenericUserError
 from ..bundle import Uploader, URLConfig
@@ -15,6 +15,13 @@ KEYTYPES = {'RSA': RSAKey,
             'DSA': DSSKey,
             'DSS': DSSKey,
             'ED25519': Ed25519Key}
+
+
+KNOWN_HOSTS_KEY_TYPE_MAP = {'RSA': ('ssh-rsa',),
+                            'ECDSA': tuple(ECDSAKey.supported_key_format_identifiers()),
+                            'DSA': ('ssh-dss',),
+                            'DSS': ('ssh-dss',),
+                            'ED25519': ('ssh-ed25519',)}
 
 
 class DumbSFTPUploader(Uploader):
@@ -43,6 +50,15 @@ class DumbSFTPUploader(Uploader):
         self.sftp_url = sftp_url
 
     def upload(self, bundle_path):
+        '''
+        Upload the given bundle to the SFTP host specified by the `SFTPURLConfig` specified
+        at initialization.
+
+        If the URL config does not specify a host key, then host-key checking will not be
+        done.
+
+        If the URL config does not specify auth details (password or identity), then
+        '''
         with self.ensure_archive(bundle_path) as archive_path:
             host = self.sftp_url.hostname
             port = self.sftp_url.port
@@ -117,28 +133,26 @@ SFTPURLConfig.register('sftp')
 
 def sftp_remote(self, *, password=None,
         identity_type='RSA', identity=None,
-        host_key_type='RSA', host_key=None,
-        auto_add_host_key=False):
+        host_key_type=None, host_key=None):
     '''
-    Parameters for SFTP connection
+    Parameters for SFTP connections
 
     Parameters
     ----------
     password : str
         Password for the SFTP server.
-
         CAUTION: Will be stored in plain-text in the project directory, though it will not
         be shared. optional
     identity : str
         Path to the identity file (e.g., '~/.ssh/id_rsa')
     identity_type : str
-        The key type for the identity file. "RSA", "ECDSA", "DSS", "DSA". optional,
-        default is "RSA".
+        The key type for the identity file. "RSA", "ECDSA", "DSS", "DSA", "ED25519".
+        optional, default is "RSA".
     host_key : str
-        Host key for the remote
+        Host key file (e.g., '~/.ssh/known_hosts')
     host_key_type : str
-        The key type for the host key file. "RSA", "ECDSA", "DSS", "DSA". optional,
-        default is "RSA".
+        The key type for the host key file. "RSA", "ECDSA", "DSS", "DSA", "ED25519".
+        optional. The default is to accept any host key type for this host.
     '''
     if not isinstance(self._url_config, SFTPURLConfig):
         raise GenericUserError('The specified URL is not an SFTP URL')
@@ -155,4 +169,28 @@ def sftp_remote(self, *, password=None,
         else:
             self._url_config.identity = keytype.from_private_key_file(identity)
     if host_key:
-        self._url_config.host_key = host_key
+        try:
+            known_hosts = HostKeys(host_key)
+        except FileNotFoundError:
+            raise GenericUserError(f'The given host key file {host_key} could not be found')
+        hostkeys = known_hosts.lookup(self._url_config.hostname)
+        if not hostkeys:
+            raise GenericUserError('There are no host keys associated with'
+                    f' {self._url_config.hostname}')
+        if host_key_type:
+            try:
+                keys = KNOWN_HOSTS_KEY_TYPE_MAP[host_key_type]
+                for k in keys:
+                    pkey = hostkeys.get(k)
+                    if pkey:
+                        break
+                else: # no break
+                    raise GenericUserError(f'There are no host keys with the given type {host_key_type}')
+            except KeyError:
+                raise GenericUserError(('Unrecognized key type {}.'
+                        ' Recognized key types: {}').format(host_key_type,
+                            ', '.join(KNOWN_HOSTS_KEY_TYPE_MAP)))
+        else:
+            for pkey in hostkeys.values():
+                break
+        self._url_config.host_key = pkey
