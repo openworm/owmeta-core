@@ -185,4 +185,7 @@ class GeneratorWithData(object):
 
 
 class GenericUserError(Exception):
-    ''' An error which should be reported to the user. Not necessarily an error that is the user's fault '''
+    '''
+    An error which should be reported to the user. Not necessarily an error that is
+    the user's fault
+    '''

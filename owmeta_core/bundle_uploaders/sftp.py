@@ -1,10 +1,20 @@
+'''
+Logic for a dumb SFTP bundle uploader
+'''
+
 from os.path import basename
 from urllib.parse import urlparse
 
-from paramiko import Transport
-from paramiko.sftp_client import SFTPClient
+from paramiko import Transport, SFTPClient, RSAKey, ECDSAKey, DSSKey, Ed25519Key
 
+from ..command_util import GenericUserError
 from ..bundle import Uploader, URLConfig
+
+KEYTYPES = {'RSA': RSAKey,
+            'ECDSA': ECDSAKey,
+            'DSA': DSSKey,
+            'DSS': DSSKey,
+            'ED25519': Ed25519Key}
 
 
 class DumbSFTPUploader(Uploader):
@@ -18,7 +28,7 @@ class DumbSFTPUploader(Uploader):
         '''
         Parameters
         ----------
-        upload_url : str or URLConfig
+        upload_url : str or .URLConfig
             URL string or accessor config
         '''
         if (isinstance(upload_url, URLConfig) and
@@ -48,7 +58,7 @@ class DumbSFTPUploader(Uploader):
         connect_args = dict()
         for a in [('username',),
                   ('password',),
-                  ('public_key', 'pkey'),
+                  ('identity', 'pkey'),
                   ('host_key', 'hostkey')]:
             self._set_if_configured(connect_args, *a)
         return connect_args
@@ -69,44 +79,80 @@ class DumbSFTPUploader(Uploader):
 
 
 class SFTPURLConfig(URLConfig):
+    '''
+    The URL path is interpreted as a relative path unless a double-slash is used. For
+    instance::
 
-    def __init__(self, *args, password=None, public_key=None, host_key=None, **kwargs):
+        sftp://example.org//target/dir
+
+    would be presented to the SFTP server as ``/target/dir`` for all SFTP operations.
+    '''
+
+    def __init__(self, *args, password=None, identity=None, host_key=None, **kwargs):
         '''
         Parameters
         ----------
         password : str, optional
             Password for connecting to the SFTP server
-        public_key : paramiko.pkey.PKey, optional
-            Public key for authenticating to the SFTP server
+        identity : paramiko.pkey.PKey, optional
+            Private key for authenticating to the SFTP server
         host_key : paramiko.pkey.PKey, optional
-            Public key of the SFTP server for host_key checking
+            Public key of the SFTP server for host-key checking
         '''
         super(SFTPURLConfig, self).__init__(*args, **kwargs)
         parsed = urlparse(self.url)
-        self.path = parsed.path
+        if parsed.scheme != 'sftp':
+            raise ValueError(f'Given URL "{self.url}" is not an SFTP URL')
+        self.path = parsed.path[1:] if parsed.path.startswith('/') else parsed.path
         self.hostname = parsed.hostname
         self.port = parsed.port
         self.username = parsed.username
         self.password = password or parsed.password
-        self.public_key = public_key
+        self.identity = identity
         self.host_key = host_key
 
 
 SFTPURLConfig.register('sftp')
 
 
-def sftp_remote(self, password=None, public_key=None, host_key=None):
+def sftp_remote(self, *, password=None,
+        identity_type='RSA', identity=None,
+        host_key_type='RSA', host_key=None,
+        auto_add_host_key=False):
     '''
     Parameters for SFTP connection
 
     Parameters
     ----------
     password : str
-        Password for the SFTP server. CAUTION: Will be stored in plain-text in the project
-        directory, though it will not be shared. optional
-    public_key : str
-        Path to the public key file
+        Password for the SFTP server.
+
+        CAUTION: Will be stored in plain-text in the project directory, though it will not
+        be shared. optional
+    identity : str
+        Path to the identity file (e.g., '~/.ssh/id_rsa')
+    identity_type : str
+        The key type for the identity file. "RSA", "ECDSA", "DSS", "DSA". optional,
+        default is "RSA".
     host_key : str
         Host key for the remote
+    host_key_type : str
+        The key type for the host key file. "RSA", "ECDSA", "DSS", "DSA". optional,
+        default is "RSA".
     '''
-    print('self', self, password)
+    if not isinstance(self._url_config, SFTPURLConfig):
+        raise GenericUserError('The specified URL is not an SFTP URL')
+    self._url_config.password = password
+    if identity:
+        try:
+            keytype = KEYTYPES[identity_type.upper()]
+        except KeyError:
+            raise GenericUserError('The only key types accepted are {}, but we were given'
+                    ' {}'.format(', '.join(KEYTYPES), identity_type))
+
+        if keytype is Ed25519Key:
+            self._url_config.identity = keytype(filename=identity)
+        else:
+            self._url_config.identity = keytype.from_private_key_file(identity)
+    if host_key:
+        self._url_config.host_key = host_key
