@@ -87,7 +87,16 @@ CLI_HINTS = {
             },
             (METHOD_NAMED_ARG, 'url'): {
                 'names': ['url'],
-                'nargs': '?'
+            },
+        },
+    },
+    'owmeta_core.commands.bundle.OWMBundleRemoteUpdate': {
+        '__call__': {
+            (METHOD_NAMED_ARG, 'name'): {
+                'names': ['name'],
+            },
+            (METHOD_NAMED_ARG, 'url'): {
+                'names': ['url'],
             },
         },
     },

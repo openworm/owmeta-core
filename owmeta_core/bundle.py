@@ -89,6 +89,8 @@ class Remote(object):
         '''
 
     def add_config(self, accessor_config):
+        if accessor_config in self.accessor_configs:
+            return
         self.accessor_configs.append(accessor_config)
 
     def generate_loaders(self):
@@ -146,6 +148,12 @@ class Remote(object):
     def __hash__(self):
         return hash((self.name, self.accessor_configs))
 
+    def __str__(self):
+        return f'Remote({self.name})'
+
+    def __repr__(self):
+        return f'{FCN(type(self))}({repr(self.name)}, {repr(self.accessor_configs)})'
+
 
 class DependencyDescriptor(namedtuple('_DependencyDescriptor',
         ('id', 'version', 'excludes'))):
@@ -182,7 +190,7 @@ class URLConfig(AccessorConfig):
         self.url = url
 
     def __eq__(self, other):
-        return self.url == other.url
+        return isinstance(other, URLConfig) and self.url == other.url
 
     def __hash__(self):
         return hash(self.url)
@@ -828,6 +836,10 @@ class Uploader(object):
 
     def __call__(self, *args, **kwargs):
         return self.upload(*args, **kwargs)
+
+    @classmethod
+    def register(cls):
+        UPLOADER_CLASSES.append(cls)
 
 
 class Cache(object):

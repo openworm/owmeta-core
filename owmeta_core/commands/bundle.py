@@ -5,7 +5,7 @@ from __future__ import print_function
 import hashlib
 import logging
 import shutil
-from os.path import join as p, abspath, relpath, isdir
+from os.path import join as p, abspath, relpath, isdir, isfile
 from os import mkdir, unlink, getcwd
 from urllib.parse import urlparse
 
@@ -17,11 +17,13 @@ from ..bundle import (Descriptor,
                       Installer,
                       URLConfig,
                       Remote,
+                      Deployer,
                       Fetcher,
                       Cache,
                       Unarchiver,
                       Archiver,
                       retrieve_remotes,
+                      find_bundle_directory,
                       NoBundleLoader as _NoBundleLoader,
                       UncoveredImports,
                       TargetIsNotEmpty,
@@ -32,15 +34,7 @@ from ..bundle import (Descriptor,
 L = logging.getLogger(__name__)
 
 
-class OWMBundleRemoteAdd(object):
-    '''
-    Add a remote and, optionally, an accessor to that remote.
-
-    Remotes contain zero or more "accessor configurations" which describe how to upload to
-    and download from a remote. Sub-commands allow for specifying additional parameters
-    specific to a type of accessor.
-    '''
-
+class _OWMBundleRemoteAddUpdate(object):
     def __init__(self, parent):
         self._parent = parent
         self._owm_bundle_remote = self._parent
@@ -49,14 +43,48 @@ class OWMBundleRemoteAdd(object):
         self._remote = None
         self._url_config = None
 
-    def __call__(self, name, url=None):
+    def _remote_fname(self, name):
+        return self._owm_bundle_remote._remote_fname(name)
+
+    def _write_remote(self):
+        fname = self._remote_fname(self._remote.name)
+        try:
+            with open(fname, 'w') as out:
+                self._remote.write(out)
+        except Exception:
+            unlink(fname)
+            raise
+
+    def _remote_exists(self, name):
+        return isfile(self._remote_fname(name))
+
+    def _read_remote(self, name):
+        try:
+            with open(self._remote_fname(name)) as f:
+                self._remote = Remote.read(f)
+        except FileNotFoundError:
+            pass
+        except Exception:
+            raise GenericUserError(f'Unable to read remote {name}')
+
+
+class OWMBundleRemoteAdd(_OWMBundleRemoteAddUpdate):
+    '''
+    Add a remote and, optionally, an accessor to that remote.
+
+    Remotes contain zero or more "accessor configurations" which describe how to upload to
+    and download from a remote. Sub-commands allow for specifying additional parameters
+    specific to a type of accessor.
+    '''
+
+    def __call__(self, name, url):
         '''
         Parameters
         ----------
         name : str
             Name of the remote
         url : str
-            URL for the remote, optional
+            URL for the remote
         '''
         # Initial parse of the URL to get the scheme and the URLConfig that belongs to so
         # we can get more options
@@ -64,9 +92,14 @@ class OWMBundleRemoteAdd(object):
         if url:
             urldata = urlparse(url)
             url_config_class = URL_CONFIG_MAP.get(urldata.scheme, URLConfig)
-            url = url_config_class(url)
-            acs = (url,)
-        self._remote = Remote(name, accessor_configs=acs)
+            self._url_config = url_config_class(url)
+            acs = (self._url_config,)
+
+        self._read_remote(name)
+        if self._remote:
+            self._remote.add_config(self._url_config)
+        else:
+            self._remote = Remote(name, accessor_configs=acs)
         remotes_dir = p(self._owm.owmdir, 'remotes')
         if not isdir(remotes_dir):
             try:
@@ -75,19 +108,40 @@ class OWMBundleRemoteAdd(object):
                 L.warning('Could not crerate directory for storage of remote configurations', exc_info=True)
                 raise GenericUserError('Could not create directory for storage of remote configurations')
 
-        fname = self._owm_bundle_remote._remote_fname(self._remote.name)
-        try:
-            with open(fname, 'w') as out:
-                self._remote.write(out)
-        except Exception:
-            unlink(fname)
-            raise
+        self._write_remote()
+
+
+class OWMBundleRemoteUpdate(_OWMBundleRemoteAddUpdate):
+    '''
+    Update a remote accessor
+
+    Remotes contain zero or more "accessor configurations" which describe how to upload to
+    and download from a remote. Sub-commands allow for specifying additional parameters
+    specific to a type of accessor.
+    '''
+
+    def __call__(self, name, url):
+        '''
+        Parameters
+        ----------
+        name : str
+            Name of the remote
+        url : str
+            URL for the remote. If there is an accessor with this URL, then that accessor
+            will be updated according to parameters specified in sub-commands
+        '''
+        self._read_remote(name)
+        for ac in self._remote.accessor_configs:
+            if isinstance(ac, URLConfig) and ac.url == url:
+                self._url_config = ac.url
+                break
 
 
 class OWMBundleRemote(object):
     ''' Commands for dealing with bundle remotes '''
 
     add = SubCommand(OWMBundleRemoteAdd)
+    update = SubCommand(OWMBundleRemoteUpdate)
 
     def __init__(self, parent):
         self._owm_bundle = parent
@@ -340,7 +394,7 @@ class OWMBundle(object):
                     continue
                 print(line, file=f)
 
-    def deploy(self, bundle_id, remotes=None):
+    def deploy(self, bundle_id, version=None, remotes=None):
         '''
         Deploys a bundle to a remote. The target remotes come from project and user
         settings or, if provided, the `remotes` parameter
@@ -349,9 +403,14 @@ class OWMBundle(object):
         ----------
         bundle_id : str
             ID of the bundle to deploy
+        version : int
+            Version of the bundle to deploy. optional.
         remotes : str
             Names of the remotes to deploy to. optional.
         '''
+        bundles_directory = self._bundles_directory()
+        bundle_path = find_bundle_directory(bundles_directory, bundle_id)
+        Deployer(remotes=self._retrieve_remotes()).deploy(bundle_path, remotes=remotes)
 
     def checkout(self, bundle_id):
         '''

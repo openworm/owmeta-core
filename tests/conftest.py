@@ -139,6 +139,19 @@ def owm_project():
 
 
 @fixture
+def owm_project_with_customizations():
+    @contextmanager
+    def f(*args, **kwargs):
+        res = _shell_helper(*args, **kwargs)
+        try:
+            res.sh('owm -b init --default-context-id "http://example.org/data"')
+            yield res
+        finally:
+            shutil.rmtree(res.testdir)
+    return f
+
+
+@fixture
 def shell_helper():
     res = _shell_helper()
     try:
@@ -147,7 +160,19 @@ def shell_helper():
         shutil.rmtree(res.testdir)
 
 
-def _shell_helper():
+@fixture
+def shell_helper_with_customizations():
+    @contextmanager
+    def f(*args, **kwargs):
+        res = _shell_helper(*args, **kwargs)
+        try:
+            yield res
+        finally:
+            shutil.rmtree(res.testdir)
+    return f
+
+
+def _shell_helper(customizations=None):
     res = Data()
     os.mkdir(res.test_homedir)
     with open(p('tests', 'pytest-cov-embed.py'), 'r') as f:
@@ -155,6 +180,14 @@ def _shell_helper():
     # Added so pytest_cov gets to run for our subprocesses
     with open(p(res.testdir, 'sitecustomize.py'), 'w') as f:
         f.write(ptcov)
+        f.write('\n')
+
+    def apply_customizations():
+        if customizations:
+            with open(p(res.testdir, 'sitecustomize.py'), 'a') as f:
+                f.write(dedent(customizations))
+
+    res.apply_customizations = apply_customizations
     return res
 
 

@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 from paramiko import Transport, SFTPClient, RSAKey, ECDSAKey, DSSKey, Ed25519Key, HostKeys
 
 from ..command_util import GenericUserError
-from ..bundle import Uploader, URLConfig
+from ..bundle import Uploader, URLConfig, ensure_archive
 
 KEYTYPES = {'RSA': RSAKey,
             'ECDSA': ECDSAKey,
@@ -59,11 +59,11 @@ class DumbSFTPUploader(Uploader):
 
         If the URL config does not specify auth details (password or identity), then
         '''
-        with self.ensure_archive(bundle_path) as archive_path:
+        with ensure_archive(bundle_path) as archive_path:
             host = self.sftp_url.hostname
             port = self.sftp_url.port
             path = self.sftp_url.path
-            sockargs = host + ((port,) if port else ())
+            sockargs = (host,) + ((port,) if port else ())
             with Transport(sockargs) as transport:
                 transport.connect(**self._build_connect_args())
                 with SFTPClient.from_transport(transport) as sftp:
@@ -91,7 +91,10 @@ class DumbSFTPUploader(Uploader):
     @classmethod
     def can_upload_to(self, accessor_config):
         return (isinstance(accessor_config, URLConfig) and
-                accessor_config.url.startswith('stfp://'))
+                accessor_config.url.startswith('sftp://'))
+
+
+DumbSFTPUploader.register()
 
 
 class SFTPURLConfig(URLConfig):
@@ -135,7 +138,7 @@ def sftp_remote(self, *, password=None,
         identity_type='RSA', identity=None,
         host_key_type=None, host_key=None):
     '''
-    Parameters for SFTP connections
+    Parameters for SFTP remote accessors
 
     Parameters
     ----------
@@ -143,19 +146,23 @@ def sftp_remote(self, *, password=None,
         Password for the SFTP server.
         CAUTION: Will be stored in plain-text in the project directory, though it will not
         be shared. optional
-    identity : str
-        Path to the identity file (e.g., '~/.ssh/id_rsa')
     identity_type : str
         The key type for the identity file. "RSA", "ECDSA", "DSS", "DSA", "ED25519".
         optional, default is "RSA".
-    host_key : str
-        Host key file (e.g., '~/.ssh/known_hosts')
+    identity : str
+        Path to the identity file (e.g., '~/.ssh/id_rsa')
     host_key_type : str
         The key type for the host key file. "RSA", "ECDSA", "DSS", "DSA", "ED25519".
         optional. The default is to accept any host key type for this host.
+    host_key : str
+        Host key file (e.g., '~/.ssh/known_hosts')
     '''
+    if self._url_config is None:
+        raise GenericUserError('An SFTP URL must be specified for SFTP accessors')
+
     if not isinstance(self._url_config, SFTPURLConfig):
-        raise GenericUserError('The specified URL is not an SFTP URL')
+        raise GenericUserError(f'The specified URL, {self._url_config} is not an SFTP URL')
+
     self._url_config.password = password
     if identity:
         try:
@@ -194,3 +201,4 @@ def sftp_remote(self, *, password=None,
             for pkey in hostkeys.values():
                 break
         self._url_config.host_key = pkey
+    self._write_remote()

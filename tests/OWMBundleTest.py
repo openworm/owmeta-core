@@ -1,19 +1,17 @@
 from __future__ import print_function
-import io
 from os.path import join as p, exists
-from os import makedirs, listdir
-from contextlib import contextmanager
+from os import makedirs
 import shutil
 import subprocess
 import tarfile
 
 import pytest
-from pytest import mark, fixture
+from pytest import mark
 from rdflib.term import URIRef, Literal
 import transaction
 
 from owmeta_core.command import DEFAULT_OWM_DIR as OD, OWM
-from owmeta_core.context import Context
+from owmeta_core.bundle import Descriptor
 
 
 from .TestUtilities import assertRegexpMatches, assertNotRegexpMatches
@@ -353,14 +351,31 @@ def test_save_is_archive(shell_helper):
     assert tarfile.is_tarfile(p(shell_helper.testdir, 'test-main.tar.xz'))
 
 
+def test_deploy_sftp(owm_project_with_customizations, custom_bundle):
+    desc = Descriptor('test/main', includes=('http://example.org/ctx',))
+    with owm_project_with_customizations(customizations='''\
+            from unittest.mock import patch
+            import atexit
+            patch('owmeta_core.bundle_uploaders.sftp.Transport').start()
+            SFTPClientPatcher = patch('owmeta_core.bundle_uploaders.sftp.SFTPClient')
+            SFTPClient = SFTPClientPatcher.start()
+            def verify():
+                try:
+                    SFTPClient.from_transport().__enter__().put.assert_called()
+                except AssertionError:
+                    print("FAILED")
+            atexit.register(verify)
+            ''') as owm_project:
+        with custom_bundle(desc, bundles_directory=p(owm_project.test_homedir, '.owmeta', 'bundles')):
+            owm_project.sh('owm bundle remote add the-source sftp://example.org/this/doesnt/matter')
+            owm_project.apply_customizations()
+            output = owm_project.sh('owm bundle deploy test/main')
+            assert 'FAILED' not in output
+
+
 def test_checkout(owm_project):
     '''
     Checking out a bundle changes the set of graphs to the chosen bundle
     '''
     owm_project.sh('owm bundle checkout test/main')
-    # TODO: Add an assert
-
-
-def test_deploy(owm_project):
-    owm_project.sh('owm bundle deploy test/main')
     # TODO: Add an assert

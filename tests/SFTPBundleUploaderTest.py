@@ -12,6 +12,7 @@ except ImportError:
     pytest.skip('Skipping SFTP bundle upload tests due to lack of "paramiko" or "cryptography"',
             allow_module_level=True)
 
+from owmeta_core.bundle import URLConfig
 from owmeta_core.command_util import GenericUserError
 from owmeta_core.bundle_uploaders.sftp import DumbSFTPUploader, SFTPURLConfig, sftp_remote
 
@@ -57,9 +58,16 @@ def test_SFTPURLConfig_url_user():
     assert cfg.username == 'blahblah'
 
 
-def test_sftp_remote_not_an_sftp_url():
+def test_sftp_remote_no_url():
     self = Mock()
     self._url_config = None
+    with pytest.raises(GenericUserError):
+        sftp_remote(self)
+
+
+def test_sftp_remote_non_sftp_url():
+    self = Mock()
+    self._url_config = URLConfig('http://example.org/hi-mom')
     with pytest.raises(GenericUserError):
         sftp_remote(self)
 
@@ -171,6 +179,12 @@ def test_sftp_remote_add_host_key_unrecognized_type(genhostkey):
     self, hostkeyfile = genhostkey(RSAKey)
     with pytest.raises(GenericUserError, match=r'UNCE-UNCE-UNCE'):
         sftp_remote(self, host_key=hostkeyfile, host_key_type='UNCE-UNCE-UNCE')
+
+
+def test_sftp_remote_updates_remote(genhostkey):
+    self, hostkeyfile = genhostkey(RSAKey)
+    sftp_remote(self, host_key=hostkeyfile)
+    self._write_remote.assert_called()
 
 
 @pytest.fixture

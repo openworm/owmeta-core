@@ -3,7 +3,6 @@
 
 from setuptools import setup
 import os
-import sys
 
 
 long_description = """
@@ -96,6 +95,7 @@ setup(
         ],
         'owmeta_core.commands': [
             'bundle.remote.add.sftp = owmeta_core.bundle_uploaders.sftp:sftp_remote',
+            'bundle.remote.update.sftp = owmeta_core.bundle_uploaders.sftp:sftp_remote',
         ]
     },
     package_data={'owmeta_core': ['default.conf']},
