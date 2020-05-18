@@ -63,18 +63,12 @@ setup(
     ],
     extras_require={
         # SQL source support
-        'mysql_source_mysql_connector': [
-            'mysql-connector-python'
-        ],
-        'mysql_source_mysqlclient': [
-            'mysqlclient'
-        ],
-        'postgres_source_psycopg': [
-            'psycopg2'
-        ],
-        'postgres_source_pg8000': [
-            'pg8000'
-        ]
+        'mysql_source_mysql_connector': 'mysql-connector-python',
+        'mysql_source_mysqlclient': 'mysqlclient',
+        'postgres_source_psycopg': 'psycopg2',
+        'postgres_source_pg8000': 'pg8000',
+        # Need 1.5.3 for host key file support
+        'sftp': 'paramiko>=1.5.3'
     },
     version=version,
     packages=['owmeta_core',
@@ -94,8 +88,8 @@ setup(
             'owmeta_core_bds = owmeta_core.bundle_dependency_store:BundleDependencyStore',
         ],
         'owmeta_core.commands': [
-            'bundle.remote.add.sftp = owmeta_core.bundle_uploaders.sftp:sftp_remote',
-            'bundle.remote.update.sftp = owmeta_core.bundle_uploaders.sftp:sftp_remote',
+            'bundle.remote.add.sftp = owmeta_core.bundle_uploaders.sftp:sftp_remote [sftp]',
+            'bundle.remote.update.sftp = owmeta_core.bundle_uploaders.sftp:sftp_remote [sftp]',
         ]
     },
     package_data={'owmeta_core': ['default.conf']},
