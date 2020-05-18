@@ -18,6 +18,7 @@ class CLIOutputModeTest(unittest.TestCase):
         class A(object):
             pass
         self.cmd = patch('owmeta_core.cli.OWM', new=A).start()
+        patch('owmeta_core.cli._augment_subcommands_from_entry_points').start()
         patch('owmeta_core.cli.GitRepoProvider').start()
 
     def tearDown(self):

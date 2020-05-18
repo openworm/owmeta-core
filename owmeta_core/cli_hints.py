@@ -80,6 +80,13 @@ CLI_HINTS = {
             }
         }
     },
+    'owmeta_core.commands.bundle.OWMBundleRemote': {
+        'show': {
+            (METHOD_NAMED_ARG, 'name'): {
+                'names': ['name'],
+            },
+        },
+    },
     'owmeta_core.commands.bundle.OWMBundleRemoteAdd': {
         '__call__': {
             (METHOD_NAMED_ARG, 'name'): {

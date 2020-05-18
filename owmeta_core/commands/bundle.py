@@ -6,7 +6,7 @@ import hashlib
 import logging
 import shutil
 from os.path import join as p, abspath, relpath, isdir, isfile
-from os import mkdir, unlink, getcwd
+from os import mkdir, unlink, getcwd, rename
 from urllib.parse import urlparse
 
 import yaml
@@ -48,24 +48,31 @@ class _OWMBundleRemoteAddUpdate(object):
 
     def _write_remote(self):
         fname = self._remote_fname(self._remote.name)
+        backup_exists = False
+        try:
+            rename(fname, fname + '.bkp')
+            backup_exists = True
+        except FileNotFoundError:
+            pass
+
         try:
             with open(fname, 'w') as out:
                 self._remote.write(out)
         except Exception:
-            unlink(fname)
+            if backup_exists:
+                rename(fname + '.bkp', fname)
             raise
+        finally:
+            try:
+                unlink(fname + '.bkp')
+            except FileNotFoundError:
+                pass
 
     def _remote_exists(self, name):
         return isfile(self._remote_fname(name))
 
     def _read_remote(self, name):
-        try:
-            with open(self._remote_fname(name)) as f:
-                self._remote = Remote.read(f)
-        except FileNotFoundError:
-            pass
-        except Exception:
-            raise GenericUserError(f'Unable to read remote {name}')
+        self._remote = self._owm_bundle_remote._read_remote(name)
 
 
 class OWMBundleRemoteAdd(_OWMBundleRemoteAddUpdate):
@@ -97,7 +104,9 @@ class OWMBundleRemoteAdd(_OWMBundleRemoteAddUpdate):
 
         self._read_remote(name)
         if self._remote:
-            self._remote.add_config(self._url_config)
+            if self._url_config and not self._remote.add_config(self._url_config):
+                raise GenericUserError('There is already an equivalent config for this remote.'
+                        ' Use "update" to modify it')
         else:
             self._remote = Remote(name, accessor_configs=acs)
         remotes_dir = p(self._owm.owmdir, 'remotes')
@@ -133,7 +142,7 @@ class OWMBundleRemoteUpdate(_OWMBundleRemoteAddUpdate):
         self._read_remote(name)
         for ac in self._remote.accessor_configs:
             if isinstance(ac, URLConfig) and ac.url == url:
-                self._url_config = ac.url
+                self._url_config = ac
                 break
 
 
@@ -150,6 +159,15 @@ class OWMBundleRemote(object):
     def _remote_fname(self, name):
         return p(self._owm.owmdir, 'remotes', hashlib.sha224(name.encode('UTF-8')).hexdigest() + '.remote')
 
+    def _read_remote(self, name):
+        try:
+            with open(self._remote_fname(name)) as f:
+                return Remote.read(f)
+        except FileNotFoundError:
+            pass
+        except Exception:
+            raise GenericUserError(f'Unable to read remote {name}')
+
     def list(self):
         ''' List remotes '''
 
@@ -157,6 +175,21 @@ class OWMBundleRemote(object):
                 text_format=lambda r: r.name,
                 columns=(lambda r: r.name,),
                 header=("Name",))
+
+    def show(self, name):
+        '''
+        Show details about a remote
+
+        Parameters
+        ----------
+        name : str
+            Name of the remote
+        '''
+        remote = self._read_remote(name)
+        return GeneratorWithData(remote.accessor_configs,
+                text_format=lambda ac: str(ac),
+                columns=(lambda ac: str(ac),),
+                header=("Accessor",))
 
 
 class OWMBundleCache(object):

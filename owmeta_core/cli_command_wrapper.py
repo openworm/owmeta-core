@@ -90,7 +90,7 @@ class CLIArgMapper(object):
             kwargs.update(self.get(METHOD_NAMED_ARG))
 
         try:
-            # The get returns
+            # There is, at most, one nargs entry.
             nargs = next(iter(self.get(METHOD_NARGS).values()))
         except StopIteration:
             nargs = ()
@@ -115,6 +115,8 @@ class CLIArgMapper(object):
             #
             # We *could* support a slightly richer set of options here, but it's probably
             # not worth it...
+            #
+            # Also, this is a programmer error. End-users shouldn't hit this
             raise Exception('Missing arguments to method ' + str(self.methodname))
         args += nargs
         for k, v in iattrs.items():

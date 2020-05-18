@@ -138,50 +138,62 @@ class CLICommandWrapperTest(unittest.TestCase):
 
 
 class CLIArgMapperTest(unittest.TestCase):
+
     def test_nargs_with_named_args(self):
         cut = CLIArgMapper()
+        sc_runner = Mock()
+        cut.runners[None] = sc_runner
         cut.mappings[(METHOD_NAMED_ARG, 'name0', 0)] = 4
         cut.mappings[(METHOD_NARGS, 'name1', -1)] = [4, 5, 5]
 
         runner = Mock()
         cut.apply(runner)
-        runner.assert_called_with(4, 4, 5, 5)
+        sc_runner.assert_called_with(4, 4, 5, 5)
 
     def test_named_args_multiple(self):
         cut = CLIArgMapper()
+        sc_runner = Mock()
+        cut.runners[None] = sc_runner
         cut.mappings[(METHOD_NAMED_ARG, 'name0', 0)] = 4
         cut.mappings[(METHOD_NAMED_ARG, 'name1', 1)] = 6
 
         runner = Mock()
         cut.apply(runner)
-        runner.assert_called_with(4, 6)
+        sc_runner.assert_called_with(4, 6)
 
     def test_named_fallback_to_kwargs(self):
         cut = CLIArgMapper()
+        sc_runner = Mock()
+        cut.runners[None] = sc_runner
         cut.mappings[(METHOD_NAMED_ARG, 'name0', 0)] = 4
         cut.mappings[(METHOD_NAMED_ARG, 'name1', 2)] = 6
 
         runner = Mock()
         cut.apply(runner)
-        runner.assert_called_with(name0=4, name1=6)
+        sc_runner.assert_called_with(name0=4, name1=6)
 
     def test_named_insufficient_args_error(self):
         cut = CLIArgMapper()
-        cut.named_arg_count = 3
+        sc_runner = Mock()
+        cut.runners[None] = sc_runner
+        cut.named_arg_count = {None: 3}
+        cut.mappings[(METHOD_NARGS, 'nargs', 2)] = 4
         cut.mappings[(METHOD_NAMED_ARG, 'name0', 0)] = 4
         cut.mappings[(METHOD_NAMED_ARG, 'name1', 1)] = 6
 
         runner = Mock()
 
-        with raises(Exception):
+        with raises(Exception, match=r'Missing arguments to method'):
             cut.apply(runner)
 
     def test_kwargs(self):
         cut = CLIArgMapper()
+        sc_runner = Mock()
+        cut.runners[None] = sc_runner
         cut.mappings[(METHOD_KWARGS, 'name0', -1)] = ['a=b', 'c=d']
 
         runner = Mock()
 
         cut.apply(runner)
 
-        runner.assert_called_with(a='b', c='d')
+        sc_runner.assert_called_with(a='b', c='d')

@@ -89,9 +89,24 @@ class Remote(object):
         '''
 
     def add_config(self, accessor_config):
+        '''
+        Add the given accessor config to this remote
+
+        Parameters
+        ----------
+        accessor_config : AccessorConfig
+            The config to add
+
+        Returns
+        -------
+        bool
+            `True` if the accessor config was added (meaning there's no equivalent one
+            already set for this remote). Otherwise, `False`.
+        '''
         if accessor_config in self.accessor_configs:
-            return
+            return False
         self.accessor_configs.append(accessor_config)
+        return True
 
     def generate_loaders(self):
         '''
