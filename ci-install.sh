@@ -8,5 +8,6 @@ fi
 if [ "$POSTGRES_TEST" ] ; then
     TARGET="$TARGET .[postgres_source_psycopg] .[postgres_source_pg8000]"
 fi
+TARGET="$TARGET .[sftp]"
 
 pip install ${TARGET:-"."}
