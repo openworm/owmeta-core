@@ -2,7 +2,6 @@ from time import sleep
 import os
 import errno
 import random
-from struct import pack, unpack
 
 
 class lock_file(object):

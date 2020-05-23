@@ -5,7 +5,7 @@ import six
 from pkg_resources import Requirement, resource_filename
 import json
 import re
-from os import environ, getcwd
+from os import environ
 from os.path import dirname, realpath
 
 
@@ -71,8 +71,9 @@ class Configuration(object):
     """
     A simple configuration object.  Enables setting and getting key-value pairs
 
-    Unlike a `dict`, Configuration objects will execute a function when retrieving values to enable deferred computation of
-    seldom-used configuration values. In addition, entries in a `Configuration` can be aliased to one another.
+    Unlike a `dict`, Configuration objects will execute a function when retrieving values
+    to enable deferred computation of seldom-used configuration values. In addition,
+    entries in a `Configuration` can be aliased to one another.
     """
     # conf: is a configure instance to base this one on
     # dependencies are required for this class to be initialized (TODO)

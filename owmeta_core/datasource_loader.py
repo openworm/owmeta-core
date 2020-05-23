@@ -9,7 +9,6 @@ in there however it wants.
 '''
 from .utils import FCN
 from os.path import exists, isdir, join as pth_join, isabs, realpath
-import six
 
 
 class DataSourceDirLoader(object):
@@ -54,7 +53,7 @@ class DataSourceDirLoader(object):
         # Conventionally, types that tag or "enhance" a string have the base string representation as their __str__
         try:
             s = self.load(data_source)
-        except LoadFailed as e:
+        except LoadFailed:
             raise LoadFailed(data_source, self, 'Loader erred')
 
         if not s:

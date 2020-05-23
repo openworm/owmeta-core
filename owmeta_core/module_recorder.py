@@ -1,5 +1,3 @@
-from pprint import pprint
-import importlib as IM
 import logging
 from types import ModuleType
 L = logging.getLogger(__name__)

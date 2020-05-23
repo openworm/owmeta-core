@@ -1,7 +1,5 @@
 from itertools import chain
-from time import time
 
-import rdflib
 from rdflib.store import Store, VALID_STORE, NO_STORE
 from rdflib.plugins.memory import IOMemory
 from rdflib.term import Variable

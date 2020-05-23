@@ -1,16 +1,14 @@
 from __future__ import print_function
-import importlib as IM
 import datetime
 import os
 import logging
 import atexit
 import hashlib
-from datetime import datetime as DT
 
-from rdflib import URIRef, Literal, Graph, Namespace, ConjunctiveGraph, plugin
-from rdflib.store import TripleAddedEvent, TripleRemovedEvent, Store
+from rdflib import URIRef, Graph, Namespace, ConjunctiveGraph, plugin
+from rdflib.store import Store
 from rdflib.events import Event
-from rdflib.namespace import RDFS, RDF, NamespaceManager
+from rdflib.namespace import RDF, NamespaceManager
 import transaction
 
 from .utils import grouper
@@ -585,7 +583,6 @@ class SQLSource(RDFSource):
     def open(self):
         try:
             from rdflib_sqlalchemy import registerplugins
-            from sqlalchemy import event
         except ImportError:
             raise OpenFailError('The rdflib-sqlalchemy package is not installed.'
                     ' You may need to install one of "sqlite_source", "mysql_source", or'

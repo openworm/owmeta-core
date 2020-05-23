@@ -2,7 +2,6 @@
 Common utilities for translation, massaging data, etc., that don't fit
 elsewhere in owmeta_core
 """
-import re
 import functools
 
 __all__ = ['grouper', 'slice_dict']

@@ -1,7 +1,6 @@
 from __future__ import print_function
 import importlib as IM
 import logging
-from itertools import count
 
 import rdflib as R
 
@@ -82,7 +81,6 @@ class Mapper(ModuleRecordListener, Configurable):
 
         self.MappedClasses[cname] = cls
         self.DecoratedMappedClasses[cls] = self.decorate_class(cls)
-        parents = cls.__bases__
         L.debug('parents %s', parents_str(cls))
 
         if hasattr(cls, 'on_mapper_add_class'):
@@ -156,11 +154,9 @@ class Mapper(ModuleRecordListener, Configurable):
     def handle_mapped_classes(self, classes):
         res = []
         for cls in classes:
-            # This previously used the
-            full_class_name = FCN(cls)
             if isinstance(cls, type) and self.add_class(cls):
                 res.append(cls)
-        return res # sorted(res, key=_ClassOrderable, reverse=True)
+        return res
 
     def lookup_class(self, cname):
         """ Gets the class corresponding to a fully-qualified class name """

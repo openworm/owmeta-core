@@ -1,5 +1,4 @@
 import wrapt
-import importlib
 from owmeta_core.import_contextualizer import ImportContextualizer
 import six
 

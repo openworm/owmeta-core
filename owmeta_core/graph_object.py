@@ -2,7 +2,6 @@ from __future__ import print_function
 import warnings
 import logging
 from itertools import chain
-from pprint import pformat
 
 import six
 

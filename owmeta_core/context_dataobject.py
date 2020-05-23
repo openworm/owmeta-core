@@ -1,6 +1,5 @@
 from rdflib.term import URIRef
 from .dataobject import DataObject, ObjectProperty, This
-from .context import Context
 from .context_common import CONTEXT_IMPORTS
 from .mapper import mapped
 

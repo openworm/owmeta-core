@@ -3,7 +3,6 @@ import rdflib
 import logging
 from itertools import groupby
 
-from .context import Context
 from .graph_object import (GraphObjectQuerier,
                            ZeroOrMoreTQLayer)
 from .rdf_go_modifiers import SubClassModifier

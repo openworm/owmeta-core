@@ -1,5 +1,4 @@
 from os.path import join
-from contextlib import contextmanager
 
 from rdflib.namespace import Namespace
 

@@ -7,7 +7,7 @@ import six
 import hashlib
 
 from importlib import import_module
-import owmeta_core # noqa
+import owmeta_core  # noqa
 from . import BASE_SCHEMA_URL, DEF_CTX, __version__ as OWMETA_VERSION
 from .contextualize import (Contextualizable,
                             ContextualizableClass,
