@@ -20,15 +20,12 @@ from ..bundle import (Descriptor,
                       Deployer,
                       Fetcher,
                       Cache,
-                      Unarchiver,
-                      Archiver,
                       retrieve_remotes,
                       find_bundle_directory,
                       NoBundleLoader as _NoBundleLoader,
-                      UncoveredImports,
-                      TargetIsNotEmpty,
-                      InstallFailed,
                       URL_CONFIG_MAP)
+from ..bundle.exceptions import InstallFailed, TargetIsNotEmpty, UncoveredImports
+from ..bundle.archive import Unarchiver, Archiver
 
 
 L = logging.getLogger(__name__)

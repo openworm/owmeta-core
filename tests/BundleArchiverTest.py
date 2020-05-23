@@ -5,8 +5,9 @@ import tarfile
 
 import pytest
 
-from owmeta_core.bundle import (Archiver, BundleNotFound, ArchiveTargetPathDoesNotExist,
-        Descriptor, BUNDLE_INDEXED_DB_NAME, BUNDLE_MANIFEST_FILE_NAME)
+from owmeta_core.bundle.archive import (Archiver, ArchiveTargetPathDoesNotExist)
+from owmeta_core.bundle.exceptions import BundleNotFound
+from owmeta_core.bundle import Descriptor, BUNDLE_INDEXED_DB_NAME, BUNDLE_MANIFEST_FILE_NAME
 
 
 def test_archive_returns_non_none(tempdir, bundle):

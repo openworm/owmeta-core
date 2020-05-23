@@ -4,11 +4,11 @@ from os.path import isdir, join as p
 import json
 import tarfile
 
-from owmeta_core.bundle import (Unarchiver,
-                           NotABundlePath,
-                           TargetDirectoryMismatch,
-                           UnarchiveFailed,
-                           fmt_bundle_directory)
+from owmeta_core.bundle.archive import (Unarchiver,
+                                        TargetDirectoryMismatch,
+                                        UnarchiveFailed)
+from owmeta_core.bundle import fmt_bundle_directory
+from owmeta_core.bundle.exceptions import NotABundlePath
 
 
 import pytest

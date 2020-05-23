@@ -11,7 +11,8 @@ import shutil
 import shlex
 import tempfile
 
-from owmeta_core.bundle import Descriptor, Installer, Archiver
+from owmeta_core.bundle import Descriptor, Installer
+from owmeta_core.bundle.archive import Archiver
 from pytest import fixture
 from rdflib.term import URIRef
 from rdflib.graph import ConjunctiveGraph
