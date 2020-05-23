@@ -108,7 +108,7 @@ class Mapper(ModuleRecordListener, Configurable):
                 if hasattr(c, 'after_mapper_module_load'):
                     c.after_mapper_module_load(self)
             except Exception:
-                L.warning("Failed to process class", c)
+                L.warning("Failed to process class %s", c)
                 continue
         return module
 

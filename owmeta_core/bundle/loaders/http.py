@@ -57,7 +57,7 @@ class HTTPSURLConfig(URLConfig):
     @property
     def ssl_context(self):
         self.init_ssl_context()
-        return self. self._ssl_context
+        return self._ssl_context
 
 
 class HTTPBundleLoader(Loader):
@@ -163,7 +163,7 @@ class HTTPBundleLoader(Loader):
         try:
             parsed_url = urlparse(bundle_url)
         except Exception:
-            L.warning("Failed while parsing bundle URL", bundle_url)
+            L.warning("Failed while parsing bundle URL '%s'", bundle_url)
             return False
         if parsed_url.scheme in ('http', 'https') and parsed_url.netloc:
             return True

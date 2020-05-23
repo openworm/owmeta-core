@@ -64,7 +64,7 @@ class Overrider(object):
                                         not (x[0].endswith('wrapt/wrappers.py') and x[2] == '__call__')])
             s += traceback.format_exception_only(type, value)
             for l in s:
-                six.print_(l, file=sys.stderr, end='')
+                print(l, file=sys.stderr, end='')
         sys.excepthook = filtering_except_hook
 
     def wrap_import(self):

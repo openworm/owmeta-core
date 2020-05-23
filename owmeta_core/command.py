@@ -121,7 +121,7 @@ class OWMSource(object):
         from .datasource import DataSource
         conf = self._parent._conf()
         if context is not None:
-            ctx = self._make_ctx(context)
+            ctx = self._parent._make_ctx(context)
         else:
             ctx = self._parent._default_ctx
         if kind is None:
@@ -246,7 +246,7 @@ class OWMTranslator(object):
         from owmeta_core.datasource import DataTranslator
         conf = self._parent._conf()
         if context is not None:
-            ctx = self._make_ctx(context)
+            ctx = self._parent._make_ctx(context)
         else:
             ctx = self._parent._default_ctx
         dt = ctx.stored(DataTranslator)(conf=conf)
@@ -1433,9 +1433,8 @@ class OWM(object):
         """
         Show differences between what's in the working context set and what's in the serializations
         """
-        import sys
         from difflib import unified_diff
-        from os.path import join, basename
+        from os.path import basename
 
         r = self.repository_provider
         try:
@@ -1464,7 +1463,7 @@ class OWM(object):
                 if b_blob:
                     bdata = b_blob.data_stream.read().split(b'\n')
                 else:
-                    with open(join(r.repo().working_dir, d.b_path), 'rb') as f:
+                    with open(pth_join(r.repo().working_dir, d.b_path), 'rb') as f:
                         bdata = f.read().split(b'\n')
             except Exception as e:
                 print('No "b" data: {}'.format(e), file=sys.stderr)
@@ -1472,7 +1471,7 @@ class OWM(object):
             afname = basename(d.a_path)
             bfname = basename(d.b_path)
 
-            graphdir = join(self.owmdir, 'graphs')
+            graphdir = pth_join(self.owmdir, 'graphs')
             if not adata:
                 fromfile = '/dev/null'
             else:
@@ -1698,8 +1697,7 @@ class OWMDirDataSourceDirLoader(DataSourceDirLoader):
     def _idx_fname(self):
         if self.base_directory:
             return pth_join(self.base_directory, 'index')
-        else:
-            return None
+        return None
 
     def _load_index(self):
         with scandir(self.base_directory) as dirents:

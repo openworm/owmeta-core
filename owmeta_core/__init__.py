@@ -131,9 +131,6 @@ class Connection(object):
     def __exit__(self, *args):
         self.disconnect()
 
-    def _context(self):
-        return Context(conf=self.conf)
-
     def __call__(self, target):
         '''
         Contextualize the given `Context`

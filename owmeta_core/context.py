@@ -218,7 +218,7 @@ class Context(six.with_metaclass(ContextMeta, ImportContextualizer,
                 if hasattr(c, 'rdf_namespace'):
                     try:
                         graph.bind(c.__name__, c.rdf_namespace)
-                    except Exception as e:
+                    except Exception:
                         L.warning('Failed to bind RDF namespace for %s to %s', c.__name__,
                                c.rdf_namespace, exc_info=True)
         if isinstance(graph, set):
@@ -486,9 +486,8 @@ class ContextContextManager(object):
         o = self._overrides.get(key, None)
         if o is not None:
             return o
-        else:
-            o = self._backing_dict[key]
-            if isinstance(o, (BaseContextualizable, ContextualizableClass)):
-                o = o.contextualize(self._ctx)
-                self._overrides[key] = o
-            return o
+        o = self._backing_dict[key]
+        if isinstance(o, (BaseContextualizable, ContextualizableClass)):
+            o = o.contextualize(self._ctx)
+            self._overrides[key] = o
+        return o

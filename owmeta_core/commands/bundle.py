@@ -343,7 +343,7 @@ class OWMBundle(object):
                 shutil.rmtree(tine.directory)
                 return self._install_helper(bi, descr)
         except InstallFailed as ife:
-            raise GenericUserError('Installation failed: %s'.format(ife))
+            raise GenericUserError('Installation failed: {}'.format(ife))
 
     def register(self, descriptor):
         '''
