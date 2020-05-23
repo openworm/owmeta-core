@@ -88,8 +88,13 @@ setup(
             'owmeta_core_bds = owmeta_core.bundle_dependency_store:BundleDependencyStore',
         ],
         'owmeta_core.commands': [
-            'bundle.remote.add.sftp = owmeta_core.bundle.uploaders.sftp:sftp_remote [sftp]',
-            'bundle.remote.update.sftp = owmeta_core.bundle.uploaders.sftp:sftp_remote [sftp]',
+            'bundle.remote.add.sftp = owmeta_core.bundle.loaders.sftp:sftp_remote [sftp]',
+            'bundle.remote.update.sftp = owmeta_core.bundle.loaders.sftp:sftp_remote [sftp]',
+        ],
+        'owmeta_core.loaders': [
+            'http_uploader = owmeta_core.bundle.loaders.http:HTTPBundleUploader',
+            'http_loader = owmeta_core.bundle.loaders.http:HTTPBundleLoader',
+            'sftp_uploader = owmeta_core.bundle.loaders.sftp:DumbSFTPUploader [sftp]',
         ]
     },
     package_data={'owmeta_core': ['default.conf']},

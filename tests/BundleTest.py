@@ -13,10 +13,11 @@ from rdflib.graph import ConjunctiveGraph
 
 from owmeta_core.context import Context
 from owmeta_core.contextualize import Contextualizable
-from owmeta_core.bundle import (Remote, URLConfig, HTTPBundleLoader, Bundle, BundleNotFound,
-                                Descriptor, DependencyDescriptor, _RemoteHandlerMixin,
-                                Installer, make_include_func, BUNDLE_INDEXED_DB_NAME)
 from owmeta_core.agg_store import UnsupportedAggregateOperation
+from owmeta_core.bundle import (Remote, URLConfig, Bundle, BundleNotFound,
+                                Descriptor, DependencyDescriptor, _RemoteHandlerMixin,
+                                make_include_func, BUNDLE_INDEXED_DB_NAME)
+from owmeta_core.bundle.loaders.http import HTTPBundleLoader
 
 
 Dirs = namedtuple('Dirs', ('source_directory', 'bundles_directory'))

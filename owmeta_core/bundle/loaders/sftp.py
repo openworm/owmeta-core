@@ -8,8 +8,8 @@ from urllib.parse import urlparse
 from paramiko import Transport, SFTPClient, RSAKey, ECDSAKey, DSSKey, Ed25519Key, HostKeys
 
 from ...command_util import GenericUserError
-from .. import Uploader, URLConfig, ensure_archive
-
+from .. import Uploader, URLConfig
+from ..archive import ensure_archive
 KEYTYPES = {'RSA': RSAKey,
             'ECDSA': ECDSAKey,
             'DSA': DSSKey,
@@ -92,9 +92,6 @@ class DumbSFTPUploader(Uploader):
     def can_upload_to(self, accessor_config):
         return (isinstance(accessor_config, URLConfig) and
                 accessor_config.url.startswith('sftp://'))
-
-
-DumbSFTPUploader.register()
 
 
 class SFTPURLConfig(URLConfig):

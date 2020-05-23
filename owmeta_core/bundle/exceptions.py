@@ -31,29 +31,6 @@ class BundleNotFound(Exception):
         super(BundleNotFound, self).__init__(msg)
 
 
-class LoadFailed(Exception):
-    '''
-    Thrown when a bundle could not be downloaded
-    '''
-    def __init__(self, bundle_id, loader, *args):
-        '''
-        Parameters
-        ----------
-        bundle_id : str
-            ID of the bundle on which a download was attempted
-        loader : Loader
-            The loader that attempted to download the bundle
-        args[0] : str
-            Explanation of why the download failed
-        *args[1:]
-            Passed on to `Exception`
-        '''
-        msg = args[0]
-        mmsg = 'Failed to load {} bundle with loader {}{}'.format(
-                bundle_id, loader, ': ' + msg if msg else '')
-        super(LoadFailed, self).__init__(mmsg, *args[1:])
-
-
 class InstallFailed(Exception):
     '''
     Thrown when a bundle installation fails to complete.

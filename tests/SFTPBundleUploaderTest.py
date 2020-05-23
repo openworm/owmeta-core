@@ -14,7 +14,7 @@ except ImportError:
 
 from owmeta_core.bundle import URLConfig
 from owmeta_core.command_util import GenericUserError
-from owmeta_core.bundle.uploaders.sftp import DumbSFTPUploader, SFTPURLConfig, sftp_remote
+from owmeta_core.bundle.loaders.sftp import DumbSFTPUploader, SFTPURLConfig, sftp_remote
 
 
 def test_uploader_preserves_url_configs():

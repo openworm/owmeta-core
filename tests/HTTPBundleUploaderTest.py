@@ -1,9 +1,8 @@
 from os.path import join as p
 import logging
 
-import pytest
-
-from owmeta_core.bundle import HTTPBundleUploader, HTTPSURLConfig, BUNDLE_ARCHIVE_MIME_TYPE
+from owmeta_core.bundle.common import BUNDLE_ARCHIVE_MIME_TYPE
+from owmeta_core.bundle.loaders.http import HTTPBundleUploader, HTTPSURLConfig
 
 
 L = logging.getLogger(__name__)
