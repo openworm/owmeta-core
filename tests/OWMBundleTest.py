@@ -356,8 +356,8 @@ def test_deploy_sftp(owm_project_with_customizations, custom_bundle):
     with owm_project_with_customizations(customizations='''\
             from unittest.mock import patch
             import atexit
-            patch('owmeta_core.bundle_uploaders.sftp.Transport').start()
-            SFTPClientPatcher = patch('owmeta_core.bundle_uploaders.sftp.SFTPClient')
+            patch('owmeta_core.bundle.uploaders.sftp.Transport').start()
+            SFTPClientPatcher = patch('owmeta_core.bundle.uploaders.sftp.SFTPClient')
             SFTPClient = SFTPClientPatcher.start()
             def verify():
                 try:

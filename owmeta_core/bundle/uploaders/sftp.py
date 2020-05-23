@@ -7,8 +7,8 @@ from urllib.parse import urlparse
 
 from paramiko import Transport, SFTPClient, RSAKey, ECDSAKey, DSSKey, Ed25519Key, HostKeys
 
-from ..command_util import GenericUserError
-from ..bundle import Uploader, URLConfig, ensure_archive
+from ...command_util import GenericUserError
+from .. import Uploader, URLConfig, ensure_archive
 
 KEYTYPES = {'RSA': RSAKey,
             'ECDSA': ECDSAKey,
