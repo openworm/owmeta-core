@@ -1,23 +1,63 @@
 import http.client
 import io
 import logging
-from urllib.parse import quote as urlquote, urlparse
 from os.path import join as p
+import re
+from urllib.parse import quote as urlquote, urlparse
 
+from ...command_util import GenericUserError
 from ...utils import FCN
+
 from .. import Loader, Uploader, URLConfig
 from ..archive import ensure_archive, Unarchiver
-from . import LoadFailed
 from ..common import BUNDLE_ARCHIVE_MIME_TYPE
+
+from . import LoadFailed
 
 
 L = logging.getLogger(__name__)
 
+PROVIDER_PATH_FORMAT = r'''
+(?P<module>(?:\w+)(?:\.\w+)*)
+:
+(?P<provider>(?:\w+)(?:\.\w+)*)'''
+
+PROVIDER_PATH_RE = re.compile(PROVIDER_PATH_FORMAT, flags=re.VERBOSE)
+
 
 class HTTPSURLConfig(URLConfig):
-    def __init__(self, *args, ssl_context=None, **kwargs):
+    def __init__(self, *args, ssl_context_provider=None,
+            ssl_context=None, **kwargs):
         super(HTTPSURLConfig, self).__init__(*args, **kwargs)
-        self.ssl_context = ssl_context
+        self.ssl_context_provider = ssl_context_provider
+        self._ssl_context = ssl_context
+
+    def init_ssl_context(self):
+        import importlib as IM
+        if self._ssl_context is not None:
+            return
+
+        if self.ssl_context_provider:
+            md = PROVIDER_PATH_RE.match(self.ssl_context_provider)
+            if not md:
+                raise GenericUserError('Format of the provider path is incorrect')
+            try:
+                module = md.group('module')
+                provider = md.group('provider')
+                m = IM.import_module(module)
+                attr_chain = provider.split('.')
+                p = m
+                for x in attr_chain:
+                    p = getattr(p, x)
+                self._ssl_context = p()
+            except Exception:
+                raise GenericUserError('Could not create an SSL context from the given'
+                        ' context_provider path')
+
+    @property
+    def ssl_context(self):
+        self.init_ssl_context()
+        return self. self._ssl_context
 
 
 class HTTPBundleLoader(Loader):
@@ -189,9 +229,6 @@ class HTTPBundleLoader(Loader):
             Unarchiver().unpack(bio, self.base_directory)
 
 
-HTTPBundleLoader.register()
-
-
 class HTTPBundleUploader(Uploader):
     def __init__(self, upload_url, ssl_context=None):
         '''
@@ -245,3 +282,28 @@ class HTTPBundleUploader(Uploader):
                 BUNDLE_ARCHIVE_MIME_TYPE})
         # XXX: Do something with this response
         # conn.getresponse()
+
+
+def https_remote(self, *, ssl_context_provider=None):
+    '''
+    Provide additional parameters for HTTPS remote accessors
+
+    Parameters
+    ----------
+    ssl_context_provider : str
+        Path to a callable that provides a `ssl.SSLContext`. The format is similar to that
+        for setuptools entry points: ``path.to.module:path.to.provider.callable``.
+        Notably, there's no name and "extras" are not supported. optional.
+    '''
+
+    if self._url_config is None:
+        raise GenericUserError('An HTTPS URL must be specified for HTTPS accessors')
+
+    if not isinstance(self._url_config, HTTPSURLConfig):
+        raise GenericUserError(f'The specified URL, {self._url_config} is not an HTTPS URL')
+
+    if ssl_context_provider:
+        self._url_config.ssl_context_provider = ssl_context_provider
+        self._url_config.init_ssl_context()
+
+    self._write_remote()

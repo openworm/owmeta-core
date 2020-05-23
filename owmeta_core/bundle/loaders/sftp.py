@@ -209,7 +209,7 @@ def sftp_remote(self, *, password=None,
         identity_type='RSA', identity=None,
         host_key_type=None, host_key=None):
     '''
-    Parameters for SFTP remote accessors
+    Provide additional parameters for SFTP remote accessors
 
     Parameters
     ----------

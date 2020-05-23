@@ -721,8 +721,8 @@ class OWM(object):
         module : str
             Name of the module housing the provider
         provider : str
-            Name of the provider, a callble that accepts a context object and adds statements to it. Can be a "dotted"
-            name indicating attribute accesses
+            Name of the provider, a callble that accepts a context object and adds
+            statements to it. Can be a "dotted" name indicating attribute accesses
         context : str
             The target context
         '''
