@@ -3,10 +3,12 @@ import io
 import logging
 from os.path import join as p
 import re
+import ssl
 from urllib.parse import quote as urlquote, urlparse
+from textwrap import dedent
 
 from ...command_util import GenericUserError
-from ...utils import FCN
+from ...utils import FCN, getattrs
 
 from .. import Loader, Uploader, URLConfig
 from ..archive import ensure_archive, Unarchiver
@@ -40,24 +42,59 @@ class HTTPSURLConfig(URLConfig):
         if self.ssl_context_provider:
             md = PROVIDER_PATH_RE.match(self.ssl_context_provider)
             if not md:
-                raise GenericUserError('Format of the provider path is incorrect')
+                raise HTTPSURLError('Format of the provider path is incorrect')
+            module = md.group('module')
+            provider = md.group('provider')
+            m = IM.import_module(module)
+            attr_chain = provider.split('.')
+            ssl_context_provider = self._lookup_ssl_context_provider(m, attr_chain)
+
             try:
-                module = md.group('module')
-                provider = md.group('provider')
-                m = IM.import_module(module)
-                attr_chain = provider.split('.')
-                p = m
-                for x in attr_chain:
-                    p = getattr(p, x)
-                self._ssl_context = p()
-            except Exception:
-                raise GenericUserError('Could not create an SSL context from the given'
-                        ' context_provider path')
+                ssl_context = ssl_context_provider()
+            except Exception as e:
+                raise HTTPSURLError('Error from SSL context provider'
+                        f' "{self.ssl_context_provider}": {e}')
+
+            if not isinstance(ssl_context, ssl.SSLContext):
+                raise HTTPSURLError('Provider returned something other than an'
+                        f' ssl.SSLContext: {ssl_context}')
+
+            self._ssl_context = ssl_context
+
+    def _lookup_ssl_context_provider(self, m, attr_chain):
+        try:
+            return getattrs(m, attr_chain)
+        except AttributeError:
+            raise HTTPSURLError(f'"{self.ssl_context_provider}" does not point to an'
+                    ' SSL context provider')
 
     @property
     def ssl_context(self):
         self.init_ssl_context()
         return self._ssl_context
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['_ssl_context']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._ssl_context = None
+
+    def __str__(self):
+        ssl_context_maybe = self.ssl_context_provider if self.ssl_context_provider else ''
+        return dedent('''\
+        {url}
+            SSL Context Provider: {ssl_context_maybe}''').format(url=self.url,
+                ssl_context_maybe=ssl_context_maybe)
+
+
+HTTPSURLConfig.register('https')
+
+
+class HTTPSURLError(Exception):
+    pass
 
 
 class HTTPBundleLoader(Loader):
@@ -302,8 +339,15 @@ def https_remote(self, *, ssl_context_provider=None):
     if not isinstance(self._url_config, HTTPSURLConfig):
         raise GenericUserError(f'The specified URL, {self._url_config} is not an HTTPS URL')
 
-    if ssl_context_provider:
-        self._url_config.ssl_context_provider = ssl_context_provider
-        self._url_config.init_ssl_context()
+    try:
+        if ssl_context_provider:
+            self._url_config.ssl_context_provider = ssl_context_provider
+            self._url_config.init_ssl_context()
+    except HTTPSURLError as e:
+        raise GenericUserError(str(e))
 
-    self._write_remote()
+    return self._write_remote()
+
+
+def ssl_context_provider():
+    return ssl.create_default_context()

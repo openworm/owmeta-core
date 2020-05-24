@@ -12,6 +12,7 @@ import shutil
 
 from rdflib.term import URIRef
 import six
+from textwrap import dedent
 import transaction
 import yaml
 
@@ -139,7 +140,14 @@ class Remote(object):
         return hash((self.name, self.accessor_configs))
 
     def __str__(self):
-        return f'Remote({self.name})'
+        if self.accessor_configs:
+            accessors = '\n' + '\n'.join('    ' + '\n    '.join(str(acc).split('\n')) for acc in self.accessor_configs)
+        else:
+            accessors = ' <none>'
+        return dedent('''\
+        {name}
+        Accessors:{accessors}''').format(name=self.name,
+            accessors=accessors)
 
     def __repr__(self):
         return f'{FCN(type(self))}({repr(self.name)}, {repr(self.accessor_configs)})'

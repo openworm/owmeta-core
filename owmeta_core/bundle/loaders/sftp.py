@@ -6,6 +6,7 @@ from os.path import basename
 from urllib.parse import urlparse
 
 from paramiko import Transport, SFTPClient, RSAKey, ECDSAKey, DSSKey, Ed25519Key, HostKeys
+from textwrap import dedent
 
 from ...command_util import GenericUserError
 from .. import Uploader, URLConfig
@@ -158,7 +159,7 @@ class SFTPURLConfig(URLConfig):
             try:
                 keytype = KEYTYPES[self.identity_type.upper()]
             except KeyError:
-                raise GenericUserError('The only key types accepted are {}, but we were given'
+                raise SFTPURLError('The only key types accepted are {}, but we were given'
                         ' {}'.format(', '.join(KEYTYPES), self.identity_type))
 
             if keytype is Ed25519Key:
@@ -172,34 +173,64 @@ class SFTPURLConfig(URLConfig):
         return self._host_key
 
     def init_host_key(self):
-        if self._host_key:
+        if self._host_key and isinstance(self._host_key, KEYTYPES.get(self.host_key_type)):
             return
         if self.host_keys_file:
             try:
                 known_hosts = HostKeys(self.host_keys_file)
             except FileNotFoundError:
-                raise GenericUserError(f'The given host key file {self.host_keys_file} could not be found')
+                raise SFTPURLError(f'The given host key file {self.host_keys_file} could not be found')
             hostkeys = known_hosts.lookup(self.hostname)
             if not hostkeys:
-                raise GenericUserError('There are no host keys associated with'
+                raise SFTPURLError('There are no host keys associated with'
                         f' {self.hostname}')
             if self.host_key_type:
                 try:
-                    keys = KNOWN_HOSTS_KEY_TYPE_MAP[self.host_key_type]
+                    keys = KNOWN_HOSTS_KEY_TYPE_MAP[self.host_key_type.upper()]
                     for k in keys:
                         pkey = hostkeys.get(k)
                         if pkey:
                             break
                     else: # no break
-                        raise GenericUserError(f'There are no host keys with the given type {self.host_key_type}')
+                        raise SFTPURLError(f'There are no host keys with the given type {self.host_key_type}')
                 except KeyError:
-                    raise GenericUserError(('Unrecognized key type {}.'
+                    raise SFTPURLError(('Unrecognized key type {}.'
                             ' Recognized key types: {}').format(self.host_key_type,
                                 ', '.join(KNOWN_HOSTS_KEY_TYPE_MAP)))
             else:
                 for pkey in hostkeys.values():
                     break
             self._host_key = pkey
+
+    def __str__(self):
+        if self.password:
+            password = '\n    Has password'
+        else:
+            password = ''
+
+        if self.host_keys_file:
+            host_keys = '\n    Host Key(s): {}{}'.format(
+                    self.host_keys_file,
+                    f' ({self.host_key_type})' if self.host_key_type else '')
+        else:
+            host_keys = ''
+
+        if self.identity_file:
+            identity = '\n    Identity: {}{}'.format(
+                    self.identity_file,
+                    f' ({self.identity_type})' if self.identity_type else '')
+        else:
+            identity = ''
+
+        return dedent('''\
+        {url}{password}{identity}{host_keys}''').format(url=self.url,
+                password=password,
+                identity=identity,
+                host_keys=host_keys)
+
+
+class SFTPURLError(Exception):
+    pass
 
 
 SFTPURLConfig.register('sftp')
@@ -234,17 +265,22 @@ def sftp_remote(self, *, password=None,
     if not isinstance(self._url_config, SFTPURLConfig):
         raise GenericUserError(f'The specified URL, {self._url_config} is not an SFTP URL')
 
-    if password:
-        self._url_config.password = password
+    try:
+        if password:
+            self._url_config.password = password
 
-    if identity:
-        self._url_config.identity_type = identity_type
-        self._url_config.identity_file = identity
-        self._url_config.init_identity()
+        if identity:
+            self._url_config.identity_type = identity_type.upper()
+            self._url_config.identity_file = identity
+            self._url_config.init_identity()
 
-    if host_key:
-        self._url_config.host_key_type = host_key_type
-        self._url_config.host_keys_file = host_key
-        self._url_config.init_host_key()
+        if host_key or host_key_type:
+            if host_key_type:
+                self._url_config.host_key_type = host_key_type.upper()
+            if host_key:
+                self._url_config.host_keys_file = host_key
+            self._url_config.init_host_key()
+    except SFTPURLError as e:
+        raise GenericUserError(str(e))
 
-    self._write_remote()
+    return self._write_remote()

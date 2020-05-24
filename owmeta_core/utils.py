@@ -36,3 +36,18 @@ def aslist(fun):
     def wrapper(*args, **kwargs):
         return list(fun(*args, **kwargs))
     return wrapper
+
+
+UNSET = object()
+
+
+def getattrs(obj, names, default=UNSET):
+    p = obj
+    try:
+        for x in names:
+            p = getattr(p, x)
+        return p
+    except AttributeError:
+        if default is UNSET:
+            raise
+        return default

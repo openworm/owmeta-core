@@ -36,6 +36,7 @@ class CLIUserError(Exception):
 
 def _method_runner(runner, key):
     method = getattr(runner, key)
+
     @functools.wraps(method)
     def _f(*args, **kwargs):
         return method(*args, **kwargs)
@@ -97,32 +98,35 @@ class CLIArgMapper(object):
 
         runmethod = self.runners.get(self.methodname, None)
 
+        def continuation():
+            argcount = self.named_arg_count.get(self.methodname)
+            if nargs and args and argcount is not None and len(args) != argcount:
+                # This means we have passed in positional arguments, and we have a
+                # variable-length option, but we have not filled out all of the arguments
+                # necessary to cleanly apply the runmethod since Python would think we're
+                # trying to apply some arguments twice.
+                #
+                # We *could* support a slightly richer set of options here, but it's probably
+                # not worth it...
+                #
+                # Also, this is a programmer error. End-users shouldn't hit this
+                raise Exception('Missing arguments to method ' + str(self.methodname))
+            for k, v in iattrs.items():
+                setattr(runner, k, v)
+
+            return runmethod(*(tuple(args) + nargs), **kwargs)
+
         if callable(runner) and self.runner_mapper:
-            maybe_ret = self.runner_mapper.apply(runner)
-            if runmethod is None:
-                return maybe_ret
+            if runmethod is not None:
+                runner._next = continuation
+            return self.runner_mapper.apply(runner)
 
         if runmethod is None:
             self.argparser.print_help(file=sys.stderr)
             print(file=sys.stderr)
             raise CLIUserError('Please specify a sub-command')
-        argcount = self.named_arg_count.get(self.methodname)
-        if nargs and args and argcount is not None and len(args) != argcount:
-            # This means we have passed in positional arguments, and we have a
-            # variable-length option, but we have not filled out all of the arguments
-            # necessary to cleanly apply the runmethod since Python would think we're
-            # trying to apply some arguments twice.
-            #
-            # We *could* support a slightly richer set of options here, but it's probably
-            # not worth it...
-            #
-            # Also, this is a programmer error. End-users shouldn't hit this
-            raise Exception('Missing arguments to method ' + str(self.methodname))
-        args += nargs
-        for k, v in iattrs.items():
-            setattr(runner, k, v)
 
-        return runmethod(*args, **kwargs)
+        return continuation()
 
     def get(self, key):
         return {k[1]: self.mappings[k] for k in self.mappings if k[0] == key}
@@ -422,6 +426,8 @@ class CLICommandWrapper(object):
 
     def _handle_method(self, command_name, subparser, key, val, params):
         sc_hints = self.hints.get(key) if self.hints else None
+        meth = getattr(self.runner, key)
+        positional_arg_count = meth.__code__.co_argcount
         self.mapper.runners[command_name] = _method_runner(self.runner, key)
         argcount = 0
         for pindex, param in enumerate(params):
@@ -454,10 +460,13 @@ class CLICommandWrapper(object):
                 names = None if arg_hints is None else arg_hints.get('names')
                 if names is None:
                     names = ['--' + arg_cli_name]
+                index = pindex
+                if positional_arg_count >= pindex:
+                    index = -1
                 argument_args = dict(action=action,
                                      key=METHOD_NAMED_ARG,
                                      mapper=self.mapper,
-                                     index=pindex,
+                                     index=index,
                                      mapped_name=arg,
                                      type=atype,
                                      help=desc)

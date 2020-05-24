@@ -40,6 +40,10 @@ class _OWMBundleRemoteAddUpdate(object):
         self._remote = None
         self._url_config = None
 
+        # _next is provided by cli_command_wrapper. It indicates the continuation for
+        # running the remaining sub-commands
+        self._next = None
+
     def _remote_fname(self, name):
         return self._owm_bundle_remote._remote_fname(name)
 
@@ -64,6 +68,7 @@ class _OWMBundleRemoteAddUpdate(object):
                 unlink(fname + '.bkp')
             except FileNotFoundError:
                 pass
+        return self._remote
 
     def _remote_exists(self, name):
         return isfile(self._remote_fname(name))
@@ -114,7 +119,10 @@ class OWMBundleRemoteAdd(_OWMBundleRemoteAddUpdate):
                 L.warning('Could not crerate directory for storage of remote configurations', exc_info=True)
                 raise GenericUserError('Could not create directory for storage of remote configurations')
 
-        self._write_remote()
+        if self._next:
+            return self._next()
+        else:
+            return self._write_remote()
 
 
 class OWMBundleRemoteUpdate(_OWMBundleRemoteAddUpdate):
@@ -141,6 +149,13 @@ class OWMBundleRemoteUpdate(_OWMBundleRemoteAddUpdate):
             if isinstance(ac, URLConfig) and ac.url == url:
                 self._url_config = ac
                 break
+        else:  # no break
+            raise GenericUserError(f'There is no accessor config for "{url}" in the'
+                    f' remote named "{name}"')
+
+        if self._next:
+            return self._next()
+        return self._remote
 
 
 class OWMBundleRemote(object):
@@ -182,11 +197,7 @@ class OWMBundleRemote(object):
         name : str
             Name of the remote
         '''
-        remote = self._read_remote(name)
-        return GeneratorWithData(remote.accessor_configs,
-                text_format=lambda ac: str(ac),
-                columns=(lambda ac: str(ac),),
-                header=("Accessor",))
+        return self._read_remote(name)
 
 
 class OWMBundleCache(object):
