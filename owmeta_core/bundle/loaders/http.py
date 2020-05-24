@@ -347,7 +347,3 @@ def https_remote(self, *, ssl_context_provider=None):
         raise GenericUserError(str(e))
 
     return self._write_remote()
-
-
-def ssl_context_provider():
-    return ssl.create_default_context()

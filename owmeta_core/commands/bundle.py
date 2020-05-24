@@ -121,8 +121,7 @@ class OWMBundleRemoteAdd(_OWMBundleRemoteAddUpdate):
 
         if self._next:
             return self._next()
-        else:
-            return self._write_remote()
+        return self._write_remote()
 
 
 class OWMBundleRemoteUpdate(_OWMBundleRemoteAddUpdate):
@@ -155,6 +154,7 @@ class OWMBundleRemoteUpdate(_OWMBundleRemoteAddUpdate):
 
         if self._next:
             return self._next()
+
         return self._remote
 
 

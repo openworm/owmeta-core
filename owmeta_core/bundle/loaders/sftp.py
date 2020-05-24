@@ -173,7 +173,7 @@ class SFTPURLConfig(URLConfig):
         return self._host_key
 
     def init_host_key(self):
-        if self._host_key and isinstance(self._host_key, KEYTYPES.get(self.host_key_type)):
+        if self._host_key and isinstance(self._host_key, KEYTYPES.get(self.host_key_type, ())):
             return
         if self.host_keys_file:
             try:
