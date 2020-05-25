@@ -114,7 +114,7 @@ class CLIArgMapper(object):
             for k, v in iattrs.items():
                 setattr(runner, k, v)
 
-            return runmethod(*(tuple(args) + nargs), **kwargs)
+            return runmethod(*(tuple(args) + tuple(nargs)), **kwargs)
 
         if callable(runner) and self.runner_mapper:
             if runmethod is not None:
