@@ -358,8 +358,8 @@ class Bundle(object):
             The directory to load `Remotes <Remote>` from in case a bundle is not in the
             bundle cache. Defaults to `.DEFAULT_REMOTES_DIRECTORY`
         '''
-        if not ident:
-            raise Exception('ident must be non-None')
+        if not ident or not isinstance(ident, str):
+            raise ValueError('ident must be a non-empty string')
         self.ident = ident
         if not bundles_directory:
             bundles_directory = DEFAULT_BUNDLES_DIRECTORY

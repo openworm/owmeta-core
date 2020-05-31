@@ -1,5 +1,4 @@
 from collections import namedtuple
-from io import StringIO
 from os.path import join as p
 from os import makedirs, chmod
 from tempfile import TemporaryDirectory
@@ -14,11 +13,9 @@ from rdflib.graph import ConjunctiveGraph
 from owmeta_core.context import Context
 from owmeta_core.contextualize import Contextualizable
 from owmeta_core.agg_store import UnsupportedAggregateOperation
-from owmeta_core.bundle import (Remote, URLConfig, Bundle, BundleNotFound,
-                                Descriptor, DependencyDescriptor, _RemoteHandlerMixin,
-                                make_include_func, NoRemoteAvailable,
-                                BUNDLE_INDEXED_DB_NAME)
-from owmeta_core.bundle.loaders.http import HTTPBundleLoader
+from owmeta_core.bundle import (Bundle, BundleNotFound, Descriptor, DependencyDescriptor,
+                                _RemoteHandlerMixin, make_include_func, NoRemoteAvailable,
+                                BUNDLE_INDEXED_DB_NAME, DEFAULT_BUNDLES_DIRECTORY)
 
 
 Dirs = namedtuple('Dirs', ('source_directory', 'bundles_directory'))
@@ -31,59 +28,21 @@ def dirs():
         yield Dirs(source_directory, bundles_directory)
 
 
-def test_write_read_remote_1():
-    out = StringIO()
-    r0 = Remote('remote')
-    r0.write(out)
-    out.seek(0)
-    r1 = Remote.read(out)
-    assert r0 == r1
+def test_bundle_None_ident():
+    with pytest.raises(ValueError, match=r'non-empty string'):
+        Bundle(None)
 
 
-def test_write_read_remote_2():
-    out = StringIO()
-    r0 = Remote('remote')
-    r0.add_config(URLConfig('http://example.org/bundle_remote0'))
-    r0.add_config(URLConfig('http://example.org/bundle_remote1'))
-    r0.write(out)
-    out.seek(0)
-    r1 = Remote.read(out)
-    assert r0 == r1
+def test_bundle_empty_str_ident():
+    with pytest.raises(ValueError, match=r'non-empty string'):
+        Bundle('')
 
 
-def test_get_http_url_loaders():
-    '''
-    Find loaders for HTTP URLs
-    '''
-    r0 = Remote('remote')
-    r0.add_config(URLConfig('http://example.org/bundle_remote0'))
-    for l in r0.generate_loaders():
-        if isinstance(l, HTTPBundleLoader):
-            return
-
-    raise AssertionError('No HTTPBundleLoader was created')
-
-
-def test_remote_generate_uploaders_skip():
-    mock = Mock()
-    with patch('owmeta_core.bundle.UPLOADER_CLASSES', [mock]):
-        r0 = Remote('remote')
-        r0.add_config(URLConfig('http://example.org/bundle_remote0'))
-        for ul in r0.generate_uploaders():
-            pass
-    mock.can_upload_to.assert_called()
-
-
-def test_remote_generate_uploaders_no_skip():
-    mock = Mock()
-    mock.can_upload_to.return_value = True
-    ac = URLConfig('http://example.org/bundle_remote0')
-    with patch('owmeta_core.bundle.UPLOADER_CLASSES', [mock]):
-        r0 = Remote('remote')
-        r0.add_config(ac)
-        for ul in r0.generate_uploaders():
-            pass
-    mock.assert_called_with(ac)
+def test_bundles_directory_None():
+    with patch('owmeta_core.bundle.expandvars') as expandvars, \
+            patch('owmeta_core.bundle.realpath') as realpath, \
+            patch('owmeta_core.bundle.expanduser') as expanduser:
+        assert realpath(expandvars(expanduser(DEFAULT_BUNDLES_DIRECTORY))) == Bundle('test', None).bundles_directory
 
 
 def test_latest_bundle_fetched(tempdir):
