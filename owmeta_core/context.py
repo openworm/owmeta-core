@@ -94,6 +94,8 @@ class Context(six.with_metaclass(ContextMeta, ImportContextualizer,
                                  ContextualizableDataUserMixin)):
     """
     A context. Analogous to an RDF context, with some special sauce
+
+    .. automethod:: __call__
     """
 
     def __init__(self, ident=None,
@@ -292,10 +294,12 @@ class Context(six.with_metaclass(ContextMeta, ImportContextualizer,
 
     def __call__(self, o=None, *args, **kwargs):
         """
+        Contextualize an object
+
         Parameters
         ----------
         o : object
-            The object to contexualize. Defaults to locals()
+            The object to contexualize
         """
         if o is None:
             if kwargs:

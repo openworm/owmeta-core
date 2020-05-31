@@ -347,10 +347,10 @@ class Bundle(object):
             Path to the bundles directory. Defaults to `.DEFAULT_BUNDLES_DIRECTORY`
         version : int, optional
             Bundle version to access. By default, the latest version will be used.
-        conf : Configuration or dict, optional
+        conf : .Configuration or dict, optional
             Configuration to add to the one created for the bundle automatically. Values
-            for the default imports context (`IMPORTS_CONTEXT_KEY`), the default context
-            (`DEFAULT_CONTEXT_KEY`) and store (``'rdf.store'``, ``'rdf.source'``, and,
+            for the default imports context (`.IMPORTS_CONTEXT_KEY`), the default context
+            (`.DEFAULT_CONTEXT_KEY`) and store (``'rdf.store'``, ``'rdf.source'``, and,
             ``'rdf.store_conf'``) will be ignored and overwritten.
         remotes : iterable of Remote or str, optional
             A subset of remotes and additional remotes to fetch from. See `Fetcher.fetch`
