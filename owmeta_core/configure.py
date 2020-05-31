@@ -182,10 +182,17 @@ class Configuration(object):
 
     def copy(self, other):
         """
-        Copy this configuration into a different object.
+        Copy configuration from another object into this one
 
-        :param other: A different configuration object to copy the configuration from this object into
-        :return:
+        Parameters
+        ----------
+        other : dict or Configuration
+            Configuration to copy from
+
+        Returns
+        -------
+        Configuration
+            self
         """
         if isinstance(other, Configuration):
             self._properties = dict(other._properties)
@@ -208,7 +215,8 @@ class Configuration(object):
 
         Returns
         -------
-        The value corresponding to the key
+        object
+            The value corresponding to the key
         """
         val = self._properties.get(pname, None)
         if val is not None:

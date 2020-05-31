@@ -8,7 +8,9 @@ from os.path import (exists,
         dirname,
         isabs,
         relpath,
-        expanduser)
+        realpath,
+        expanduser,
+        expandvars)
 
 from os import makedirs, mkdir, listdir, rename, unlink, scandir
 
@@ -18,13 +20,12 @@ import logging
 import errno
 from collections import namedtuple
 from textwrap import dedent
-from .utils import FCN
 
 from tempfile import TemporaryDirectory
 
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
                            DEFAULT_OWM_DIR)
-from . import connect
+from . import connect, OWMETA_PROFILE_DIR
 from .commands.bundle import OWMBundle
 from .context import Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY
 from .capability import provide
@@ -32,6 +33,7 @@ from .capabilities import FilePathProvider
 from .datasource_loader import DataSourceDirLoader, LoadFailed
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
 from .rdf_utils import BatchAddGraph
+from .utils import FCN
 
 
 L = logging.getLogger(__name__)
@@ -612,7 +614,7 @@ class OWM(object):
 
     basedir = IVar('.', doc='The base directory. owmdir is resolved against this base')
 
-    userdir = IVar(expanduser(pth_join('~', '.owmeta')),
+    userdir = IVar(expanduser(OWMETA_PROFILE_DIR),
             doc='Root directory for user-specific configuration')
 
     repository_provider = IVar(doc='The provider of the repository logic'
@@ -656,6 +658,17 @@ class OWM(object):
 
         if owmdir:
             self.owmdir = owmdir
+
+    @IVar.property(OWMETA_PROFILE_DIR)
+    def userdir(self):
+        '''
+        Root directory for user-specific configuration
+        '''
+        return realpath(expandvars(expanduser(self._userdir)))
+
+    @userdir.setter
+    def userdir(self, val):
+        self._userdir = val
 
     @IVar.property(DEFAULT_OWM_DIR)
     def owmdir(self):

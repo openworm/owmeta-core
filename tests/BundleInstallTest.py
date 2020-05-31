@@ -4,7 +4,8 @@ import transaction
 from collections import namedtuple
 from rdflib.term import URIRef
 from owmeta_core.bundle import (Installer, Descriptor, make_include_func, FilesDescriptor,
-                                UncoveredImports, DependencyDescriptor, TargetIsNotEmpty)
+                                UncoveredImports, DependencyDescriptor, TargetIsNotEmpty,
+                                Remote)
 from owmeta_core.context_common import CONTEXT_IMPORTS
 from os.path import join as p, isdir, isfile
 from os import listdir, makedirs
@@ -295,11 +296,12 @@ def test_imports_in_unfetched_dependencies(dirs):
 
     loader = loader_class()
 
-    class remote_class(object):
+    class remote_class(Remote):
         def generate_loaders(self, *args):
             yield loader
 
-    bi = Installer(*dirs, imports_ctx=imports_ctxid, graph=g, remotes=[remote_class()])
+    bi = Installer(*dirs, imports_ctx=imports_ctxid, graph=g,
+            remotes=[remote_class('remote')])
     loader.bi = bi
 
     with patch('owmeta_core.bundle.LOADER_CLASSES', (loader_class,)):

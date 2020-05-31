@@ -3,7 +3,7 @@ from io import StringIO
 from os.path import join as p
 from os import makedirs, chmod
 from tempfile import TemporaryDirectory
-from unittest.mock import patch, Mock
+from unittest.mock import patch, Mock, ANY
 
 import pytest
 import rdflib
@@ -16,7 +16,8 @@ from owmeta_core.contextualize import Contextualizable
 from owmeta_core.agg_store import UnsupportedAggregateOperation
 from owmeta_core.bundle import (Remote, URLConfig, Bundle, BundleNotFound,
                                 Descriptor, DependencyDescriptor, _RemoteHandlerMixin,
-                                make_include_func, BUNDLE_INDEXED_DB_NAME)
+                                make_include_func, NoRemoteAvailable,
+                                BUNDLE_INDEXED_DB_NAME)
 from owmeta_core.bundle.loaders.http import HTTPBundleLoader
 
 
@@ -432,19 +433,40 @@ def test_remote_handler_mixin_selected_configured_remotes():
     assert remote is not None
 
 
-def test_bundle_contextualize_non_contextualizable(tempdir, bundle):
+def test_bundle_contextualize_non_contextualizable(bundle):
     cut = Bundle(bundle.descriptor.id, version=bundle.descriptor.version,
             bundles_directory=bundle.bundles_directory)
     token = object()
     assert cut(token) == token
 
 
-def test_bundle_contextualize(tempdir, bundle):
+def test_bundle_contextualize(bundle):
     with Bundle(bundle.descriptor.id, version=bundle.descriptor.version,
             bundles_directory=bundle.bundles_directory) as cut:
         ctxble = Mock(spec=Contextualizable)
         cut(ctxble)
         ctxble.contextualize.assert_called_with(ContextWithNoId())
+
+
+def test_bundle_selected_remotes(tempdir):
+    with patch('owmeta_core.bundle.Fetcher') as Fetcher:
+        remotes = (object(), object())
+        cut = Bundle('bundle_id', version=1, bundles_directory=tempdir,
+                remotes=remotes)
+        cut.resolve()
+        Fetcher().fetch.assert_called_with(ANY, 1, remotes)
+
+
+def test_bundle_retrieve_remotes_default_dir(tempdir):
+    with patch('owmeta_core.bundle.retrieve_remotes') as retrieve_remotes:
+        remotes_dir = '/tmp/remotes_dir'
+        cut = Bundle('bundle_id', version=1, bundles_directory=tempdir,
+                remotes_directory=remotes_dir)
+        try:
+            cut.resolve()
+        except NoRemoteAvailable:
+            pass
+        retrieve_remotes.assert_called_with(remotes_dir)
 
 
 class ContextWithNoId(Context):

@@ -1,7 +1,8 @@
 from collections import namedtuple
 from itertools import chain
 from os import makedirs, rename, scandir, listdir
-from os.path import join as p, exists, relpath, expanduser, isdir, isfile
+from os.path import (join as p, exists, relpath, isdir, isfile,
+        expanduser, expandvars, realpath)
 from struct import pack
 import errno
 import hashlib
@@ -16,12 +17,13 @@ from textwrap import dedent
 import transaction
 import yaml
 
-from ..command_util import DEFAULT_OWM_DIR
+from .. import OWMETA_PROFILE_DIR
 from ..context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY, Context
 from ..context_common import CONTEXT_IMPORTS
 from ..data import Data
 from ..file_match import match_files
 from ..file_lock import lock_file
+from ..file_utils import hash_file
 from ..graph_serialization import write_canonical_to_file
 from ..rdf_utils import transitive_lookup
 from ..utils import FCN, aslist
@@ -37,6 +39,17 @@ from urllib.parse import quote as urlquote, unquote as urlunquote
 
 
 L = logging.getLogger(__name__)
+
+DEFAULT_BUNDLES_DIRECTORY = p(OWMETA_PROFILE_DIR, 'bundles')
+'''
+Default directory for the bundle cache
+'''
+
+DEFAULT_REMOTES_DIRECTORY = p(OWMETA_PROFILE_DIR, 'remotes')
+'''
+Default directory for descriptors of user-level remotes as opposed to project-specific
+remotes
+'''
 
 
 class Remote(object):
@@ -163,8 +176,8 @@ class DependencyDescriptor(namedtuple('_DependencyDescriptor',
 
 class AccessorConfig(object):
     '''
-    Configuration for accessing a remote. Loaders are added to a remote according to which
-    accessors are avaialble
+    Configuration for accessing a `Remote`. `Loaders <Loader>` are added to a remote according to
+    which accessors are avaialble
     '''
 
     def __eq__(self, other):
@@ -315,19 +328,51 @@ class Bundle(object):
         ...         pass
     '''
 
-    def __init__(self, ident, bundles_directory=None, version=None, conf=None, remotes=()):
+    def __init__(self, ident, bundles_directory=DEFAULT_BUNDLES_DIRECTORY, version=None,
+            conf=None, remotes=None, remotes_directory=DEFAULT_REMOTES_DIRECTORY):
+        '''
+        .. note::
+
+            Paths, `bundles_directory` and `remotes_directory`, will have symbolic links,
+            environment variables, and "~" (for the current user's home directory)
+            expanded when the `Bundle` is initialized. To reflect changes to symbolic
+            links or home directories, the `bundles_directory` or `remotes_directory`
+            attributes must be updated directly or a new instance must be created.
+
+        Parameters
+        ----------
+        ident : str
+            Bundle ID
+        bundles_directory : str, optional
+            Path to the bundles directory. Defaults to `.DEFAULT_BUNDLES_DIRECTORY`
+        version : int, optional
+            Bundle version to access. By default, the latest version will be used.
+        conf : Configuration or dict, optional
+            Configuration to add to the one created for the bundle automatically. Values
+            for the default imports context (`IMPORTS_CONTEXT_KEY`), the default context
+            (`DEFAULT_CONTEXT_KEY`) and store (``'rdf.store'``, ``'rdf.source'``, and,
+            ``'rdf.store_conf'``) will be ignored and overwritten.
+        remotes : iterable of Remote or str, optional
+            A subset of remotes and additional remotes to fetch from. See `Fetcher.fetch`
+        remotes_directory : str, optional
+            The directory to load `Remotes <Remote>` from in case a bundle is not in the
+            bundle cache. Defaults to `.DEFAULT_REMOTES_DIRECTORY`
+        '''
         if not ident:
             raise Exception('ident must be non-None')
         self.ident = ident
-        if bundles_directory is None:
-            bundles_directory = expanduser(p('~', '.owmeta', 'bundles'))
-        self.bundles_directory = bundles_directory
+        if not bundles_directory:
+            bundles_directory = DEFAULT_BUNDLES_DIRECTORY
+        self.bundles_directory = realpath(expandvars(expanduser(bundles_directory)))
         if not conf:
             conf = {}
 
         conf.update({'rdf.source': 'default'})
         self.version = version
         self.remotes = remotes
+        if not remotes_directory:
+            remotes_directory = DEFAULT_REMOTES_DIRECTORY
+        self.remotes_directory = realpath(expandvars(expanduser(remotes_directory)))
         self._given_conf = conf
         self.conf = None
         self._contexts = None
@@ -341,19 +386,8 @@ class Bundle(object):
             bundle_directory = self._get_bundle_directory()
         except BundleNotFound:
             # If there's a .owm directory, then get the remotes from there
-            remotes = None
-            if self.remotes:
-                remotes = self.remotes
-
-            if not remotes and exists(DEFAULT_OWM_DIR):
-                # TODO: Make this search upwards in case the directory exists at a parent
-                remotes = retrieve_remotes(DEFAULT_OWM_DIR)
-
-            if remotes:
-                f = Fetcher(self.bundles_directory, remotes)
-                bundle_directory = f(self.ident, self.version)
-            else:
-                raise
+            f = Fetcher(self.bundles_directory, retrieve_remotes(self.remotes_directory))
+            bundle_directory = f.fetch(self.ident, self.version, self.remotes)
         return bundle_directory
 
     def _get_bundle_directory(self):
@@ -379,7 +413,6 @@ class Bundle(object):
             self.conf['rdf.store_conf'] = self._construct_store_config(
                     bundle_directory,
                     manifest_data)
-            # Create the database file and initialize some needed data structures
             self.conf.init()
 
     def _construct_store_config(self, bundle_directory, manifest_data, current_path=None, paths=None):
@@ -448,6 +481,7 @@ class Bundle(object):
     def __exit__(self, exc_type, exc_value, traceback):
         # Close the database connection
         self.conf.destroy()
+        self.conf = None
 
     def __call__(self, target):
         if target and hasattr(target, 'contextualize'):
@@ -801,7 +835,7 @@ class Cache(object):
                         raise
 
 
-def retrieve_remotes(owmdir):
+def retrieve_remotes(remotes_dir):
     '''
     Retrieve remotes from a owmeta_core project directory
 
@@ -810,7 +844,6 @@ def retrieve_remotes(owmdir):
     owmdir : str
         path to the project directory
     '''
-    remotes_dir = p(owmdir, 'remotes')
     if not exists(remotes_dir):
         return
     for r in listdir(remotes_dir):
@@ -907,7 +940,7 @@ class Installer(object):
     '''
 
     def __init__(self, source_directory, bundles_directory, graph,
-                 imports_ctx=None, default_ctx=None, installer_id=None, remotes=()):
+                 imports_ctx=None, default_ctx=None, installer_id=None, remotes=(), remotes_directory=None):
         '''
         Parameters
         ----------
@@ -925,12 +958,15 @@ class Installer(object):
         imports_ctx : str, optional
             The ID of the imports context this installer should use. Imports relationships
             are selected from this graph according to the included contexts.
-        installer_id : str, optional
+        installer_id : iterable of Remote or str, optional
             Name of this installer for purposes of mutual exclusion
         remotes : iterable of Remote, optional
             Remotes to be used for retrieving dependencies when needed during
-            installation. If not provided, the remotes will be collected from the
-            owmeta_core project directory.
+            installation. If not provided, the remotes will be collected from
+            `remotes_directory`
+        remotes_directory : str, optional
+            The directory to load `Remotes <Remote>` from in case a bundle is not in the
+            bundle cache. Defaults to `.DEFAULT_REMOTES_DIRECTORY`
         '''
         self.context_hash = hashlib.sha224
         self.file_hash = hashlib.sha224
@@ -941,6 +977,7 @@ class Installer(object):
         self.imports_ctx = imports_ctx
         self.default_ctx = default_ctx
         self.remotes = list(remotes)
+        self.remotes_directory = remotes_directory
 
     def install(self, descriptor, progress_reporter=None):
         '''
@@ -1132,7 +1169,8 @@ class Installer(object):
         # with each other across dependencies
         dependencies = descriptor.dependencies
         for d in dependencies:
-            bnd = Bundle(d.id, self.bundles_directory, d.version, remotes=self.remotes)
+            bnd = Bundle(d.id, self.bundles_directory, d.version, remotes=self.remotes,
+                    remotes_directory=self.remotes_directory)
             for c in bnd.contexts:
                 uncovered_contexts.discard(URIRef(c))
                 if not uncovered_contexts:
@@ -1146,31 +1184,6 @@ class Installer(object):
 
 def fmt_bundle_ctx_id(id):
     return 'http://openworm.org/data/generated_imports_ctx?bundle_id=' + urlquote(id)
-
-
-def hash_file(hsh, fh, blocksize=None):
-    '''
-    Updates the given hash object with the contents of a file.
-
-    The file is read in `blocksize` chunks to avoid eating up too much memory at a time.
-
-    Parameters
-    ----------
-    hsh : `hashlib.hash <hashlib>`
-        The hash object to update
-    fh : :term:`file object`
-        The file to hash
-    blocksize : int, optional
-        The number of bytes to read at a time. If not provided, will use
-        `hsh.block_size <hashlib.hash.block_size>` instead.
-    '''
-    if not blocksize:
-        blocksize = hsh.block_size
-    while True:
-        block = fh.read(blocksize)
-        if not block:
-            break
-        hsh.update(block)
 
 
 class FilesDescriptor(object):

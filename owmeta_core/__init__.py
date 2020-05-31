@@ -16,6 +16,7 @@ import sys
 import os
 import logging
 import uuid
+from os.path import join as pth_join
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(logging.NullHandler())
@@ -36,6 +37,11 @@ BASE_MAPPER = Mapper(name='base')
 '''
 Handles some of the owmeta_core DataObjects regardless of whether there's been any connection. Used by Contexts outside
 of a connection.
+'''
+
+OWMETA_PROFILE_DIR = os.environ.get('OWMETA_PROFILE_DIR', pth_join('~', '.owmeta'))
+'''
+Base directory in the user's profile for owmeta (e.g., shared configuration, bundle cache)
 '''
 
 
@@ -61,6 +67,7 @@ __all__ = [
     "get_data",
     "disconnect",
     "connect",
+    "Configurable",
 ]
 
 DEF_CTX = Context()
