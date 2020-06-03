@@ -4,6 +4,9 @@ from .context_common import CONTEXT_IMPORTS
 from .mapper import mapped
 
 
+# ContextDataObject was moved to a separate module from Context to avoid a dependency
+# cycle with dataobject
+
 @mapped
 class ContextDataObject(DataObject):
     """ Represents a context """

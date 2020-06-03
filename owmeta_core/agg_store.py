@@ -41,7 +41,7 @@ class AggregateStore(Store):
             self.__stores.append(store)
         assert all(x.context_aware for x in self.__stores), ('All aggregated stores must be'
                                                              ' context_aware')
-        supports_range_queries = all(getattr(x, 'supports_range_queries', False) for x in self.__stores)
+        self.supports_range_queries = all(getattr(x, 'supports_range_queries', False) for x in self.__stores)
 
     def triples(self, triple, context=None):
         for store in self.__stores:
@@ -96,39 +96,25 @@ class AggregateStore(Store):
         for store in self.__stores:
             store.gc()
 
-    def add(self, *args, **kwargs):
-        raise UnsupportedAggregateOperation()
-
-    def addN(self, *args, **kwargs):
-        raise UnsupportedAggregateOperation()
-
-    def remove(self, *args, **kwargs):
-        raise UnsupportedAggregateOperation()
-
-    def add_graph(self, *args, **kwargs):
-        raise UnsupportedAggregateOperation()
-
-    def remove_graph(self, *args, **kwargs):
-        raise UnsupportedAggregateOperation()
-
-    def create(self, *args, **kwargs):
-        raise UnsupportedAggregateOperation()
-
-    def destroy(self, *args, **kwargs):
-        raise UnsupportedAggregateOperation()
-
-    def commit(self, *args, **kwargs):
-        raise UnsupportedAggregateOperation()
-
-    def rollback(self, *args, **kwargs):
-        raise UnsupportedAggregateOperation()
+    def add(self, *args, **kwargs): raise UnsupportedAggregateOperation
+    def addN(self, *args, **kwargs): raise UnsupportedAggregateOperation
+    def remove(self, *args, **kwargs): raise UnsupportedAggregateOperation
+    def add_graph(self, *args, **kwargs): raise UnsupportedAggregateOperation
+    def remove_graph(self, *args, **kwargs): raise UnsupportedAggregateOperation
+    def create(self, *args, **kwargs): raise UnsupportedAggregateOperation
+    def destroy(self, *args, **kwargs): raise UnsupportedAggregateOperation
+    def commit(self, *args, **kwargs): raise UnsupportedAggregateOperation
+    def rollback(self, *args, **kwargs): raise UnsupportedAggregateOperation
 
     def __repr__(self):
         return '%s(%s)' % (FCN(type(self)), ', '.join(repr(s) for s in self.__stores))
 
 
 class UnsupportedAggregateOperation(Exception):
-    pass
+    '''
+    Thrown for operations which modify a graph and hence are inappropriate for
+    `AggregateStore`
+    '''
 
 
 class AggregatedStoresConflict(Exception):

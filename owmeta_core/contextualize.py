@@ -127,9 +127,24 @@ def get_wrapped(self):
 
 
 class ContextualizingProxy(wrapt.ObjectProxy):
+    '''
+    Extension of `.ObjectProxy` such that the "self" argument refers to the proxy rather
+    than the wrapped object in methods. The `context` attribute refers to the context on
+    the proxy rather than on the wrapped object.
+    '''
     __slots__ = ('_self_context', '_self_overrides')
 
     def __init__(self, ctx, *args, **kwargs):
+        '''
+        Parameters
+        ----------
+        ctx : .Context
+            The context for this proxy
+        *args
+            Passed to `wrapt.ObjectProxy`
+        **kwargs
+            Passed to `wrapt.ObjectProxy`
+        '''
         super(ContextualizingProxy, self).__init__(*args, **kwargs)
         self._self_context = ctx
         self._self_overrides = dict()
