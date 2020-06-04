@@ -4,7 +4,10 @@ from weakref import WeakValueDictionary
 
 
 class BaseContextualizable(object):
-
+    '''
+    Helper base-class for contextualizable objects. Caches contextualized objects returned
+    from `contextualize_augment`
+    '''
     def __init__(self, *args, **kwargs):
         super(BaseContextualizable, self).__init__(*args, **kwargs)
 
@@ -16,9 +19,10 @@ class BaseContextualizable(object):
         return None
 
     def contextualize(self, context):
-        """
+        '''
         Return an object with the given context. If the provided ``context`` is
-        `None`, then `self` MUST be returned unmodified.
+        `None`, then `self` MUST be returned unmodified. Prefer to override
+        `contextualize_agument` which will be called from this method.
 
         It is generally not correct to set a field on the object and return the
         same object as this would change the context for other users of the
@@ -26,7 +30,7 @@ class BaseContextualizable(object):
         for mutable objects. Immutable objects may maintain a 'context'
         property and return a copy of themselves with that property set to the
         provided ``context`` argument.
-        """
+        '''
         ctxd = self._contexts.get(context)
         if ctxd is not None:
             return ctxd
@@ -35,12 +39,22 @@ class BaseContextualizable(object):
         return ctxd
 
     def decontextualize(self):
-        """
-        Return the object with all contexts removed
-        """
+        '''
+        Return the object with all contexts removed. Sub-classes should override.
+        '''
         return self
 
     def add_contextualization(self, context, contextualization):
+        '''
+        Manually add a contextualized object to the cache
+
+        Parameters
+        ----------
+        context : Context
+            The context of the object
+        contextualization : object
+            The contextualized version of the object
+        '''
         try:
             self._contexts[context] = contextualization
         except AttributeError:
@@ -48,12 +62,21 @@ class BaseContextualizable(object):
             self._contexts[context] = contextualization
 
     def contextualize_augment(self, context):
+        '''
+        For sub-classes to override: Return an object with the given context. If the
+        provided ``context`` is `None`, then `self` MUST be returned unmodified.
+
+        Returns
+        -------
+        object
+            the contextualized object
+        '''
         return self
 
 
 class Contextualizable(BaseContextualizable):
-    """
-    A BaseContextualizable with the addition of a default behavior of setting
+    '''
+    A `BaseContextualizable` with the addition of a default behavior of setting
     the context from the class's 'context' attribute. This generally requires
     that for the metaclass of the Contextualizable that a 'context' data
     property is defined. For example::
@@ -70,7 +93,7 @@ class Contextualizable(BaseContextualizable):
         >>> class A(six.with_metaclass(Contextualizable)):
         ...     pass
 
-    """
+    '''
 
     def __new__(cls, *args, **kwargs):
         #This is defined so that the __init__ method gets a contextualized
@@ -243,7 +266,7 @@ class ContextualizingProxy(wrapt.ObjectProxy):
 
 
 class ContextualizableClass(type):
-    """ A super-type for contextualizable classes """
+    ''' A super-type for contextualizable classes '''
 
     def __new__(self, name, typ, dct):
         res = super(ContextualizableClass, self).__new__(self, name, typ, dct)
@@ -307,9 +330,9 @@ class _ContextualzingProxyMetaType(type(ContextualizingProxy)):
 
 
 def decontextualize_helper(obj):
-    """
+    '''
     Removes contexts from a ContextualizingProxy
-    """
+    '''
     ret = obj
     while isinstance(ret, ContextualizingProxy):
         ret = get_wrapped(ret)
@@ -317,10 +340,10 @@ def decontextualize_helper(obj):
 
 
 def contextualize_helper(context, obj, noneok=False):
-    """
+    '''
     Does some extra stuff to make access to the type of a ContextualizingProxy
     work more-or-less like access to the the wrapped object
-    """
+    '''
     if not noneok and context is None:
         return obj
 
