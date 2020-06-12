@@ -147,8 +147,12 @@ class Unarchiver(object):
         try:
             ef = ba.extractfile('./manifest')
         except KeyError:
-            file_name = cls._bundle_file_name(input_file)
-            raise NotABundlePath(file_name, 'archive has no manifest')
+            try:
+                # Both ./manifest and manifest are valid...just have to try both of them
+                ef = ba.extractfile('manifest')
+            except KeyError:
+                file_name = cls._bundle_file_name(input_file)
+                raise NotABundlePath(file_name, 'archive has no manifest')
 
         with ef as manifest:
             file_name = cls._bundle_file_name(input_file)
@@ -328,7 +332,7 @@ class Archiver(object):
             _tf = tarfile.open(target_path, mode='w:xz')
         except FileNotFoundError as e:
             if e.filename == target_path:
-                raise ArchiveTargetPathDoesNotExist(target_path)
+                raise ArchiveTargetPathDoesNotExist(target_path) from e
             raise
         else:
             with _tf as tf:

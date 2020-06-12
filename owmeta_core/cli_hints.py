@@ -86,6 +86,11 @@ CLI_HINTS = {
                 'names': ['name'],
             },
         },
+        'remove': {
+            (METHOD_NAMED_ARG, 'name'): {
+                'names': ['name'],
+            },
+        }
     },
     'owmeta_core.commands.bundle.OWMBundleRemoteAdd': {
         '__call__': {

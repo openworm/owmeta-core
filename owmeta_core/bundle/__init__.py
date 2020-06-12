@@ -33,7 +33,7 @@ from .common import (find_bundle_directory, fmt_bundle_directory, BUNDLE_MANIFES
                      BUNDLE_INDEXED_DB_NAME, validate_manifest, BUNDLE_MANIFEST_VERSION)
 from .exceptions import (NotADescriptor, BundleNotFound, NoRemoteAvailable, NoBundleLoader,
                          NotABundlePath, NoAcceptableUploaders,
-                         TargetIsNotEmpty, UncoveredImports)
+                         FetchTargetIsNotEmpty, TargetIsNotEmpty, UncoveredImports)
 
 from urllib.parse import quote as urlquote, unquote as urlunquote
 
@@ -604,25 +604,63 @@ class Fetcher(_RemoteHandlerMixin):
         ------
         NoBundleLoader
             Thrown when none of the loaders are able to download the bundle
+        BundleAlreadyExists
+            Thrown when the requested bundle is already in the cache
         '''
-        loaders = self._get_bundle_loaders(bundle_id, bundle_version, remotes)
+        if remotes:
+            remotes = list(remotes)
+        given_bundle_version = bundle_version
+        loaders = self._get_bundle_loaders(bundle_id, given_bundle_version, remotes)
+        loaders_list = list(loaders)
 
-        for loader in loaders:
+        if bundle_version is None:
+            bundle_version = self._find_latest_remote_bundle_versions(bundle_id, loaders_list)
+
+        bdir = fmt_bundle_directory(self.bundles_root, bundle_id, bundle_version)
+        self._assert_target_is_empty(bdir)
+
+        for loader in loaders_list:
             try:
-                if bundle_version is None:
-                    versions = loader.bundle_versions(bundle_id)
-                    if not versions:
-                        raise BundleNotFound(bundle_id, 'This loader does not have any'
-                                ' versions of the bundle')
-                    bundle_version = max(versions)
-                bdir = fmt_bundle_directory(self.bundles_root, bundle_id, bundle_version)
                 loader.base_directory = bdir
                 loader(bundle_id, bundle_version)
+                with open(p(bdir, BUNDLE_MANIFEST_FILE_NAME)) as mf:
+                    manifest_data = json.load(mf)
+                    for dd in manifest_data.get('dependencies', ()):
+                        try:
+                            find_bundle_directory(self.bundles_root, dd['id'], dd.get('version'))
+                        except BundleNotFound:
+                            self.fetch(dd['id'], dd.get('version'), remotes=remotes)
                 return bdir
             except Exception:
-                L.warning("Failed to load bundle %s with %s", bundle_id, loader, exc_info=True)
+                L.warning('Failed to load bundle %s with %s', bundle_id, loader, exc_info=True)
+                shutil.rmtree(bdir)
         else:  # no break
-            raise NoBundleLoader(bundle_id, bundle_version)
+            raise NoBundleLoader(bundle_id, given_bundle_version)
+
+    def _find_latest_remote_bundle_versions(self, bundle_id, loaders_list):
+        latest_bundle_version = 0
+        for loader in loaders_list:
+            versions = loader.bundle_versions(bundle_id)
+            if not versions:
+                L.warning('Loader %s does not have any versions of the bundle %s', loader, bundle_id)
+                continue
+            loader_latest_version = max(versions)
+            if loader_latest_version > latest_bundle_version:
+                latest_bundle_version = loader_latest_version
+        if latest_bundle_version <= 0:
+            raise BundleNotFound(bundle_id, 'No versions of the requested bundle found from any remotes')
+        return latest_bundle_version
+
+    def _assert_target_is_empty(self, bdir):
+        target_empty = True
+        try:
+            for _ in scandir(bdir):
+                target_empty = False
+                break
+        except FileNotFoundError:
+            return
+        if not target_empty:
+            raise FetchTargetIsNotEmpty(bdir)
 
     def _get_bundle_loaders(self, bundle_id, bundle_version, remotes):
         for rem in self._get_remotes(remotes):

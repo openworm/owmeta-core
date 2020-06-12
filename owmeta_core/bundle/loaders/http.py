@@ -5,7 +5,6 @@ from os.path import join as p
 import re
 import ssl
 from urllib.parse import quote as urlquote, urlparse
-from textwrap import dedent
 
 from ...command_util import GenericUserError
 from ...utils import FCN, getattrs
@@ -83,7 +82,10 @@ class HTTPSURLConfig(URLConfig):
         self._ssl_context = None
 
     def __str__(self):
-        ssl_context_maybe = f'\n    SSL Context Provider: {self.ssl_context_provider}' if self.ssl_context_provider else ''
+        if self.ssl_context_provider:
+            ssl_context_maybe = f'\n    SSL Context Provider: {self.ssl_context_provider}'
+        else:
+            ssl_context_maybe = ''
         return f'{self.url}{ssl_context_maybe}'
 
 
@@ -105,7 +107,7 @@ class HTTPBundleLoader(Loader):
         ----------
         index_url : str or URLConfig
             URL for the index file pointing to the bundle archives
-        cachedir : str
+        cachedir : str, optional
             Directory where the index and any downloaded bundle archive should be cached.
             If provided, the index and bundle archive is cached in the given directory. If
             not provided, the index will be cached in memory and the bundle will not be
@@ -133,7 +135,12 @@ class HTTPBundleLoader(Loader):
         import requests
         if self._index is None:
             response = requests.get(self.index_url)
+            if response.status_code != 200:
+                raise IndexLoadFailed(response)
             self._index = response.json()
+            if self.cachedir is not None:
+                with open(p(self.cachedir, 'index')) as f:
+                    f.write(response.text)
 
     @classmethod
     def can_load_from(cls, ac):
@@ -174,7 +181,12 @@ class HTTPBundleLoader(Loader):
         bool
             `True` if the bundle can be loaded; otherwise, `False`
         '''
-        self._setup_index()
+        try:
+            self._setup_index()
+        except IndexLoadFailed:
+            L.warn('Failed to set up the index for %s', self,
+                exc_info=L.isEnabledFor(logging.DEBUG))
+            return False
         binfo = self._index.get(bundle_id)
         if binfo:
             if bundle_version is None:
@@ -344,3 +356,11 @@ def https_remote(self, *, ssl_context_provider=None):
         raise GenericUserError(str(e))
 
     return self._write_remote()
+
+
+class IndexLoadFailed(Exception):
+    '''
+    Thrown when the HTTP bundle loader cannot get its index
+    '''
+    def __init__(self, response):
+        self.response = response

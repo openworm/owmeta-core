@@ -72,6 +72,16 @@ class FetchFailed(Exception):
     ''' Generic message for when a fetch fails '''
 
 
+class FetchTargetIsNotEmpty(FetchFailed):
+    '''
+    Thrown when the target directory of a fetch is not empty
+    '''
+    def __init__(self, target):
+        msg = 'Bundle fetch target directory, "%s", is not empty' % target
+        super(FetchTargetIsNotEmpty, self).__init__(msg)
+        self.directory = target
+
+
 class NoBundleLoader(FetchFailed):
     '''
     Thrown when a loader can't be found for a bundle

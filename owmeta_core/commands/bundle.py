@@ -12,7 +12,8 @@ from urllib.parse import urlparse
 import yaml
 
 from ..context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY
-from ..command_util import GenericUserError, GeneratorWithData, SubCommand, IVar
+from ..command_util import (GenericUserError, GeneratorWithData, SubCommand, IVar,
+                            OwmdirDoesNotExist)
 from ..bundle import (Descriptor,
                       Installer,
                       URLConfig,
@@ -24,7 +25,8 @@ from ..bundle import (Descriptor,
                       find_bundle_directory,
                       NoBundleLoader as _NoBundleLoader,
                       URL_CONFIG_MAP)
-from ..bundle.exceptions import InstallFailed, TargetIsNotEmpty, UncoveredImports
+from ..bundle.exceptions import (InstallFailed, TargetIsNotEmpty, UncoveredImports,
+                                 FetchTargetIsNotEmpty)
 from ..bundle.archive import Unarchiver, Archiver
 
 
@@ -214,6 +216,21 @@ class OWMBundleRemote(object):
         '''
         return self._read_remote(name)
 
+    def remove(self, name):
+        '''
+        Remove the remote
+
+        Parameters
+        ----------
+        name : str
+            Name of the remote
+        '''
+        remote_fname = self._remote_fname(name)
+        try:
+            unlink(remote_fname)
+        except FileNotFoundError:
+            self._owm.message(f'Remote {name} not found at {remote_fname}')
+
     def _retrieve_remotes(self):
         if self.user:
             base = self._owm.userdir
@@ -276,11 +293,14 @@ class OWMBundle(object):
         bundle_version : int
             The version of the bundle to retrieve. optional
         '''
-        f = Fetcher(self._bundles_directory(), self._retrieve_remotes())
+        f = Fetcher(self._bundles_directory(), list(self._retrieve_remotes()))
         try:
             f.fetch(bundle_id, bundle_version)
         except _NoBundleLoader as e:
-            raise NoBundleLoader(e.bundle_id, e.bundle_version)
+            raise NoBundleLoader(e.bundle_id, e.bundle_version) from e
+        except FetchTargetIsNotEmpty as e:
+            raise GenericUserError('There is already content in the bundle cache directory'
+                f' for this bundle at {e.directory}')
 
     def _bundles_directory(self):
         return p(self._parent.userdir, 'bundles')
@@ -520,7 +540,12 @@ class OWMBundle(object):
                 header=("Name", "Description", "Error"))
 
     def _retrieve_remotes(self):
-        return self.remote._retrieve_remotes()
+        try:
+            return self.remote._retrieve_remotes()
+        except OwmdirDoesNotExist:
+            rem = self.remote
+            rem.user = True
+            return rem._retrieve_remotes()
 
 
 class NoBundleLoader(GenericUserError):
