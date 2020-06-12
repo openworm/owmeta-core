@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 import yaml
 
 from ..context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY
-from ..command_util import GenericUserError, GeneratorWithData, SubCommand
+from ..command_util import GenericUserError, GeneratorWithData, SubCommand, IVar
 from ..bundle import (Descriptor,
                       Installer,
                       URLConfig,
@@ -111,7 +111,12 @@ class OWMBundleRemoteAdd(_OWMBundleRemoteAddUpdate):
                         ' Use "update" to modify it')
         else:
             self._remote = Remote(name, accessor_configs=acs)
-        remotes_dir = p(self._owm.owmdir, 'remotes')
+
+        if self._owm_bundle_remote.user:
+            base = self._owm.userdir
+        else:
+            base = self._owm.owmdir
+        remotes_dir = p(base, 'remotes')
         if not isdir(remotes_dir):
             try:
                 mkdir(remotes_dir)
@@ -161,6 +166,10 @@ class OWMBundleRemoteUpdate(_OWMBundleRemoteAddUpdate):
 class OWMBundleRemote(object):
     ''' Commands for dealing with bundle remotes '''
 
+    user = IVar(value_type=bool,
+            doc='If this option is provided, then remotes in the user profile directory'
+                ' are used rather than those in the project directory.')
+
     add = SubCommand(OWMBundleRemoteAdd)
     update = SubCommand(OWMBundleRemoteUpdate)
 
@@ -169,7 +178,13 @@ class OWMBundleRemote(object):
         self._owm = self._owm_bundle._parent
 
     def _remote_fname(self, name):
-        return p(self._owm.owmdir, 'remotes', hashlib.sha224(name.encode('UTF-8')).hexdigest() + '.remote')
+        if self.user:
+            base = self._owm.userdir
+        else:
+            base = self._owm.owmdir
+
+        return p(base, 'remotes',
+                hashlib.sha224(name.encode('UTF-8')).hexdigest() + '.remote')
 
     def _read_remote(self, name):
         try:
@@ -183,7 +198,7 @@ class OWMBundleRemote(object):
     def list(self):
         ''' List remotes '''
 
-        return GeneratorWithData(self._owm_bundle._retrieve_remotes(),
+        return GeneratorWithData(self._retrieve_remotes(),
                 text_format=lambda r: r.name,
                 columns=(lambda r: r.name,),
                 header=("Name",))
@@ -198,6 +213,13 @@ class OWMBundleRemote(object):
             Name of the remote
         '''
         return self._read_remote(name)
+
+    def _retrieve_remotes(self):
+        if self.user:
+            base = self._owm.userdir
+        else:
+            base = self._owm.owmdir
+        return retrieve_remotes(p(base, 'remotes'))
 
 
 class OWMBundleCache(object):
@@ -498,7 +520,7 @@ class OWMBundle(object):
                 header=("Name", "Description", "Error"))
 
     def _retrieve_remotes(self):
-        return retrieve_remotes(p(self._parent.owmdir, 'remotes'))
+        return self.remote._retrieve_remotes()
 
 
 class NoBundleLoader(GenericUserError):
