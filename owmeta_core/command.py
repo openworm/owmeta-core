@@ -614,9 +614,6 @@ class OWM(object):
 
     basedir = IVar('.', doc='The base directory. owmdir is resolved against this base')
 
-    userdir = IVar(expanduser(OWMETA_PROFILE_DIR),
-            doc='Root directory for user-specific configuration')
-
     repository_provider = IVar(doc='The provider of the repository logic'
                                    ' (cloning, initializing, committing, checkouts)')
 
@@ -676,8 +673,12 @@ class OWM(object):
         The base directory for owmeta files. The repository provider's files also go under here
         '''
         if isabs(self._owmdir):
-            return self._owmdir
-        return pth_join(self.basedir, self._owmdir)
+            res = self._owmdir
+        else:
+            res = pth_join(self.basedir, self._owmdir)
+        if not exists(res):
+            raise OwmdirDoesNotExist(res)
+        return res
 
     @owmdir.setter
     def owmdir(self, val):
@@ -1864,3 +1865,29 @@ class ConfigMissingException(GenericUserError):
         super(ConfigMissingException, self).__init__(
                 'Missing "%s" in configuration' % key)
         self.key = key
+
+
+class OwmdirDoesNotExist(GenericUserError):
+    '''
+    Thrown when the project directory does not exist but some command is trying to use it.
+    Typically this error SHOULD just be propagated up to the user and any alternative
+    (e.g., looking in a different directory) should be toggled on by an option, but a
+    sub-command MAY catch this exception. In particular, catching this exception and
+    throwing another `OwmdirDoesNotExist` with advice an how to correct in the context of
+    the specific subcommand where owmdir is used is recommended.
+    '''
+    def __init__(self, owmdir, advice=None):
+        '''
+        Parameters
+        ----------
+        owmdir : str
+            The owm project directory
+        advice : str
+            Advice on what to do for the project directory not existing (e.g., "use the
+            user profile directory with '--user'")
+        '''
+        super(OwmdirDoesNotExist, self).__init__(
+                f'The owm project directory was not found at "{owmdir}"' +
+                '' if not advice else f': {advice}')
+        self.owmdir = owmdir
+        self.advice = advice
