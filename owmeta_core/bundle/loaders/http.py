@@ -83,11 +83,8 @@ class HTTPSURLConfig(URLConfig):
         self._ssl_context = None
 
     def __str__(self):
-        ssl_context_maybe = self.ssl_context_provider if self.ssl_context_provider else ''
-        return dedent('''\
-        {url}
-            SSL Context Provider: {ssl_context_maybe}''').format(url=self.url,
-                ssl_context_maybe=ssl_context_maybe)
+        ssl_context_maybe = f'\n    SSL Context Provider: {self.ssl_context_provider}' if self.ssl_context_provider else ''
+        return f'{self.url}{ssl_context_maybe}'
 
 
 HTTPSURLConfig.register('https')
