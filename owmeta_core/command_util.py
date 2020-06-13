@@ -189,29 +189,3 @@ class GenericUserError(Exception):
     An error which should be reported to the user. Not necessarily an error that is
     the user's fault
     '''
-
-
-class OwmdirDoesNotExist(GenericUserError):
-    '''
-    Thrown when the project directory does not exist but some command is trying to use it.
-    Typically this error SHOULD just be propagated up to the user and any alternative
-    (e.g., looking in a different directory) should be toggled on by an option, but a
-    sub-command MAY catch this exception. In particular, catching this exception and
-    throwing another `OwmdirDoesNotExist` with advice an how to correct in the context of
-    the specific subcommand where owmdir is used is recommended.
-    '''
-    def __init__(self, owmdir, advice=None):
-        '''
-        Parameters
-        ----------
-        owmdir : str
-            The owm project directory
-        advice : str
-            Advice on what to do for the project directory not existing (e.g., "use the
-            user profile directory with '--user'")
-        '''
-        super(OwmdirDoesNotExist, self).__init__(
-                f'The owm project directory was not found at "{owmdir}"' +
-                '' if not advice else f': {advice}')
-        self.owmdir = owmdir
-        self.advice = advice

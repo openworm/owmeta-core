@@ -24,7 +24,7 @@ from textwrap import dedent
 from tempfile import TemporaryDirectory
 
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
-                           DEFAULT_OWM_DIR, OwmdirDoesNotExist)
+                           DEFAULT_OWM_DIR)
 from . import connect, OWMETA_PROFILE_DIR
 from .commands.bundle import OWMBundle
 from .context import Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY
@@ -676,8 +676,6 @@ class OWM(object):
             res = self._owmdir
         else:
             res = pth_join(self.basedir, self._owmdir)
-        if not exists(res):
-            raise OwmdirDoesNotExist(res)
         return res
 
     @owmdir.setter
@@ -1865,5 +1863,3 @@ class ConfigMissingException(GenericUserError):
         super(ConfigMissingException, self).__init__(
                 'Missing "%s" in configuration' % key)
         self.key = key
-
-

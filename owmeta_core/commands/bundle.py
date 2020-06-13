@@ -12,8 +12,7 @@ from urllib.parse import urlparse
 import yaml
 
 from ..context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY
-from ..command_util import (GenericUserError, GeneratorWithData, SubCommand, IVar,
-                            OwmdirDoesNotExist)
+from ..command_util import GenericUserError, GeneratorWithData, SubCommand, IVar
 from ..bundle import (Descriptor,
                       Installer,
                       URLConfig,
@@ -540,12 +539,7 @@ class OWMBundle(object):
                 header=("Name", "Description", "Error"))
 
     def _retrieve_remotes(self):
-        try:
-            return self.remote._retrieve_remotes()
-        except OwmdirDoesNotExist:
-            rem = self.remote
-            rem.user = True
-            return rem._retrieve_remotes()
+        return self.remote._retrieve_remotes()
 
 
 class NoBundleLoader(GenericUserError):

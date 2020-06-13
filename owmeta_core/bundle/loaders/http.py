@@ -138,9 +138,6 @@ class HTTPBundleLoader(Loader):
             if response.status_code != 200:
                 raise IndexLoadFailed(response)
             self._index = response.json()
-            if self.cachedir is not None:
-                with open(p(self.cachedir, 'index')) as f:
-                    f.write(response.text)
 
     @classmethod
     def can_load_from(cls, ac):
