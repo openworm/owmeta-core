@@ -663,11 +663,7 @@ class QueryContext(Context):
     def rdf_graph(self, *args, **kwargs):
         return self.__graph
 
-    def add_statement(self, *args, **kwargs): raise ContextIsReadOnly
-    def add_statements(self, *args, **kwargs): raise ContextIsReadOnly
     def add_import(self, *args, **kwargs): raise ContextIsReadOnly
-    def remove_statement(self, *args, **kwargs): raise ContextIsReadOnly
-    def clear(self, *args, **kwargs): raise ContextIsReadOnly
     def save_imports(self, *args, **kwargs): raise ContextIsReadOnly
     def save_context(self, *args, **kwargs): raise ContextIsReadOnly
 
