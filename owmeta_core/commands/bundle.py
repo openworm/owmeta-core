@@ -539,7 +539,10 @@ class OWMBundle(object):
                 header=("Name", "Description", "Error"))
 
     def _retrieve_remotes(self):
-        return self.remote._retrieve_remotes()
+        rem = self.remote
+        if not isdir(self._parent.owmdir):
+            rem.user = True
+        return rem._retrieve_remotes()
 
 
 class NoBundleLoader(GenericUserError):
