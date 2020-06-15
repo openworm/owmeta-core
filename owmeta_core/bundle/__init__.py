@@ -34,6 +34,7 @@ from .common import (find_bundle_directory, fmt_bundle_directory, BUNDLE_MANIFES
 from .exceptions import (NotADescriptor, BundleNotFound, NoRemoteAvailable, NoBundleLoader,
                          NotABundlePath, NoAcceptableUploaders,
                          FetchTargetIsNotEmpty, TargetIsNotEmpty, UncoveredImports)
+from .loaders import LOADER_CLASSES, UPLOADER_CLASSES, load_entry_point_loaders
 
 from urllib.parse import quote as urlquote, unquote as urlunquote
 
@@ -385,8 +386,8 @@ class Bundle(object):
         try:
             bundle_directory = self._get_bundle_directory()
         except BundleNotFound:
-            # If there's a .owm directory, then get the remotes from there
-            f = Fetcher(self.bundles_directory, retrieve_remotes(self.remotes_directory))
+            remotes_list = list(retrieve_remotes(self.remotes_directory))
+            f = Fetcher(self.bundles_directory, remotes_list)
             bundle_directory = f.fetch(self.ident, self.version, self.remotes)
         return bundle_directory
 
@@ -485,6 +486,7 @@ class Bundle(object):
 
     def __call__(self, target):
         if target and hasattr(target, 'contextualize'):
+            self.initdb()
             ctx = BundleContext(None, conf=self.conf)
             return target.contextualize(ctx.stored)
         return target
@@ -520,6 +522,16 @@ class _RemoteHandlerMixin(object):
     The mixed-in class must have a `remotes` attribute which is a list of `Remote`
     '''
 
+    def __init__(self, load_entry_points=True, **kwargs):
+        '''
+        Parameters
+        ----------
+        load_entry_points : bool, optional
+            If `False`, then entry points will not be loaded
+        '''
+        super(_RemoteHandlerMixin, self).__init__(**kwargs)
+        self.load_entry_points = load_entry_points
+
     def _get_remotes(self, remotes):
         ''''
         Get remotes
@@ -529,7 +541,8 @@ class _RemoteHandlerMixin(object):
         remotes : iterable of Remote or str
             A subset of names of remotes to act on and additional remotes to act on
         '''
-
+        if self.load_entry_points:
+            load_entry_point_loaders()
         instance_remotes = []
         additional_remotes = []
         if remotes:
@@ -559,7 +572,7 @@ class Fetcher(_RemoteHandlerMixin):
     this class.
     '''
 
-    def __init__(self, bundles_root, remotes):
+    def __init__(self, bundles_root, remotes, **kwargs):
         '''
         Parameters
         ----------
@@ -568,6 +581,7 @@ class Fetcher(_RemoteHandlerMixin):
         remotes : list of Remote or str
             List of pre-configured remotes used in calls to `fetch`
         '''
+        super(Fetcher, self).__init__(**kwargs)
         self.bundles_root = bundles_root
         self.remotes = remotes
 
@@ -577,7 +591,7 @@ class Fetcher(_RemoteHandlerMixin):
         '''
         return self.fetch(*args, **kwargs)
 
-    def fetch(self, bundle_id, bundle_version=None, remotes=None):
+    def fetch(self, bundle_id, bundle_version=None, remotes=None, progress_reporter=None):
         '''
         Retrieve a bundle by name from a remote and put it in the local bundle cache.
 
@@ -594,6 +608,8 @@ class Fetcher(_RemoteHandlerMixin):
             A subset of remotes and additional remotes to fetch from. If an entry in the
             iterable is a string, then it will be looked for amongst the remotes passed in
             initially.
+        progress_reporter : `tqdm.tqdm <https://tqdm.github.io/>`_-like object
+            Receives updates of progress in fetching and installing locally
 
         Returns
         -------
@@ -630,12 +646,25 @@ class Fetcher(_RemoteHandlerMixin):
                             find_bundle_directory(self.bundles_root, dd['id'], dd.get('version'))
                         except BundleNotFound:
                             self.fetch(dd['id'], dd.get('version'), remotes=remotes)
+                dat = self._post_fetch_dest_conf(bdir)
+                _build_indexed_database(dat['rdf.graph'], bdir, progress_reporter)
                 return bdir
             except Exception:
                 L.warning('Failed to load bundle %s with %s', bundle_id, loader, exc_info=True)
                 shutil.rmtree(bdir)
         else:  # no break
             raise NoBundleLoader(bundle_id, given_bundle_version)
+
+    def _post_fetch_dest_conf(self, bundle_directory):
+        res = Data().copy({
+            'rdf.source': 'default',
+            'rdf.store': 'FileStorageZODB',
+            'rdf.store_conf': p(bundle_directory, BUNDLE_INDEXED_DB_NAME)
+        })
+        res.init()
+        if not exists(res['rdf.store_conf']):
+            raise Exception('Could not create the database file at ' + res['rdf.store_conf'])
+        return res
 
     def _find_latest_remote_bundle_versions(self, bundle_id, loaders_list):
         latest_bundle_version = 0
@@ -680,7 +709,8 @@ class Deployer(_RemoteHandlerMixin):
     of options. `Uploaders <Uploader>` are responsible for actually doing the upload.
     '''
 
-    def __init__(self, remotes=()):
+    def __init__(self, remotes=(), **kwargs):
+        super(Deployer, self).__init__(**kwargs)
         self.remotes = remotes
 
     def __call__(self, *args, **kwargs):
@@ -760,52 +790,6 @@ class Deployer(_RemoteHandlerMixin):
                         ' JSON file')
 
 
-class Uploader(object):
-    '''
-    Uploads bundles to remotes
-    '''
-
-    @classmethod
-    def can_upload_to(self, accessor_config):
-        '''
-        Returns True if this uploader can upload with the given accessor configuration
-
-        Parameters
-        ----------
-        accessor_config : AccessorConfig
-        '''
-        return False
-
-    def can_upload(self, bundle_path):
-        '''
-        Returns True if this uploader can upload this bundle
-
-        Parameters
-        ----------
-        bundle_path : str
-            The file path to the bundle to upload
-        '''
-        return False
-
-    def upload(self, bundle_path):
-        '''
-        Upload a bundle
-
-        Parameters
-        ----------
-        bundle_path : str
-            The file path to the bundle to upload
-        '''
-        raise NotImplementedError()
-
-    def __call__(self, *args, **kwargs):
-        return self.upload(*args, **kwargs)
-
-    @classmethod
-    def register(cls):
-        UPLOADER_CLASSES.append(cls)
-
-
 class Cache(object):
     '''
     Cache of bundles
@@ -873,7 +857,7 @@ class Cache(object):
                         raise
 
 
-def retrieve_remotes(remotes_dir):
+def retrieve_remotes(remotes_dir, load_entry_points=True):
     '''
     Retrieve remotes from a owmeta_core project directory
 
@@ -881,95 +865,24 @@ def retrieve_remotes(remotes_dir):
     ----------
     owmdir : str
         path to the project directory
+    load_entry_points : bool, optional
+        if `True`, then the entry points for `Loader` and `Uploader` implementations that
+        have been added as entry points
     '''
     if not exists(remotes_dir):
         return
+
+    if load_entry_points:
+        load_entry_point_loaders()
+
     for r in listdir(remotes_dir):
         if r.endswith('.remote'):
             with open(p(remotes_dir, r)) as inp:
                 try:
-                    yield Remote.read(inp)
+                    rem = Remote.read(inp)
+                    yield rem
                 except Exception:
                     L.warning('Unable to read remote %s', r, exc_info=True)
-
-
-class Loader(object):
-    '''
-    Downloads bundles into the local index and caches them
-
-    Attributes
-    ----------
-    base_directory : str
-        The path where the bundle archive should be unpacked
-    '''
-
-    def __init__(self):
-        # The base directory
-        self.base_directory = None
-
-    @classmethod
-    def can_load_from(cls, accessor_config):
-        '''
-        Returns `True` if the given `accessor_config` is a valid config for this loader
-
-        Parameters
-        ----------
-        accessor_config : AccessorConfig
-            The config which we may be able to load from
-        '''
-        return False
-
-    def can_load(self, bundle_id, bundle_version=None):
-        '''
-        Returns True if the bundle named `bundle_id` is available.
-
-        This method is for loaders to determine that they probably can or cannot load the
-        bundle, such as by checking repository metadata. Other loaders that return `True`
-        from `can_load` should be tried if a given loader fails, but a warning should be
-        recorded for the loader that failed.
-        '''
-        return False
-
-    def bundle_versions(self, bundle_id):
-        '''
-        List the versions available for the bundle.
-
-        This is a required part of the `Loader` interface.
-
-        Parameters
-        ----------
-        bundle_id : str
-            ID of the bundle for which versions are requested
-
-        Returns
-        -------
-        A list of int
-            Each entry is a version of the bundle available via this loader
-        '''
-        raise NotImplementedError()
-
-    def load(self, bundle_id, bundle_version=None):
-        '''
-        Load the bundle into the local index
-
-        Parameters
-        ----------
-        bundle_id : str
-            ID of the bundle to load
-        bundle_version : int
-            Version of the bundle to load. Defaults to the latest available. optional
-        '''
-        raise NotImplementedError()
-
-    def __call__(self, bundle_id, bundle_version=None):
-        '''
-        Load the bundle into the local index. Short-hand for `load`
-        '''
-        return self.load(bundle_id, bundle_version)
-
-    @classmethod
-    def register(cls):
-        LOADER_CLASSES.append(cls)
 
 
 class Installer(object):
@@ -1170,34 +1083,7 @@ class Installer(object):
     def _build_indexed_database(self, staging_directory, progress_reporter=None):
         self._initdb(staging_directory)
         try:
-            graphs_directory = p(staging_directory, 'graphs')
-            idx_fname = p(graphs_directory, 'index')
-            progress = progress_reporter
-            if not exists(idx_fname):
-                raise Exception('Cannot find an index at {}'.format(repr(idx_fname)))
-            dest = self.conf['rdf.graph']
-            if progress is not None:
-                cnt = 0
-                for l in dest.contexts():
-                    cnt += 1
-                progress.total = cnt
-
-            with transaction.manager:
-                with open(idx_fname, 'rb') as idx_file:
-                    for line in idx_file:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        ctx, _ = line.split(b'\x00')
-                        ctxg = self.graph.get_context(ctx.decode('UTF-8'))
-                        dest.addN(trip + (ctxg,) for trip in ctxg)
-
-                        if progress is not None:
-                            progress.update(1)
-                if progress is not None:
-                    progress.write('Finalizing writes to database...')
-            if progress is not None:
-                progress.write('Wrote indexed database')
+            _build_indexed_database(self.conf['rdf.graph'], staging_directory, progress_reporter)
         finally:
             if self.conf:
                 self.conf.close()
@@ -1346,7 +1232,41 @@ def _select_contexts(descriptor, graph):
                 break
 
 
-LOADER_CLASSES = []
+def _build_indexed_database(dest, bundle_directory, progress_reporter=None):
+    '''
+    Parameters
+    ----------
+    dest : rdflib.graph.Graph
+        Destination for the database
+    bundle_directory : str
+        Root directory of the bundle directory tree
+    progress_reporter : `tqdm.tqdm <https://tqdm.github.io/>`_-like object, optional
+        Receives updates during graph loading
+    '''
+    graphs_directory = p(bundle_directory, 'graphs')
+    idx_fname = p(graphs_directory, 'index')
+    progress = progress_reporter
+    if not exists(idx_fname):
+        raise Exception('Cannot find an index at {}'.format(repr(idx_fname)))
+    if progress is not None:
+        cnt = 0
+        for l in dest.contexts():
+            cnt += 1
+        progress.total = cnt
 
+    with transaction.manager:
+        with open(idx_fname, 'rb') as idx_file:
+            for line in idx_file:
+                line = line.strip()
+                if not line:
+                    continue
+                ctx, _ = line.split(b'\x00')
+                ctxg = dest.get_context(ctx.decode('UTF-8'))
+                dest.addN(trip + (ctxg,) for trip in ctxg)
 
-UPLOADER_CLASSES = []
+                if progress is not None:
+                    progress.update(1)
+        if progress is not None:
+            progress.write('Finalizing writes to database...')
+    if progress is not None:
+        progress.write('Wrote indexed database')

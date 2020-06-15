@@ -108,7 +108,7 @@ def find_bundle_directory(bundles_directory, ident, version=None):
             ents = scandir(bundle_root)
         except (OSError, IOError) as e:
             if e.errno == errno.ENOENT: # FileNotFound
-                raise BundleNotFound(ident, 'Bundle directory does not exist')
+                raise BundleNotFound(ident, 'Bundle directory does not exist') from e
             raise
 
         for ent in ents:

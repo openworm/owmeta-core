@@ -9,11 +9,11 @@ from urllib.parse import quote as urlquote, urlparse
 from ...command_util import GenericUserError
 from ...utils import FCN, getattrs
 
-from .. import Loader, Uploader, URLConfig
+from .. import URLConfig
 from ..archive import ensure_archive, Unarchiver
 from ..common import BUNDLE_ARCHIVE_MIME_TYPE
 
-from . import LoadFailed
+from . import LoadFailed, Loader, Uploader
 
 
 L = logging.getLogger(__name__)

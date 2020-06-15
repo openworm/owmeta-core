@@ -9,8 +9,10 @@ from paramiko import Transport, SFTPClient, RSAKey, ECDSAKey, DSSKey, Ed25519Key
 from textwrap import dedent
 
 from ...command_util import GenericUserError
-from .. import Uploader, URLConfig
+from .. import URLConfig
 from ..archive import ensure_archive
+
+from . import Uploader
 KEYTYPES = {'RSA': RSAKey,
             'ECDSA': ECDSAKey,
             'DSA': DSSKey,

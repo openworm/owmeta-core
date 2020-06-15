@@ -379,3 +379,6 @@ def test_checkout(owm_project):
     '''
     owm_project.sh('owm bundle checkout test/main')
     # TODO: Add an assert
+
+# TODO: Test for bundles with extras that aren't installed
+# TODO: Test for bundle remotes that depend on extras that aren't installed

@@ -7,7 +7,7 @@ import logging
 
 import six
 from tqdm import tqdm
-from pkg_resources import iter_entry_points
+from pkg_resources import iter_entry_points, DistributionNotFound
 
 from .cli_command_wrapper import CLICommandWrapper, CLIUserError
 from .cli_hints import CLI_HINTS
@@ -204,6 +204,11 @@ def _augment_subcommands_from_entry_points():
         path = tuple(name.split('.'))
         try:
             unordered_commands.append((path, entry_point.load()))
+        except DistributionNotFound:
+            # This is expected...there's no pre-filtering of entry points for when extras
+            # aren't installed...maybe to allow for optional depend on extras
+            L.debug('Not adding sub-command %s due to failure in package resources resolution',
+                    entry_point, exc_info=True)
         except Exception:
             L.warning('Unable to add command %s', entry_point, exc_info=True)
     level_ordered_commands = \
