@@ -48,7 +48,7 @@ class BundleDependencyStore(Store):
                 store_conf = configuration['conf']
             except KeyError:
                 raise ValueError('Missing type and conf entries')
-            excludes = configuration.get('excludes', ())
+            self.excludes = configuration.get('excludes', ())
         else:
             raise ValueError('Invalid configuration for ' + RDFLIB_PLUGIN_KEY)
 
@@ -84,6 +84,9 @@ class BundleDependencyStore(Store):
             # in the cache
             _store_cache[bds_ck] = self
         return VALID_STORE
+
+    def close(self, commit_pending_transaction=False):
+        self.wrapped.close(commit_pending_transaction=commit_pending_transaction)
 
     def triples(self, pattern, context=None):
         ctxid = getattr(context, 'identifier', context)
