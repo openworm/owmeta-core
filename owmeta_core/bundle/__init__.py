@@ -11,6 +11,8 @@ import logging
 import re
 import shutil
 
+from rdflib import plugin
+from rdflib.parser import Parser, create_input_source
 from rdflib.term import URIRef
 import six
 from textwrap import dedent
@@ -25,7 +27,7 @@ from ..file_match import match_files
 from ..file_lock import lock_file
 from ..file_utils import hash_file
 from ..graph_serialization import write_canonical_to_file
-from ..rdf_utils import transitive_lookup
+from ..rdf_utils import transitive_lookup, BatchAddGraph
 from ..utils import FCN, aslist
 
 from .archive import Unarchiver
@@ -435,9 +437,19 @@ class Bundle(object):
             if (dep_path, (dd['id'], dd.get('version'))) in paths:
                 return
             paths.add((dep_path, (dd['id'], dd.get('version'))))
-            bundle_directory = find_bundle_directory(self.bundles_directory, dd['id'], dd.get('version'))
-            with open(p(bundle_directory, BUNDLE_MANIFEST_FILE_NAME)) as mf:
-                manifest_data = json.load(mf)
+            tries = 0
+            while tries < 2:
+                try:
+                    bundle_directory = find_bundle_directory(self.bundles_directory, dd['id'], dd.get('version'))
+                    with open(p(bundle_directory, BUNDLE_MANIFEST_FILE_NAME)) as mf:
+                        manifest_data = json.load(mf)
+                    break
+                except (BundleNotFound, FileNotFoundError):
+                    remotes_list = list(retrieve_remotes(self.remotes_directory))
+                    f = Fetcher(self.bundles_directory, remotes_list)
+                    bundle_directory = f.fetch(dd['id'], dd.get('version'), self.remotes)
+                    tries += 1
+
             # We don't want to include items in the configuration that aren't specified by
             # the dependency descriptor. Also, all of the optionals have defaults that
             # BundleDependencyStore handles itself, so we don't want to impose them here.
@@ -591,7 +603,8 @@ class Fetcher(_RemoteHandlerMixin):
         '''
         return self.fetch(*args, **kwargs)
 
-    def fetch(self, bundle_id, bundle_version=None, remotes=None, progress_reporter=None):
+    def fetch(self, bundle_id, bundle_version=None, remotes=None, progress_reporter=None,
+            triples_progress_reporter=None):
         '''
         Retrieve a bundle by name from a remote and put it in the local bundle cache.
 
@@ -608,8 +621,10 @@ class Fetcher(_RemoteHandlerMixin):
             A subset of remotes and additional remotes to fetch from. If an entry in the
             iterable is a string, then it will be looked for amongst the remotes passed in
             initially.
-        progress_reporter : `tqdm.tqdm <https://tqdm.github.io/>`_-like object
+        progress_reporter : `tqdm.tqdm <https://tqdm.github.io/>`_-like object, optional
             Receives updates of progress in fetching and installing locally
+        triples_progress_reporter : `tqdm.tqdm <https://tqdm.github.io/>`_-like object, optional
+            Receives updates of progress for adding triples for an individual graph
 
         Returns
         -------
@@ -647,13 +662,47 @@ class Fetcher(_RemoteHandlerMixin):
                         except BundleNotFound:
                             self.fetch(dd['id'], dd.get('version'), remotes=remotes)
                 dat = self._post_fetch_dest_conf(bdir)
-                _build_indexed_database(dat['rdf.graph'], bdir, progress_reporter)
+                self._build_indexed_database(dat['rdf.graph'], bdir, progress_reporter,
+                        triples_progress_reporter)
+                dat.close()
                 return bdir
             except Exception:
                 L.warning('Failed to load bundle %s with %s', bundle_id, loader, exc_info=True)
                 shutil.rmtree(bdir)
         else:  # no break
             raise NoBundleLoader(bundle_id, given_bundle_version)
+
+    def _build_indexed_database(self, dest, bundle_directory, progress, trip_prog):
+        idx_fname = p(bundle_directory, 'graphs', 'index')
+        # This code was copied from OWM._load_all_graphs, but we don't have a specific
+        # reason for projects and bundles to have the same format, so keeping the logic
+        # separate
+        triples_read = 0
+        with open(idx_fname) as index_file:
+            cnt = 0
+            for l in index_file:
+                cnt += 1
+            index_file.seek(0)
+            if progress is not None:
+                progress.total = cnt
+            with transaction.manager:
+                bag = BatchAddGraph(dest, batchsize=10000)
+                for l in index_file:
+                    ctx, fname = l.strip().split('\x00')
+                    parser = plugin.get('nt', Parser)()
+                    graph_fname = p(bundle_directory, 'graphs', fname)
+                    with open(graph_fname, 'rb') as f, bag.get_context(ctx) as g:
+                        parser.parse(create_input_source(f), g)
+
+                    if progress is not None:
+                        progress.update(1)
+                    if trip_prog is not None:
+                        trip_prog.update(bag.count - triples_read)
+                    triples_read = g.count
+                if progress is not None:
+                    progress.write('Finalizing writes to database...')
+        if progress is not None:
+            progress.write('Loaded {:,} triples'.format(triples_read))
 
     def _post_fetch_dest_conf(self, bundle_directory):
         res = Data().copy({
@@ -1080,10 +1129,39 @@ class Installer(object):
         if not exists(self.conf['rdf.store_conf']):
             raise Exception('Could not create the database file at ' + self.conf['rdf.store_conf'])
 
-    def _build_indexed_database(self, staging_directory, progress_reporter=None):
+    def _build_indexed_database(self, staging_directory, progress=None):
         self._initdb(staging_directory)
         try:
-            _build_indexed_database(self.conf['rdf.graph'], staging_directory, progress_reporter)
+            graphs_directory = p(staging_directory, 'graphs')
+            idx_fname = p(graphs_directory, 'index')
+            if not exists(idx_fname):
+                raise Exception('Cannot find an index at {}'.format(repr(idx_fname)))
+
+            if progress is not None:
+                cnt = 0
+                for l in self.graph.contexts():
+                    cnt += 1
+                progress.total = cnt
+
+            dest = self.conf['rdf.graph']
+            with transaction.manager:
+                with open(idx_fname, 'rb') as idx_file:
+                    for line in idx_file:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        ctx, _ = line.split(b'\x00')
+                        sctxg = self.graph.get_context(ctx.decode('UTF-8'))
+                        ctxg = dest.get_context(ctx.decode('UTF-8'))
+
+                        dest.addN(trip + (ctxg,) for trip in sctxg)
+
+                        if progress is not None:
+                            progress.update(1)
+                if progress is not None:
+                    progress.write('Finalizing writes to database...')
+            if progress is not None:
+                progress.write('Wrote indexed database')
         finally:
             if self.conf:
                 self.conf.close()
@@ -1232,7 +1310,7 @@ def _select_contexts(descriptor, graph):
                 break
 
 
-def _build_indexed_database(dest, bundle_directory, progress_reporter=None):
+def _build_indexed_database(source, dest, bundle_directory, progress_reporter=None):
     '''
     Parameters
     ----------
@@ -1243,30 +1321,3 @@ def _build_indexed_database(dest, bundle_directory, progress_reporter=None):
     progress_reporter : `tqdm.tqdm <https://tqdm.github.io/>`_-like object, optional
         Receives updates during graph loading
     '''
-    graphs_directory = p(bundle_directory, 'graphs')
-    idx_fname = p(graphs_directory, 'index')
-    progress = progress_reporter
-    if not exists(idx_fname):
-        raise Exception('Cannot find an index at {}'.format(repr(idx_fname)))
-    if progress is not None:
-        cnt = 0
-        for l in dest.contexts():
-            cnt += 1
-        progress.total = cnt
-
-    with transaction.manager:
-        with open(idx_fname, 'rb') as idx_file:
-            for line in idx_file:
-                line = line.strip()
-                if not line:
-                    continue
-                ctx, _ = line.split(b'\x00')
-                ctxg = dest.get_context(ctx.decode('UTF-8'))
-                dest.addN(trip + (ctxg,) for trip in ctxg)
-
-                if progress is not None:
-                    progress.update(1)
-        if progress is not None:
-            progress.write('Finalizing writes to database...')
-    if progress is not None:
-        progress.write('Wrote indexed database')

@@ -415,7 +415,7 @@ class RDFSource(Configurable, ConfigValue):
     def close(self):
         if self.graph is False:
             return
-        self.graph.close()
+        self.graph.close(commit_pending_transaction=True)
         self.graph = False
 
     def open(self):
