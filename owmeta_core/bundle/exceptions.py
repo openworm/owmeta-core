@@ -9,6 +9,12 @@ class NotABundlePath(Exception):
         self.path = path
 
 
+class MalformedBundle(NotABundlePath):
+    '''
+    Thrown when a given path does points to a bundle directory or archive is malformed
+    '''
+
+
 class BundleNotFound(Exception):
     '''
     Thrown when a bundle cannot be found on a local or remote resource with the given

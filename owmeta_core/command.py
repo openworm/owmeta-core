@@ -481,9 +481,9 @@ class OWMContexts(object):
         from rdflib.serializer import Serializer
         from rdflib.parser import Parser
 
-        stores = set(x.name for x in plugins(kind=Serializer))
+        serializers = set(x.name for x in plugins(kind=Serializer))
         parsers = set(x.name for x in plugins(kind=Parser))
-        formats = stores & parsers
+        formats = serializers & parsers
 
         if list_formats:
             return formats

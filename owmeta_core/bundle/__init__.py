@@ -34,7 +34,7 @@ from .archive import Unarchiver
 from .common import (find_bundle_directory, fmt_bundle_directory, BUNDLE_MANIFEST_FILE_NAME,
                      BUNDLE_INDEXED_DB_NAME, validate_manifest, BUNDLE_MANIFEST_VERSION)
 from .exceptions import (NotADescriptor, BundleNotFound, NoRemoteAvailable, NoBundleLoader,
-                         NotABundlePath, NoAcceptableUploaders,
+                         NotABundlePath, MalformedBundle, NoAcceptableUploaders,
                          FetchTargetIsNotEmpty, TargetIsNotEmpty, UncoveredImports)
 from .loaders import LOADER_CLASSES, UPLOADER_CLASSES, load_entry_point_loaders
 
@@ -388,9 +388,7 @@ class Bundle(object):
         try:
             bundle_directory = self._get_bundle_directory()
         except BundleNotFound:
-            remotes_list = list(retrieve_remotes(self.remotes_directory))
-            f = Fetcher(self.bundles_directory, remotes_list)
-            bundle_directory = f.fetch(self.ident, self.version, self.remotes)
+            bundle_directory = self._fetch_bundle(self.ident, self.version)
         return bundle_directory
 
     def _get_bundle_directory(self):
@@ -423,7 +421,7 @@ class Bundle(object):
             paths = set()
         if current_path is None:
             current_path = _BDTD()
-        dependency_configs = self._gather_dependency_configs(manifest_data, current_path, paths)
+        dependency_configs = self._gather_dependency_configs(bundle_directory, manifest_data, current_path, paths)
         indexed_db_path = p(bundle_directory, BUNDLE_INDEXED_DB_NAME)
         fs_store_config = dict(url=indexed_db_path, read_only=True)
         return [
@@ -431,23 +429,25 @@ class Bundle(object):
         ] + dependency_configs
 
     @aslist
-    def _gather_dependency_configs(self, manifest_data, current_path, paths):
+    def _gather_dependency_configs(self, bundle_directory, manifest_data, current_path, paths):
         for dd in manifest_data.get('dependencies', ()):
             dep_path = current_path.merge_excludes(dd.get('excludes', ()))
-            if (dep_path, (dd['id'], dd.get('version'))) in paths:
+            dep_ident = dd.get('id')
+            dep_version = dd.get('version')
+            if not dep_ident:
+                raise MalformedBundle(bundle_directory, 'bundle dependency descriptor is lacking an identifier')
+            if (dep_path, (dep_ident, dep_version)) in paths:
                 return
-            paths.add((dep_path, (dd['id'], dd.get('version'))))
+            paths.add((dep_path, (dep_ident, dep_version)))
             tries = 0
             while tries < 2:
                 try:
-                    bundle_directory = find_bundle_directory(self.bundles_directory, dd['id'], dd.get('version'))
+                    bundle_directory = find_bundle_directory(self.bundles_directory, dep_ident, dep_version)
                     with open(p(bundle_directory, BUNDLE_MANIFEST_FILE_NAME)) as mf:
                         manifest_data = json.load(mf)
                     break
                 except (BundleNotFound, FileNotFoundError):
-                    remotes_list = list(retrieve_remotes(self.remotes_directory))
-                    f = Fetcher(self.bundles_directory, remotes_list)
-                    bundle_directory = f.fetch(dd['id'], dd.get('version'), self.remotes)
+                    bundle_directory = self._fetch_bundle(dep_ident, dep_version)
                     tries += 1
 
             # We don't want to include items in the configuration that aren't specified by
@@ -459,6 +459,11 @@ class Bundle(object):
                         conf=self._construct_store_config(bundle_directory, manifest_data,
                             dep_path, paths),
                         **addl_dep_confs))
+
+    def _fetch_bundle(self, bundle_ident, version):
+        remotes_list = list(retrieve_remotes(self.remotes_directory))
+        f = Fetcher(self.bundles_directory, remotes_list)
+        return f.fetch(bundle_ident, version, self.remotes)
 
     @property
     def contexts(self):
@@ -815,12 +820,12 @@ class Deployer(_RemoteHandlerMixin):
                 return json.load(mf)
         except (OSError, IOError) as e:
             if e.errno == errno.ENOENT: # FileNotFound
-                raise NotABundlePath(bundle_path, 'no bundle manifest found')
+                raise MalformedBundle(bundle_path, 'no bundle manifest found')
             if e.errno == errno.EISDIR: # IsADirectoryError
-                raise NotABundlePath(bundle_path, 'manifest is not a regular file')
+                raise MalformedBundle(bundle_path, 'manifest is not a regular file')
             raise
         except json.decoder.JSONDecodeError:
-            raise NotABundlePath(bundle_path, 'manifest is malformed: expected a'
+            raise MalformedBundle(bundle_path, 'manifest is malformed: expected a'
                     ' JSON file')
 
     def _get_archive_manifest_data(self, bundle_path):
@@ -828,14 +833,14 @@ class Deployer(_RemoteHandlerMixin):
             try:
                 mf0 = tf.extractfile(BUNDLE_MANIFEST_FILE_NAME)
                 if mf0 is None:
-                    raise NotABundlePath(bundle_path, 'manifest is not a regular file')
+                    raise MalformedBundle(bundle_path, 'manifest is not a regular file')
                 # Would like to pull the
                 with mf0 as mf:
                     return json.load(mf)
             except KeyError:
-                raise NotABundlePath(bundle_path, 'no bundle manifest found')
+                raise MalformedBundle(bundle_path, 'no bundle manifest found')
             except json.decoder.JSONDecodeError:
-                raise NotABundlePath(bundle_path, 'manifest is malformed: expected a'
+                raise MalformedBundle(bundle_path, 'manifest is malformed: expected a'
                         ' JSON file')
 
 
@@ -1034,8 +1039,8 @@ class Installer(object):
         self._write_file_hashes(descriptor, files_directory)
         self._write_context_data(descriptor, graphs_directory)
         self._write_manifest(descriptor, staging_directory)
-        self._build_indexed_database(staging_directory,
-                progress_reporter=progress_reporter)
+        self._generate_bundle_imports_ctx(descriptor, staging_directory)
+        self._build_indexed_database(staging_directory, progress_reporter)
 
     def _set_up_directories(self, staging_directory):
         graphs_directory = p(staging_directory, 'graphs')
@@ -1118,16 +1123,36 @@ class Installer(object):
         with open(p(staging_directory, BUNDLE_MANIFEST_FILE_NAME), 'w') as mf:
             json.dump(manifest_data, mf, separators=(',', ':'))
 
-    def _initdb(self, staging_directory):
-        self.conf = Data().copy({
-            'rdf.source': 'default',
-            'rdf.store': 'FileStorageZODB',
-            'rdf.store_conf': p(staging_directory, BUNDLE_INDEXED_DB_NAME)
-        })
-        # Create the database file and initialize some needed data structures
-        self.conf.init()
-        if not exists(self.conf['rdf.store_conf']):
-            raise Exception('Could not create the database file at ' + self.conf['rdf.store_conf'])
+    def _generate_bundle_imports_ctx(self, descriptor, bundle_directory):
+        if not self.imports_ctx:
+            return
+        ctx_id = fmt_bundle_ctx_id(descriptor.id)
+        imports_ctxg = self.graph.get_context(self.imports_ctx)
+        # select all of the imports for all of the contexts in the bundle and serialize
+        contexts = []
+        graphs_directory = p(bundle_directory, 'graphs')
+        idx_fname = p(graphs_directory, 'index')
+        with open(idx_fname) as index_file:
+            for l in index_file:
+                ctx, _ = l.strip().split('\x00')
+                contexts.append(URIRef(ctx))
+        for c in descriptor.empties:
+            contexts.append(URIRef(c))
+        temp_fname = p(graphs_directory, 'graph.tmp')
+        write_canonical_to_file(imports_ctxg.triples_choices((contexts, CONTEXT_IMPORTS, None)), temp_fname)
+        hsh = self.context_hash()
+        with open(temp_fname, 'rb') as ctx_fh:
+            hash_file(hsh, ctx_fh)
+        gbname = hsh.hexdigest() + '.nt'
+        ctx_file_name = p(graphs_directory, gbname)
+        rename(temp_fname, ctx_file_name)
+        with open(p(graphs_directory, 'hashes'), 'ab') as hash_out,\
+                open(p(graphs_directory, 'index'), 'ab') as index_out:
+            ctxidb = ctx_id.encode('UTF-8')
+            # Write hash
+            hash_out.write(ctxidb + b'\x00' + pack('B', hsh.digest_size) + hsh.digest() + b'\n')
+            # Write index
+            index_out.write(ctxidb + b'\x00' + gbname.encode('UTF-8') + b'\n')
 
     def _build_indexed_database(self, staging_directory, progress=None):
         self._initdb(staging_directory)
@@ -1165,6 +1190,17 @@ class Installer(object):
         finally:
             if self.conf:
                 self.conf.close()
+
+    def _initdb(self, staging_directory):
+        self.conf = Data().copy({
+            'rdf.source': 'default',
+            'rdf.store': 'FileStorageZODB',
+            'rdf.store_conf': p(staging_directory, BUNDLE_INDEXED_DB_NAME)
+        })
+        # Create the database file and initialize some needed data structures
+        self.conf.init()
+        if not exists(self.conf['rdf.store_conf']):
+            raise Exception('Could not create the database file at ' + self.conf['rdf.store_conf'])
 
     def _cover_with_dependencies(self, uncovered_contexts, descriptor):
         # XXX: Will also need to check for the contexts having a given ID being consistent
@@ -1308,16 +1344,3 @@ def _select_contexts(descriptor, graph):
             if pat(ctx):
                 yield ctx, context
                 break
-
-
-def _build_indexed_database(source, dest, bundle_directory, progress_reporter=None):
-    '''
-    Parameters
-    ----------
-    dest : rdflib.graph.Graph
-        Destination for the database
-    bundle_directory : str
-        Root directory of the bundle directory tree
-    progress_reporter : `tqdm.tqdm <https://tqdm.github.io/>`_-like object, optional
-        Receives updates during graph loading
-    '''
