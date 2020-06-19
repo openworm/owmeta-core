@@ -1039,6 +1039,7 @@ class Installer(object):
         self._write_file_hashes(descriptor, files_directory)
         self._write_context_data(descriptor, graphs_directory)
         self._write_manifest(descriptor, staging_directory)
+        self._initdb(staging_directory)
         self._generate_bundle_imports_ctx(descriptor, staging_directory)
         self._build_indexed_database(staging_directory, progress_reporter)
 
@@ -1146,6 +1147,11 @@ class Installer(object):
         gbname = hsh.hexdigest() + '.nt'
         ctx_file_name = p(graphs_directory, gbname)
         rename(temp_fname, ctx_file_name)
+        dest = self.conf['rdf.graph']
+        ctxg = dest.get_context(ctx_id)
+        with transaction.manager:
+            dest.addN(trip + (ctxg,) for trip in
+                    imports_ctxg.triples_choices((contexts, CONTEXT_IMPORTS, None)))
         with open(p(graphs_directory, 'hashes'), 'ab') as hash_out,\
                 open(p(graphs_directory, 'index'), 'ab') as index_out:
             ctxidb = ctx_id.encode('UTF-8')
@@ -1155,7 +1161,6 @@ class Installer(object):
             index_out.write(ctxidb + b'\x00' + gbname.encode('UTF-8') + b'\n')
 
     def _build_indexed_database(self, staging_directory, progress=None):
-        self._initdb(staging_directory)
         try:
             graphs_directory = p(staging_directory, 'graphs')
             idx_fname = p(graphs_directory, 'index')
