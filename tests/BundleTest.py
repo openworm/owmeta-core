@@ -367,6 +367,7 @@ def test_add_to_graph_not_supported(custom_bundle):
 def test_remote_handler_mixin_configured_remotes():
     class A(_RemoteHandlerMixin):
         def __init__(self):
+            super().__init__()
             m = Mock()
             m.name = 'a_remote'
             self.remotes = [m]
@@ -381,6 +382,7 @@ def test_remote_handler_mixin_configured_remotes():
 def test_remote_handler_mixin_selected_configured_remotes():
     class A(_RemoteHandlerMixin):
         def __init__(self):
+            super().__init__()
             m = Mock()
             m.name = 'a_remote'
             self.remotes = [m]
