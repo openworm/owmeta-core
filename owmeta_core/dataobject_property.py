@@ -264,8 +264,7 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
         stmt = Statement(self.owner, self, v, self.context)
         self._hdf[self.context] = None
         self._v.append(stmt)
-        if self not in v.owner_properties:
-            v.owner_properties.append(self)
+        v.owner_properties.append(self)
         return stmt
 
     def _remove_value(self, v):

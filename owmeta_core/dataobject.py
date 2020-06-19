@@ -479,7 +479,7 @@ class ContextualizableList(Contextualizable, list):
         return res
 
 
-class ContextFilteringList(Contextualizable, list):
+class ContextFilteringList(Contextualizable, set):
     def __init__(self, context):
         self._context = context
 
@@ -490,11 +490,14 @@ class ContextFilteringList(Contextualizable, list):
 
     def contextualize(self, context):
         res = type(self)(context)
-        res += self
+        res |= self
         return res
 
+    def append(self, o):
+        self.add(o)
+
     def decontextualize(self):
-        return list(super(ContextFilteringList, self).__iter__())
+        return set(super(ContextFilteringList, self).__iter__())
 
 
 @mapped
