@@ -274,8 +274,8 @@ def test_imports_in_unfetched_dependencies(dirs):
     cg_2 = g.get_context(ctxid_2)
     cg_imp = g.get_context(imports_ctxid)
 
-    cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
-    cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
+    cg_1.add((URIRef('http://example.com/a'), URIRef('http://example.com/b'), URIRef('http://example.com/c')))
+    cg_2.add((URIRef('http://example.com/d'), URIRef('http://example.com/e'), URIRef('http://example.com/f')))
     cg_imp.add((URIRef(ctxid_1), CONTEXT_IMPORTS, URIRef(ctxid_2)))
 
     class loader_class(object):
