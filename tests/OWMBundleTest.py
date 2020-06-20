@@ -14,7 +14,7 @@ from owmeta_core.command import DEFAULT_OWM_DIR as OD, OWM
 from owmeta_core.bundle import Descriptor
 
 
-from .TestUtilities import assertRegexpMatches, assertNotRegexpMatches
+from .TestUtilities import assertRegexpMatches, assertNotRegexpMatches, skipIfNotExtras
 
 
 pytestmark = mark.owm_cli_test
@@ -351,6 +351,7 @@ def test_save_is_archive(shell_helper):
     assert tarfile.is_tarfile(p(shell_helper.testdir, 'test-main.tar.xz'))
 
 
+@skipIfNotExtras('sftp')
 def test_deploy_sftp(owm_project_with_customizations, custom_bundle):
     desc = Descriptor('test/main', includes=('http://example.org/ctx',))
     with owm_project_with_customizations(customizations='''\
