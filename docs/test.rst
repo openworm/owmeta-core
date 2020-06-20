@@ -8,7 +8,7 @@ Preparing for tests
 
 owmeta_core should be installed like::
 
-    python setup.py develop
+    pip install -e .
 
 Running tests
 -------------
@@ -32,4 +32,12 @@ tests, tests can also be tagged using pytest marks like::
 
 Currently, marks are used to distinguish between unit-level tests and others
 which have the ``inttest`` mark
+
+Skipping tests
+--------------
+Some tests are skipped (as opposed to be deselected such as by certain marks
+being disabled) due to optional dependencies not being installed. You can cause
+a test to be skipped by using `pytest.mark.skipif`. In particular, if you want
+to skip tests because certain extras are not installed, you can use
+`tests.TestUtilities.skipIfNotExtras`.
 

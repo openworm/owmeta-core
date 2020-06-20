@@ -1,14 +1,13 @@
 from __future__ import absolute_import
 from __future__ import print_function
 import os
-import hashlib
 from contextlib import contextmanager
 from six import StringIO, string_types
 import logging
 import re
 
+from pkg_resources import require as require_pkg
 import pytest
-
 
 excludedFiles = ['TestUtilities.py', 'pytest_profile.py']
 
@@ -144,3 +143,20 @@ def assertNotRegexpMatches(text, pattern):
         pattern = re.compile(pattern)
     if pattern.search(text):
         raise AssertionError('Unexpectedly found {} in:\n{}'.format(pattern, text))
+
+
+def skipIfNotExtras(*extras):
+    '''
+    Skips a test if certain owmeta_core extras are not installed.
+
+    All optional dependencies should be declared in an "extra"
+    '''
+    def wrapper(fun):
+        try:
+            require_pkg('owmeta_core[{}]'.format(','.join(extras)))
+            have_extras = False
+        except Exception:
+            have_extras = True
+        return pytest.mark.skipif(have_extras, reason="Missing requirements for extras: {}".format(
+            ', '.join(f"'{x}'" for x in extras)))(fun)
+    return wrapper
