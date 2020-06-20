@@ -1,12 +1,13 @@
 from __future__ import print_function
 from functools import partial
+import hashlib
+from importlib import import_module
+import logging
+
 import rdflib as R
 from rdflib.term import URIRef
-import logging
 import six
-import hashlib
 
-from importlib import import_module
 import owmeta_core  # noqa
 from . import BASE_SCHEMA_URL, DEF_CTX, __version__ as OWMETA_VERSION
 from .contextualize import (Contextualizable,
@@ -575,9 +576,6 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         self.properties = ContextualizableList(self.context)
         self.owner_properties = ContextFilteringList(self.context)
 
-        self.po_cache = None
-        """ A cache of property URIs and values. Used by Property """
-
         self._variable = None
 
         self.filling = False
@@ -659,16 +657,6 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         else:
             return super(BaseDataObject, self).identifier_augment()
 
-    def clear_po_cache(self):
-        """ Clear the property-object cache for this object.
-
-        This cache is maintained by and shared by the properties of this
-        object. It isn't necessary to clear this cache manually unless you
-        modify the RDFLib graph indirectly (e.g., through the store) at
-        runtime.
-        """
-        self.po_cache = None
-
     def __repr__(self):
         return '{}(ident={})'.format(self.__class__.__name__, repr(self.idl))
 
@@ -706,12 +694,10 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         '''
         Loads a `DataObject` from the graph
         '''
-        # XXX: May need to rethink this refactor at some point...
-        for x in load(self.rdf if graph is None else graph,
+        return load(self.rdf if graph is None else graph,
                       start=self,
                       target_type=type(self).rdf_type,
-                      context=self.context):
-            yield x
+                      context=self.context)
 
     def fill(self):
         pass
