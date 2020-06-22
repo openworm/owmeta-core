@@ -43,19 +43,6 @@ class ContextMappedPropertyClass(ContextualizableClass):
             self.base_namespace = find_base_namespace(dct, bases)
 
     @property
-    def context(self):
-        try:
-            return object.__getattribute__(self, '_cmpc_context')
-        except AttributeError:
-            return None
-
-    @context.setter
-    def context(self, newc):
-        if self._cmpc_context is not None and self._cmpc_context != newc:
-            raise Exception('Contexts cannot be reassigned for a class')
-        self._cmpc_context = newc
-
-    @property
     def definition_context(self):
         return self.__definition_context
 
@@ -141,6 +128,13 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
         self.owner = owner
         self._hdf = dict()
         self.filling = False
+        self._expr = None
+
+    @property
+    def expr(self):
+        if self._expr is None:
+            self._expr = PropertyExpr([self])
+        return self._expr
 
     def contextualize_augment(self, context):
         self._hdf[context] = None
@@ -260,6 +254,40 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
             self._remove_value(v)
         return results
 
+    get_terms = get
+    '''
+    Get the `~rdflib.term.Node` instances matching this property query
+    '''
+
+    @classmethod
+    def get_multiple(cls, subjects, graph=None):
+        '''
+        Get the values for several objects
+
+        Parameters
+        ----------
+        subjects : iterable of rdflib.term.URIRef
+        '''
+        if not isinstance(subjects, list):
+            subjects = list(subjects)
+        if graph is None and cls.context is not None:
+            graph = cls.context.rdf_graph()
+        if graph is None:
+            raise ValueError(f'Either the "context" for {cls} ({cls.context})'
+                    ' must have a value for "rdf_graph()" or "graph" argument'
+                    ' must be provided')
+        triples_choices = graph.triples_choices
+
+        return {c[0]: c[2]
+                for c in triples_choices(
+                    (subjects, cls.link, None))}
+
+    get_multiple_terms = get_multiple
+    '''
+    Get the `~rdflib.term.Node` instances matching the property queries across several
+    objects
+    '''
+
     def _insert_value(self, v):
         stmt = Statement(self.owner, self, v, self.context)
         self._hdf[self.context] = None
@@ -273,11 +301,24 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
         v.owner_properties.remove(self)
         self._v.remove(Statement(self.owner, self, v, self.context))
 
-    def unset(self, v):
-        self._remove_value(v)
+    unset = _remove_value
 
     def __call__(self, *args, **kwargs):
-        return _get_or_set(self, *args, **kwargs)
+        """ If arguments are given ``set`` method is called. Otherwise, the ``get``
+        method is called. If the ``multiple`` member is set to ``True``, then a
+        Python set containing the associated values is returned. Otherwise, a
+        single bare value is returned.
+        """
+        if len(args) > 0 or len(kwargs) > 0:
+            return self.set(*args, **kwargs)
+        else:
+            r = self.get(*args, **kwargs)
+            if self.multiple:
+                return set(r)
+            else:
+                for a in r:
+                    return a
+                return None
 
     def __repr__(self):
         fcn = FCN(type(self))
@@ -306,6 +347,125 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
     @property
     def statements(self):
         return self.rdf.quads((self.owner.idl, self.link, None, None))
+
+
+class PropertyExpr(object):
+    '''
+    A property expression
+    '''
+    def __init__(self, props, triples_provider=None, terms_provider=None, origin=None):
+        self.props = props
+        self.prop = props[0]
+        if origin is None:
+            origin = self.prop
+        self.origin = origin
+        self.rdf = self.origin.rdf
+        self.terms = None
+        if triples_provider is None:
+            triples_provider = self._make_triples
+
+        self.triples_provider = triples_provider
+
+        if terms_provider is None:
+            terms_provider = self._compute_terms
+
+        self.terms_provider = terms_provider
+
+        self.created_sub_expressions = dict()
+
+    def __or__(self, other):
+        if self is other:
+            return self
+
+        def terms_provider():
+            return itertools.chain(self.terms_provider(), other.terms_provider())
+
+        def triples_provider():
+            return itertools.chain(self.triples_provider(), other.triples_provider())
+
+        return type(self)(self.props + other.props,
+                terms_provider=terms_provider,
+                triples_provider=triples_provider,
+                origin=self.origin)
+
+    def __getattr__(self, attr):
+        if attr in self.created_sub_expressions:
+            return self.created_sub_expressions[attr]
+        value_types = []
+        for prop in self.props:
+            try:
+                value_types.append(getattr(prop, 'value_type'))
+            except AttributeError:
+                raise AttributeError(attr)
+
+        sub_links = []
+        sub_props = []
+        for v in value_types:
+            sub_prop = getattr(v, attr)
+            sub_props.append(sub_prop)
+            sub_links.append(sub_prop.link)
+
+        res = None
+        for prop, sub_prop, link in zip(self.props, sub_props, sub_links):
+            triples_choices = self.rdf.triples_choices
+
+            def m():
+                terms = list(self.terms_provider())
+                for c in triples_choices(
+                        (terms, link, None)):
+                    yield c[2]
+
+            def n():
+                terms = list(self.terms_provider())
+                for c in triples_choices(
+                        (terms, link, None)):
+                    yield c
+
+            new_expr = type(self)([sub_prop], terms_provider=m, triples_provider=n,
+                    origin=self.origin)
+            if res is None:
+                res = new_expr
+                continue
+            res = res | new_expr
+        self.created_sub_expressions[attr] = res
+        return res
+
+    def _make_triples(self):
+        for prop in self.props:
+            for term in prop.get_terms():
+                yield (prop.owner.identifier, prop.link, term)
+
+    def _compute_terms(self):
+        return list(itertools.chain(*(prop.get_terms() for prop in self.props)))
+
+    def to_dict(self):
+        res = dict()
+        for s, p, o in self.triples_provider():
+            values = res.get(s)
+            if isinstance(values, set):
+                values.add(o)
+            if values is not None and values != o:
+                res[s] = set([values, o])
+            else:
+                res[s] = o
+        return res
+
+    __call__ = to_dict
+
+    def to_terms(self):
+        if self.terms is None:
+            terms = self.terms_provider()
+            if not isinstance(terms, list):
+                terms = list(terms)
+            self.terms = terms
+        return self.terms
+
+    def __iter__(self):
+        return iter(self.to_terms())
+
+    def __repr__(self):
+        return '({}).expr'.format(
+                ' | '.join(repr(p) for p in self.props))
 
 
 class _ContextualizingPropertySetMixin(object):
@@ -426,27 +586,6 @@ class UnionProperty(_ContextualizingPropertySetMixin,
             if isinstance(x, R.Literal):
                 s.add(self.resolver.deserializer(x.idl))
         return itertools.chain(r, s)
-
-
-def _get_or_set(self, *args, **kwargs):
-    """ If arguments are given ``set`` method is called. Otherwise, the ``get``
-    method is called. If the ``multiple`` member is set to ``True``, then a
-    Python set containing the associated values is returned. Otherwise, a
-    single bare value is returned.
-    """
-    # XXX: checking this in advance because I'm paranoid, I guess
-    assert hasattr(self, 'set') and hasattr(self.set, '__call__')
-    assert hasattr(self, 'get') and hasattr(self.get, '__call__')
-    assert hasattr(self, 'multiple')
-
-    if len(args) > 0 or len(kwargs) > 0:
-        return self.set(*args, **kwargs)
-    else:
-        r = self.get(*args, **kwargs)
-        if self.multiple:
-            return set(r)
-        else:
-            return next(iter(r), None)
 
 
 def _property_to_string(self):

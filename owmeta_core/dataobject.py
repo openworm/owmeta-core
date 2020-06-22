@@ -53,13 +53,23 @@ This = object()
 """
 
 
-class PropertyProperty(property):
+class PropertyProperty(Contextualizable, property):
     def __init__(self, cls, *args):
         super(PropertyProperty, self).__init__(*args)
         self._cls = cls
+        self._super_init_args = args
+
+    def contextualize_augment(self, context):
+        return type(self)(self._cls.contextualize_class(context),
+                          *self._super_init_args)
+
+    def property(self):
+        return self._cls
 
     def __getattr__(self, attr):
-        return getattr(self._cls, attr)
+        # Provide a weak sort of proxying to the class we're holding
+        cls = object.__getattribute__(self, '_cls')
+        return getattr(cls, attr)
 
     def __repr__(self):
         return '{}(cls={})'.format(FCN(type(self)), repr(self._cls))
