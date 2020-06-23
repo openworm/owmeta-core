@@ -388,9 +388,16 @@ class PropertyExpr(object):
                 triples_provider=triples_provider,
                 origin=self.origin)
 
+    def property(self, property_class):
+        if ('link', property_class.link) in self.created_sub_expressions:
+            return self.created_sub_expressions[('link', property_class.link)]
+        res = self._create_sub_expression(property_class)
+        self.created_sub_expressions[('link', property_class.link)] = res
+        return res
+
     def __getattr__(self, attr):
-        if attr in self.created_sub_expressions:
-            return self.created_sub_expressions[attr]
+        if ('attr', attr) in self.created_sub_expressions:
+            return self.created_sub_expressions[('attr', attr)]
         value_types = []
         for prop in self.props:
             try:
@@ -398,47 +405,47 @@ class PropertyExpr(object):
             except AttributeError:
                 raise AttributeError(attr)
 
-        sub_links = []
         sub_props = []
         for v in value_types:
             sub_prop = getattr(v, attr)
             sub_props.append(sub_prop)
-            sub_links.append(sub_prop.link)
 
         res = None
-        for prop, sub_prop, link in zip(self.props, sub_props, sub_links):
-            triples_choices = self.rdf.triples_choices
-
-            def m():
-                terms = list(self.terms_provider())
-                for c in triples_choices(
-                        (terms, link, None)):
-                    yield c[2]
-
-            def n():
-                terms = list(self.terms_provider())
-                for c in triples_choices(
-                        (terms, link, None)):
-                    yield c
-
-            new_expr = type(self)([sub_prop], terms_provider=m, triples_provider=n,
-                    origin=self.origin)
+        for sub_prop in sub_props:
+            new_expr = self._create_sub_expression(sub_prop)
             if res is None:
                 res = new_expr
                 continue
             res = res | new_expr
-        self.created_sub_expressions[attr] = res
+        self.created_sub_expressions[('attr', attr)] = res
         return res
 
-    def _make_triples(self):
-        for prop in self.props:
-            for term in prop.get_terms():
-                yield (prop.owner.identifier, prop.link, term)
+    def _create_sub_expression(self, sub_prop):
+        link = sub_prop.link
+        triples_choices = self.rdf.triples_choices
 
-    def _compute_terms(self):
-        return list(itertools.chain(*(prop.get_terms() for prop in self.props)))
+        def terms_provider():
+            terms = list(self.terms_provider())
+            for c in triples_choices(
+                    (terms, link, None)):
+                yield c[2]
+
+        def triples_provider():
+            terms = list(self.terms_provider())
+            for c in triples_choices(
+                    (terms, link, None)):
+                yield c
+
+        return type(self)([sub_prop],
+                terms_provider=terms_provider,
+                triples_provider=triples_provider,
+                origin=self.origin)
 
     def to_dict(self):
+        '''
+        Return a `dict` mapping from values of the head for owner of this expression's
+        property to the values for that property.
+        '''
         res = dict()
         for s, p, o in self.triples_provider():
             values = res.get(s)
@@ -453,6 +460,9 @@ class PropertyExpr(object):
     __call__ = to_dict
 
     def to_terms(self):
+        '''
+        Return a list of `rdflib.term.Node` terms produced by this expression.
+        '''
         if self.terms is None:
             terms = self.terms_provider()
             if not isinstance(terms, list):
@@ -466,6 +476,18 @@ class PropertyExpr(object):
     def __repr__(self):
         return '({}).expr'.format(
                 ' | '.join(repr(p) for p in self.props))
+
+    def _make_triples(self):
+        # Note: This method only applies for the root property in the expression.
+        # Sub-expressions have property *classes* which do not have a 'get_terms' method
+        for prop in self.props:
+            for term in prop.get_terms():
+                yield (prop.owner.identifier, prop.link, term)
+
+    def _compute_terms(self):
+        # Note: This method only applies for the root property in the expression.
+        # Sub-expressions have property *classes* which do not have a 'get_terms' method
+        return list(itertools.chain(*(prop.get_terms() for prop in self.props)))
 
 
 class _ContextualizingPropertySetMixin(object):
