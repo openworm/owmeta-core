@@ -54,21 +54,29 @@ This = object()
 
 
 class PropertyProperty(Contextualizable, property):
-    def __init__(self, cls, *args):
+    def __init__(self, cls=None, *args, cls_thunk=None):
         super(PropertyProperty, self).__init__(*args)
         self._cls = cls
+        self._cls_thunk=cls_thunk
         self._super_init_args = args
 
     def contextualize_augment(self, context):
+        if self._cls is None:
+            self._cls = self._cls_thunk()
         return type(self)(self._cls.contextualize_class(context),
                           *self._super_init_args)
 
     def property(self):
+        if self._cls is None:
+            self._cls = self._cls_thunk()
         return self._cls
 
     def __getattr__(self, attr):
         # Provide a weak sort of proxying to the class we're holding
         cls = object.__getattribute__(self, '_cls')
+        if cls is None:
+            cls = self._cls_thunk()
+            self._cls = cls
         return getattr(cls, attr)
 
     def __repr__(self):
@@ -215,6 +223,10 @@ def UnionProperty(*args, **kwargs):
 TypeDataObject = None
 
 
+def _get_rdf_type_property():
+    return RDFTypeProperty
+
+
 class ContextMappedClass(MappedClass, ContextualizableClass):
     def __init__(self, name, bases, dct):
         super(ContextMappedClass, self).__init__(name, bases, dct)
@@ -240,6 +252,14 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
                 self._property_classes[k] = c
                 setattr(self, k, mp(c, k))
 
+        def getter(target):
+            ak = '_owm_rdf_type_property'
+            attr = getattr(target, ak, None)
+            if attr is None:
+                attr = target.attach_property(RDFTypeProperty, name=ak)
+            return attr
+
+        self.rdf_type_property = PropertyProperty(None, getter, cls_thunk=_get_rdf_type_property)
         for k, v in dct.items():
             if isinstance(v, Alias):
                 setattr(self, k, getattr(self, v.target.result.linkName))
@@ -539,6 +559,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
     class_context = BASE_SCHEMA_URL
     base_namespace = R.Namespace("http://openworm.org/entities/")
 
+
     _next_variable_int = 0
 
     properties_are_init_args = True
@@ -596,8 +617,6 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         if paia:
             for k, v in property_args:
                 getattr(self, k)(v)
-
-        self.attach_property(RDFTypeProperty)
 
     @property
     def rdf(self):
