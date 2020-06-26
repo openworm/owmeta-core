@@ -15,8 +15,6 @@ from owmeta_core.context import Context
 from owmeta_core.rdf_query_util import get_most_specific_rdf_type
 from owmeta_core.utils import FCN
 
-from .GraphDBInit import make_graph
-
 from .DataTestTemplate import _DataTest
 from .TestUtilities import captured_logging
 
@@ -55,8 +53,7 @@ class DataObjectTest(_DataTest):
         Calling object_from_id on the class should search for the rdf_type
         '''
         ctx = Mock()
-        g = \
-            DataObject.contextualize(ctx).object_from_id('http://openworm.org/some_rdf_type')
+        DataObject.contextualize(ctx).object_from_id('http://openworm.org/some_rdf_type')
         ctx.resolve_class.assert_called()
 
     def test_repr(self):
@@ -282,23 +279,6 @@ class ClassRegistryTest(_DataTest):
             finally:
                 delattr(mod, '__yarom_mapped_classes__')
 
-    def test_save_load_subtype(self):
-
-        class A(DataObject):
-            class_context = self.context
-        self.context.mapper.process_class(A)
-
-        self.context.add_import(BASE_CONTEXT)
-        m = self.context(Context)(ident='http://example.org/ctx', imported=(self.context,))
-        im = self.context(Context)(ident='http://example.org/ctxim', imported=(self.context,))
-        co = self.context(Context)(ident='http://example.org/ctxb', imported=(m, im))
-        m(A)(ident='http://example.org/anA')
-        co.save_imports(im)
-        co.save_context(inline_imports=True)
-
-        o = list(m.stored(DataObject)(ident='http://example.org/anA').load())
-        self.assertIsInstance(o[0], A)
-
     def test_resolve_class_in_ymc(self):
         class A(DataObject):
             class_context = self.context
@@ -329,7 +309,7 @@ class ClassRegistryTest(_DataTest):
         # given
         self.context.mapper.process_class(A)
 
-        mod = import_module('tests.DataObjectTest')
+        import_module('tests.DataObjectTest')
 
         # when
         del self.context.mapper.RDFTypeTable[A.rdf_type]
@@ -353,7 +333,7 @@ class ClassRegistryTest(_DataTest):
             # when
             try:
                 del self.context.mapper.RDFTypeTable[A.rdf_type]
-                res = self.context.resolve_class(A.rdf_type)
+                self.context.resolve_class(A.rdf_type)
                 # then
                 self.assertRegexpMatches(logs.getvalue(), r'More than one.*__yarom_mapped_classes__')
             finally:
@@ -504,11 +484,11 @@ class GMSRTTest(unittest.TestCase):
 
     def test_no_context_return_types0(self):
         t1 = R.URIRef('http://example.org/t1')
-        self.assertEqual(t1, get_most_specific_rdf_type(types={t1}, bases={t1}))
+        self.assertEqual(t1, get_most_specific_rdf_type(types={t1}, base=t1))
 
     def test_no_context_no_types_return_bases0(self):
         t1 = R.URIRef('http://example.org/t1')
-        self.assertEqual(t1, get_most_specific_rdf_type(types=set(), bases={t1}))
+        self.assertEqual(t1, get_most_specific_rdf_type(types=set(), base=t1))
 
     def test_no_context_no_types_no_bases_no_mst(self):
         self.assertIsNone(get_most_specific_rdf_type(types=set()))
@@ -518,20 +498,10 @@ class GMSRTTest(unittest.TestCase):
         t2 = R.URIRef('http://example.org/t2')
         self.assertIsNone(get_most_specific_rdf_type(types={t1, t2}))
 
-    def test_no_context_no_types_many_bases_no_mst(self):
-        t1 = R.URIRef('http://example.org/t1')
-        t2 = R.URIRef('http://example.org/t2')
-        self.assertIsNone(get_most_specific_rdf_type(types=set(), bases={t1, t2}))
-
-    def test_no_context_one_type_many_bases_no_mst(self):
-        t1 = R.URIRef('http://example.org/t1')
-        t2 = R.URIRef('http://example.org/t2')
-        self.assertIsNone(get_most_specific_rdf_type(types={t1}, bases={t1, t2}))
-
     def test_no_context_one_type_different_bases_no_mst(self):
         t1 = R.URIRef('http://example.org/t1')
         t2 = R.URIRef('http://example.org/t2')
-        self.assertIsNone(get_most_specific_rdf_type(types={t1}, bases={t2}))
+        self.assertIsNone(get_most_specific_rdf_type(types={t1}, base=t2))
 
     def test_context_with_no_mapper_or_bases(self):
         ctx = Mock()

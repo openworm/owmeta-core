@@ -81,3 +81,10 @@ def test_or_dict():
 def test_or_self_is_self():
     p = PropertyExpr([Mock()])
     assert (p | p) is p
+
+
+def test_to_dataobjects():
+    prop = Mock()
+    prop.get_terms.return_value = ['v1', 'v2']
+    p = PropertyExpr([prop])
+    assert p.to_dict() == {prop.owner.identifier: {'v1', 'v2'}}

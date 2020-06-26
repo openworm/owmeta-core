@@ -1,7 +1,6 @@
 from __future__ import print_function
 import rdflib
 import logging
-from itertools import groupby
 
 from .graph_object import (GraphObjectQuerier,
                            ZeroOrMoreTQLayer)
@@ -23,7 +22,52 @@ def zomifier(target_type):
     return helper
 
 
-def load(graph, start=None, target_type=None, context=None, idents=None):
+def load_base(graph, idents, target_type, context, resolver):
+    '''
+    Loads a set of objects based on the graph starting from `start`
+
+    Parameters
+    ----------
+    graph : rdflib.graph.Graph
+        The graph to query from
+    target_type : rdflib.term.URIRef
+        URI of the target type. Any result will be a sub-class of this type
+    context : .context.Context
+        Limits the scope of the query to statements within or entailed by this context
+    idents : list of rdflib.term.URIRef
+        A list of identifiers to convert into objects
+    '''
+
+    L.debug("load_base: graph %s target_type %s context %s resolver %s",
+            graph, target_type, context, resolver)
+    if not idents:
+        return
+
+    grouped_types = dict()
+    for ident, _, rdf_type in graph.triples_choices((list(idents),
+                                                     rdflib.RDF['type'],
+                                                     None)):
+        t = grouped_types.get(ident, None)
+        if t is None:
+            grouped_types[ident] = set([rdf_type])
+        else:
+            t.add(rdf_type)
+
+    hit = False
+    for ident, types in grouped_types.items():
+        hit = True
+        the_type = get_most_specific_rdf_type(types, context, base=target_type)
+        yield resolver.id2ob(ident, the_type, context)
+
+    if not hit:
+        for ident in idents:
+            the_type = None
+            if target_type:
+                the_type = target_type
+            yield resolver.id2ob(ident, the_type, context)
+
+
+def load(graph, start, target_type, *args):
     '''
     Loads a set of objects based on the graph starting from `start`
 
@@ -37,68 +81,37 @@ def load(graph, start=None, target_type=None, context=None, idents=None):
         URI of the target type. Any result will be a sub-class of this type
     context : .context.Context
         Limits the scope of the query to statements within or entailed by this context
-    idents : list of rdflib.term.URIRef
-        A list of identifiers to convert into objects
     '''
 
-    L.debug("load: graph %s start %s target_type %s context %s", graph, start, target_type, context)
-    if idents is None:
-        g = ZeroOrMoreTQLayer(zomifier(target_type), graph)
-        idents = GraphObjectQuerier(start, g, parallel=False,
-                                    hop_scorer=goq_hop_scorer)()
+    L.debug("load: start %s", start)
+    g = ZeroOrMoreTQLayer(zomifier(target_type), graph)
+    idents = GraphObjectQuerier(start, g, parallel=False, hop_scorer=goq_hop_scorer)()
 
-    if idents:
-        choices = graph.triples_choices((list(idents),
-                                         rdflib.RDF['type'],
-                                         None))
-        # XXX: Don't we need to sort choices by x[0]?
-        choices = list(choices)
-        grouped_type_triples = groupby(choices, lambda x: x[0])
-        hit = False
-        for ident, type_triples in grouped_type_triples:
-            hit = True
-            types = set()
-            for __, __, rdf_type in type_triples:
-                types.add(rdf_type)
-            tt = () if target_type is None else (target_type,)
-            the_type = get_most_specific_rdf_type(types, context, bases=tt)
-            yield oid(ident, the_type, context)
-        if not hit:
-            for ident in idents:
-                tt = () if target_type is None else (target_type,)
-                the_type = get_most_specific_rdf_type((), context, bases=tt)
-                yield oid(ident, the_type, context)
-    else:
-        return
+    return load_base(graph, idents, target_type, *args)
 
 
-def get_most_specific_rdf_type(types, context=None, bases=()):
+def get_most_specific_rdf_type(types, context=None, base=None):
     """ Gets the most specific rdf_type.
 
     Returns the URI corresponding to the lowest in the DataObject class
     hierarchy from among the given URIs.
     """
     if context is None:
-        if len(types) == 1 and (not bases or tuple(bases) == tuple(types)):
+        if len(types) == 1 and (not base or (base,) == tuple(types)):
             return tuple(types)[0]
-        if not types and len(bases) == 1:
-            return tuple(bases)[0]
+        if not types and base:
+            return base
         msg = "Without a Context, `get_most_specific_rdf_type` cannot order RDF types {}{}".format(
                 types,
-                " constrained to be subclasses of {}".format(bases) if bases else '')
+                " constrained to be subclasses of {}".format(base) if base else '')
         L.warning(msg)
         return None
 
-    mapper = context.mapper
-
-    if bases:
-        most_specific_types = tuple(y for y in (context.resolve_class(x) for x in bases) if y is not None)
-        if not most_specific_types and mapper:
-            most_specific_types = tuple(mapper.base_classes.values())
-    elif mapper:
-        most_specific_types = tuple(mapper.base_classes.values())
-    else:
-        most_specific_types = ()
+    most_specific_types = ()
+    if base:
+        base_class = context.resolve_class(base)
+        if base_class:
+            most_specific_types = (base_class,)
 
     for x in types:
         try:
@@ -114,12 +127,11 @@ def get_most_specific_rdf_type(types, context=None, bases=()):
             additional RDF type triples to the RDF graph in order to resolve your objects
             to a more precise type.""".format(x))
 
-    # XXX: Should we require that there's only one type at this point?
     if len(most_specific_types) == 1:
         return most_specific_types[0].rdf_type
     else:
         L.warning(('No most-specific type could be determined among {}'
-                   ' constrained to subclasses of {}').format(types, bases))
+                   ' constrained to subclasses of {}').format(types, base))
         return None
 
 

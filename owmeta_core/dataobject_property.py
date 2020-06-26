@@ -18,7 +18,7 @@ from .inverse_property import InversePropertyMixin
 from .property_mixins import (DatatypePropertyMixin,
                               UnionPropertyMixin)
 from .property_value import PropertyValue
-from .rdf_query_util import goq_hop_scorer, load
+from .rdf_query_util import goq_hop_scorer, load_base
 from .rdf_go_modifiers import SubClassModifier
 from .statement import Statement
 from .variable import Variable
@@ -259,35 +259,6 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
     Get the `~rdflib.term.Node` instances matching this property query
     '''
 
-    @classmethod
-    def get_multiple(cls, subjects, graph=None):
-        '''
-        Get the values for several objects
-
-        Parameters
-        ----------
-        subjects : iterable of rdflib.term.URIRef
-        '''
-        if not isinstance(subjects, list):
-            subjects = list(subjects)
-        if graph is None and cls.context is not None:
-            graph = cls.context.rdf_graph()
-        if graph is None:
-            raise ValueError(f'Either the "context" for {cls} ({cls.context})'
-                    ' must have a value for "rdf_graph()" or "graph" argument'
-                    ' must be provided')
-        triples_choices = graph.triples_choices
-
-        return {c[0]: c[2]
-                for c in triples_choices(
-                    (subjects, cls.link, None))}
-
-    get_multiple_terms = get_multiple
-    '''
-    Get the `~rdflib.term.Node` instances matching the property queries across several
-    objects
-    '''
-
     def _insert_value(self, v):
         stmt = Statement(self.owner, self, v, self.context)
         self._hdf[self.context] = None
@@ -372,6 +343,8 @@ class PropertyExpr(object):
         self.terms_provider = terms_provider
 
         self.created_sub_expressions = dict()
+        self.dict = None
+        self._combos = []
 
     def __or__(self, other):
         if self is other:
@@ -383,10 +356,15 @@ class PropertyExpr(object):
         def triples_provider():
             return itertools.chain(self.triples_provider(), other.triples_provider())
 
-        return type(self)(self.props + other.props,
+        res = type(self)(self.props + other.props,
                 terms_provider=terms_provider,
                 triples_provider=triples_provider,
                 origin=self.origin)
+
+        self._combos.append(res)
+        other._combos.append(res)
+
+        return res
 
     def property(self, property_class):
         if ('link', property_class.link) in self.created_sub_expressions:
@@ -446,16 +424,20 @@ class PropertyExpr(object):
         Return a `dict` mapping from values of the head for owner of this expression's
         property to the values for that property.
         '''
-        res = dict()
-        for s, p, o in self.triples_provider():
-            values = res.get(s)
-            if isinstance(values, set):
-                values.add(o)
-            if values is not None and values != o:
-                res[s] = set([values, o])
-            else:
-                res[s] = o
-        return res
+        if self.dict is None:
+            self.dict = dict()
+            for s, p, o in self.triples_provider():
+                values = self.dict.get(s)
+                if isinstance(values, set):
+                    values.add(o)
+                if values is not None and values != o:
+                    self.dict[s] = set([values, o])
+                else:
+                    self.dict[s] = o
+        return self.dict
+
+    def to_objects(self):
+        return list(ExprResultObj(self, t) for t in self.to_terms())
 
     __call__ = to_dict
 
@@ -488,6 +470,47 @@ class PropertyExpr(object):
         # Note: This method only applies for the root property in the expression.
         # Sub-expressions have property *classes* which do not have a 'get_terms' method
         return list(itertools.chain(*(prop.get_terms() for prop in self.props)))
+
+
+class ExprResultObj(object):
+    __slots__ = ('_expr', 'identifier')
+
+    def __init__(self, expr, ident):
+        self._expr = expr
+        self.identifier = ident
+
+    def __getitem__(self, link):
+        try:
+            sub_expr = self._expr.created_sub_expressions[('link', link)]
+        except KeyError:
+            for c in self._expr._combos:
+                sub_expr = c.created_sub_expressions[('link', link)]
+                break
+            else: # no break
+                raise
+
+        return self._give_value(sub_expr)
+
+    def _give_value(self, sub_expr):
+        sub_expr_dict = sub_expr.to_dict()
+
+        val = sub_expr_dict.get(self.identifier)
+        if val and (sub_expr.created_sub_expressions or
+                any(c.created_sub_expressions for c in sub_expr._combos)):
+            return ExprResultObj(sub_expr, val)
+        else:
+            return val
+
+    def __getattr__(self, attr):
+        sub_expr = self._expr.created_sub_expressions.get(('attr', attr))
+        if not sub_expr:
+            for c in self._expr._combos:
+                sub_expr = c.created_sub_expressions.get(('attr', attr))
+                if sub_expr:
+                    break
+        if not sub_expr:
+            raise AttributeError(attr)
+        return self._give_value(sub_expr)
 
 
 class _ContextualizingPropertySetMixin(object):
@@ -532,13 +555,15 @@ class ObjectProperty(InversePropertyMixin,
                      PropertyCountMixin,
                      Property):
 
-    def __init__(self, resolver=None, *args, **kwargs):
+    def __init__(self, resolver, *args, **kwargs):
         super(ObjectProperty, self).__init__(*args, **kwargs)
+        self.resolver = resolver
 
     def contextualize_augment(self, context):
         res = super(ObjectProperty, self).contextualize_augment(context)
-        if self is not res:
-            res.add_attr_override('resolver', OPResolver(context))
+        if context is not None:
+            if self is not res:
+                res.add_attr_override('resolver', context(self.resolver))
         return res
 
     def set(self, v):
@@ -551,8 +576,11 @@ class ObjectProperty(InversePropertyMixin,
 
     def get(self):
         idents = super(ObjectProperty, self).get()
-        r = load(self.rdf, idents=idents, context=self.context,
-                 target_type=self.value_rdf_type)
+        r = load_base(self.rdf,
+                      idents,
+                      self.value_rdf_type,
+                      self.context,
+                      self.resolver)
         return itertools.chain(self.defined_values, r)
 
     @property

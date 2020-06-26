@@ -724,9 +724,10 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         Loads a `DataObject` from the graph
         '''
         return load(self.rdf if graph is None else graph,
-                      start=self,
-                      target_type=type(self).rdf_type,
-                      context=self.context)
+                    self,
+                    type(self).rdf_type,
+                    self.context,
+                    _Resolver.get_instance())
 
     def fill(self):
         pass
