@@ -63,17 +63,17 @@ def test_to_dict():
     prop = Mock()
     prop.get_terms.return_value = ['v1', 'v2']
     p = PropertyExpr([prop])
-    assert p.to_dict() == {prop.owner.identifier: {'v1', 'v2'}}
+    assert p.to_dict(multiple=True) == {prop.owner.identifier: {'v1', 'v2'}}
 
 
-def test_or_dict():
+def test_or_to_dict():
     prop1 = Mock()
     prop2 = Mock()
     prop1.get_terms.return_value = ['v1', 'v2']
     prop2.get_terms.return_value = ['v3', 'v4']
     p1 = PropertyExpr([prop1])
     p2 = PropertyExpr([prop2])
-    assert (p1 | p2).to_dict() == {
+    assert (p1 | p2).to_dict(multiple=True) == {
             prop1.owner.identifier: {'v1', 'v2'},
             prop2.owner.identifier: {'v3', 'v4'}}
 
@@ -83,8 +83,15 @@ def test_or_self_is_self():
     assert (p | p) is p
 
 
-def test_to_dataobjects():
-    prop = Mock()
-    prop.get_terms.return_value = ['v1', 'v2']
-    p = PropertyExpr([prop])
-    assert p.to_dict() == {prop.owner.identifier: {'v1', 'v2'}}
+def test_to_objects_prop_getitem():
+    prup = Mock()
+    prup.rdf.triples_choices.return_value = \
+        [(URIRef('v1'), URIRef('v1p'), URIRef('v1o')),
+         (URIRef('v2'), URIRef('v1p'), URIRef('v2o'))]
+    a_property = Mock()
+    a_property.link = URIRef('v1p')
+
+    prup.get_terms.return_value = [URIRef('v1'), URIRef('v2')]
+    p = PropertyExpr([prup])
+    p.property(a_property)()
+    assert p.to_objects()[0].property(a_property) == URIRef('v1o')

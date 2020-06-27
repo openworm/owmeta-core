@@ -18,6 +18,7 @@ from .inverse_property import InversePropertyMixin
 from .property_mixins import (DatatypePropertyMixin,
                               UnionPropertyMixin)
 from .property_value import PropertyValue
+from .rdf_utils import deserialize_rdflib_term
 from .rdf_query_util import goq_hop_scorer, load_base
 from .rdf_go_modifiers import SubClassModifier
 from .statement import Statement
@@ -366,7 +367,21 @@ class PropertyExpr(object):
 
         return res
 
+    @property
+    def rdf_type(self):
+        '''
+        Short-hand for `rdf_type_property`
+        '''
+        return self.rdf_type_property
+
+    # Careful not to define any property descriptors below this definition
     def property(self, property_class):
+        '''
+        Create a sub-expression with the given property.
+
+        Allows for creating expressions with properties that are not necessarily declared
+        for the `value_type` of this expression's property
+        '''
         if ('link', property_class.link) in self.created_sub_expressions:
             return self.created_sub_expressions[('link', property_class.link)]
         res = self._create_sub_expression(property_class)
@@ -419,24 +434,44 @@ class PropertyExpr(object):
                 triples_provider=triples_provider,
                 origin=self.origin)
 
-    def to_dict(self):
+    def to_dict(self, multiple=False):
         '''
-        Return a `dict` mapping from values of the head for owner of this expression's
-        property to the values for that property.
+        Return a `dict` mapping from identifiers for subjects of this expression's
+        property to the objects for that property.
+
+        Parameters
+        ----------
+        multiple : bool, optional
+            If `False`, then only a single object is allowed for each subject in the
+            results. An exception is raised if more than one object is found for a given
+            subject.
         '''
         if self.dict is None:
-            self.dict = dict()
-            for s, p, o in self.triples_provider():
-                values = self.dict.get(s)
-                if isinstance(values, set):
-                    values.add(o)
-                if values is not None and values != o:
-                    self.dict[s] = set([values, o])
-                else:
-                    self.dict[s] = o
+            res = dict()
+            triples = self.triples_provider()
+            if not multiple:
+                for s, p, o in triples:
+                    current_value = res.get(s)
+                    if current_value is not None and current_value != o:
+                        raise PropertyExprError(f'More than one value for {p} in the'
+                                f' results for {s}')
+                    res[s] = o
+            else:
+                for s, p, o in triples:
+                    values = res.get(s)
+                    if values is None:
+                        values = set([o])
+                        res[s] = values
+                    else:
+                        values.add(o)
+            self.dict = res
         return self.dict
 
     def to_objects(self):
+        '''
+        Returns a list of `ExprResultObj` that allow for retrieving results in a
+        convenient attribute traversal
+        '''
         return list(ExprResultObj(self, t) for t in self.to_terms())
 
     __call__ = to_dict
@@ -472,33 +507,78 @@ class PropertyExpr(object):
         return list(itertools.chain(*(prop.get_terms() for prop in self.props)))
 
 
+class PropertyExprError(Exception):
+    pass
+
+
 class ExprResultObj(object):
+    '''
+    Object returned by `PropertyExpr.to_objects`. Attributes for which
+    `PropertyExpr.to_dict` has been called can be accessed on the object. For example we
+    can print out the ``b`` properties of instances of a class ``A``::
+
+        class B(DataObject):
+            v = DatatypeProperty()
+
+        class A(DataObject):
+            b = ObjectProperty(value_type=B)
+
+        a = A().a.expr
+        a.b.v()
+        for anA in a.to_objects():
+            print(anA.identifier, anA.b)
+
+    ``anA`` is an `ExprResultObj` in the example. The
+    '''
     __slots__ = ('_expr', 'identifier')
 
     def __init__(self, expr, ident):
         self._expr = expr
         self.identifier = ident
 
-    def __getitem__(self, link):
-        try:
-            sub_expr = self._expr.created_sub_expressions[('link', link)]
-        except KeyError:
-            for c in self._expr._combos:
-                sub_expr = c.created_sub_expressions[('link', link)]
-                break
-            else: # no break
-                raise
+    @property
+    def rdf_type(self):
+        '''
+        Allias to rdf_type_property
+        '''
+        return self.rdf_type_property
 
+    def property(self, property_class):
+        '''
+        Return the results object for this sub-expression
+
+        Parameters
+        ----------
+        property_class : Property, Property sub-class, URIRef, or str
+        '''
+        if isinstance(property_class, str):
+            link = R.URIRef(property_class)
+        else:
+            try:
+                link = property_class.link
+            except AttributeError:
+                raise ValueError('Expected either an object with a `link` attribute or a'
+                        ' rdflib.term.URIRef or a str')
+        sub_expr = self._expr.created_sub_expressions.get(('link', link))
+        if not sub_expr:
+            for c in self._expr._combos:
+                sub_expr = c.created_sub_expressions.get(('link', link))
+                if sub_expr:
+                    break
+
+        if not sub_expr:
+            raise KeyError(property_class)
         return self._give_value(sub_expr)
 
     def _give_value(self, sub_expr):
         sub_expr_dict = sub_expr.to_dict()
-
         val = sub_expr_dict.get(self.identifier)
         if val and (sub_expr.created_sub_expressions or
                 any(c.created_sub_expressions for c in sub_expr._combos)):
             return ExprResultObj(sub_expr, val)
         else:
+            if isinstance(val, R.Literal):
+                return deserialize_rdflib_term(val)
             return val
 
     def __getattr__(self, attr):
@@ -511,6 +591,9 @@ class ExprResultObj(object):
         if not sub_expr:
             raise AttributeError(attr)
         return self._give_value(sub_expr)
+
+    def __repr__(self):
+        return f'{FCN(type(self))}({repr(self._expr)}, {repr(self.identifier)})'
 
 
 class _ContextualizingPropertySetMixin(object):
