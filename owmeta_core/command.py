@@ -20,7 +20,6 @@ import logging
 import errno
 from collections import namedtuple
 from textwrap import dedent
-
 from tempfile import TemporaryDirectory
 
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
@@ -39,6 +38,9 @@ from .utils import FCN
 L = logging.getLogger(__name__)
 
 DEFAULT_SAVE_CALLABLE_NAME = 'owm_data'
+'''
+Default name for the provider in the arguments to `OWM.save`
+'''
 
 
 class OWMSourceData(object):
@@ -638,7 +640,7 @@ class OWM(object):
 
     registry = SubCommand(OWMRegistry)
 
-    def __init__(self, owmdir=None):
+    def __init__(self, owmdir=None, non_interactive=False):
         self.progress_reporter = default_progress_reporter
         self.message = lambda *args, **kwargs: print(*args, **kwargs)
 
@@ -655,6 +657,9 @@ class OWM(object):
 
         if owmdir:
             self.owmdir = owmdir
+
+        if non_interactive:
+            self.non_interactive = non_interactive
 
     @IVar.property(OWMETA_PROFILE_DIR)
     def userdir(self):
@@ -734,9 +739,10 @@ class OWM(object):
             Name of the module housing the provider
         provider : str
             Name of the provider, a callble that accepts a context object and adds
-            statements to it. Can be a "dotted" name indicating attribute accesses
+            statements to it. Can be a "dotted" name indicating attribute accesses.
+            Default is `DEFAULT_SAVE_CALLABLE_NAME`
         context : str
-            The target context
+            The target context. The default context is used
         '''
         import transaction
         import importlib as IM
@@ -749,45 +755,45 @@ class OWM(object):
             sys.path.append(cwd)
             added_cwd = True
         try:
-            m = IM.import_module(module)
+            mod = IM.import_module(module)
             provider_not_set = provider is None
             if not provider:
                 provider = DEFAULT_SAVE_CALLABLE_NAME
 
             if not context:
-                ctx = _OWMSaveContext(self._default_ctx, m)
+                ctx = _OWMSaveContext(self._default_ctx, mod)
             else:
-                ctx = _OWMSaveContext(Context(ident=context, conf=conf), m)
+                ctx = _OWMSaveContext(Context(ident=context, conf=conf), mod)
             attr_chain = provider.split('.')
-            p = m
+            prov = mod
             for x in attr_chain:
                 try:
-                    p = getattr(p, x)
+                    prov = getattr(prov, x)
                 except AttributeError:
-                    if provider_not_set and getattr(m, '__yarom_mapped_classes__', None):
-                        def p(*args, **kwargs):
+                    if provider_not_set and getattr(mod, '__yarom_mapped_classes__', None):
+                        def prov(*args, **kwargs):
                             pass
                         break
                     raise
             ns = OWMSaveNamespace(context=ctx)
 
-            mapped_classes = getattr(m, '__yarom_mapped_classes__', None)
+            mapped_classes = getattr(mod, '__yarom_mapped_classes__', None)
             if mapped_classes:
                 # It's a module with class definitions -- take each of the mapped
                 # classes and add their contexts so they're saved properly...
-                np = p
+                orig_prov = prov
 
-                @wraps(p)
+                @wraps(prov)
                 def save_classes(ns):
                     mapper = conf['mapper']
-                    mapper.process_module(module, m)
+                    mapper.process_module(module, mod)
                     for mapped_class in mapped_classes:
                         ns.include_context(mapped_class.definition_context)
-                    np(ns)
-                p = save_classes
+                    orig_prov(ns)
+                prov = save_classes
 
             with transaction.manager:
-                p(ns)
+                prov(ns)
                 ns.save(graph=conf['rdf.graph'])
             return ns.created_contexts()
         finally:
@@ -1554,12 +1560,24 @@ class _OWMSaveContext(Context):
 
     def add_statement(self, stmt):
         stmt_tuple = (stmt.subject, stmt.property, stmt.object)
-        for p in (UnimportedContextRecord(x.context.identifier, i, stmt) for i, x in enumerate(stmt_tuple)
-                  if x.context is not None and x.context.identifier not in self._imported_ctx_ids):
+
+        def gen():
+            for i, x in enumerate(stmt_tuple):
+                if (x.context is not None and
+                        x.context.identifier is not None and
+                        x.context.identifier not in self._imported_ctx_ids):
+                    yield UnimportedContextRecord(x.context.identifier, i, stmt)
+
+            for i, x in enumerate(stmt_tuple):
+                if (x.context is not None and
+                        x.context.identifier is None):
+                    yield NullContextRecord(i, stmt)
+
+        for record in gen():
             from inspect import getouterframes, currentframe
             self._unvalidated_statements.append(SaveValidationFailureRecord(self._user_mod,
                                                                             getouterframes(currentframe()),
-                                                                            p))
+                                                                            record))
         return self._backer.add_statement(stmt)
 
     def __getattr__(self, name):
@@ -1634,8 +1652,8 @@ class SaveValidationFailureRecord(namedtuple('_SaveValidationFailureRecord', ['u
 
     def __str__(self):
         from traceback import format_list
-        stack = format_list([x[1:4] + (''.join(x[4]).strip(),) for x in self.filtered_stack()])
-        fmt = '{}\n Traceback (most recent call last, owmeta_core frames omitted):\n {}'
+        stack = format_list([x[1:4] + (''.join(x[4]).strip(),) for x in reversed(self.filtered_stack())])
+        fmt = '{}\n Traceback (most recent call last, outer owmeta_core frames omitted):\n {}'
         res = fmt.format(self.validation_record, '\n '.join(''.join(s for s in stack if s).split('\n')))
         return res.strip()
 
@@ -1817,6 +1835,19 @@ class OWMSaveNamespace(object):
         self.context.save_imports(*args, **kwargs)
 
         return self.context.save_context(*args, **kwargs)
+
+
+class NullContextRecord(namedtuple('_NullContextRecord', ['node_index', 'statement'])):
+    '''
+    Stored when the identifier for the context of an object we'er saving is `None`
+    '''
+
+    def __str__(self):
+        from .rdf_utils import triple_to_n3
+        trip = self.statement.to_triple()
+        fmt = 'Context identifier is `None` for {} of statement "{}"'
+        return fmt.format(trip[self.node_index].n3(),
+                          triple_to_n3(trip))
 
 
 class UnimportedContextRecord(namedtuple('_UnimportedContextRecord', ['context', 'node_index', 'statement'])):
