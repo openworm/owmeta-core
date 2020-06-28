@@ -128,7 +128,6 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
         self._v = []
         self.owner = owner
         self._hdf = dict()
-        self.filling = False
         self._expr = None
 
     @property
@@ -218,19 +217,6 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
     @property
     def identifier(self):
         return self.link
-
-    def fill(self):
-        self.filling = True
-        try:
-            self.clear()
-            for val in self.get():
-                self.set(val)
-                fill = getattr(val, 'fill', True)
-                filling = getattr(val, 'filling', True)
-                if fill and not filling:
-                    fill()
-        finally:
-            self.filling = False
 
     def get(self):
         if self.rdf is None:
@@ -345,7 +331,7 @@ class PropertyExpr(object):
 
         self.created_sub_expressions = dict()
         self.dict = None
-        self._combos = []
+        self.combos = []
 
     def __or__(self, other):
         if self is other:
@@ -362,8 +348,8 @@ class PropertyExpr(object):
                 triples_provider=triples_provider,
                 origin=self.origin)
 
-        self._combos.append(res)
-        other._combos.append(res)
+        self.combos.append(res)
+        other.combos.append(res)
 
         return res
 
@@ -561,7 +547,7 @@ class ExprResultObj(object):
                         ' rdflib.term.URIRef or a str')
         sub_expr = self._expr.created_sub_expressions.get(('link', link))
         if not sub_expr:
-            for c in self._expr._combos:
+            for c in self._expr.combos:
                 sub_expr = c.created_sub_expressions.get(('link', link))
                 if sub_expr:
                     break
@@ -574,8 +560,8 @@ class ExprResultObj(object):
         sub_expr_dict = sub_expr.to_dict()
         val = sub_expr_dict.get(self.identifier)
         if val and (sub_expr.created_sub_expressions or
-                any(c.created_sub_expressions for c in sub_expr._combos)):
-            return ExprResultObj(sub_expr, val)
+                any(c.created_sub_expressions for c in sub_expr.combos)):
+            return type(self)(sub_expr, val)
         else:
             if isinstance(val, R.Literal):
                 return deserialize_rdflib_term(val)
@@ -584,7 +570,7 @@ class ExprResultObj(object):
     def __getattr__(self, attr):
         sub_expr = self._expr.created_sub_expressions.get(('attr', attr))
         if not sub_expr:
-            for c in self._expr._combos:
+            for c in self._expr.combos:
                 sub_expr = c.created_sub_expressions.get(('attr', attr))
                 if sub_expr:
                     break

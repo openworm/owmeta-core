@@ -1,6 +1,7 @@
 from __future__ import print_function
 from types import ModuleType
 import logging
+
 import rdflib
 from rdflib.term import Variable, URIRef
 from rdflib.graph import ConjunctiveGraph
@@ -292,7 +293,7 @@ class Context(six.with_metaclass(ContextMeta, ImportContextualizer,
             object is deleted.
         '''
         if saved_contexts is None:
-            saved_contexts = set([])
+            saved_contexts = set()
 
         if (self._change_counter, id(self)) in saved_contexts:
             return

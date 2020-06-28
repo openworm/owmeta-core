@@ -27,7 +27,11 @@ from .identifier_mixin import IdMixin
 from .inverse_property import InverseProperty
 from .mapped_class import MappedClass
 from .rdf_type_resolver import RDFTypeResolver
-from .rdf_query_util import goq_hop_scorer, get_most_specific_rdf_type, oid, load
+from .rdf_query_util import (goq_hop_scorer,
+                             get_most_specific_rdf_type,
+                             oid,
+                             load,
+                             load_terms)
 from .utils import FCN
 
 import owmeta_core.dataobject_property as SP
@@ -609,7 +613,6 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
 
         self._variable = None
 
-        self.filling = False
         for k, v in pc.items():
             if not v.lazy:
                 self.attach_property(v, name='_owm_' + k)
@@ -719,9 +722,27 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         return len(GraphObjectQuerier(self, self.rdf, parallel=False,
                                       hop_scorer=goq_hop_scorer)())
 
+    def load_terms(self, graph=None):
+        '''
+        Loads URIs by matching between the object graph and the RDF graph
+
+        Parameters
+        ----------
+        graph : rdflib.graph.ConjunctiveGraph
+            the RDF graph to load from
+        '''
+        return load_terms(self.rdf if graph is None else graph,
+                          self,
+                          type(self).rdf_type)
+
     def load(self, graph=None):
         '''
-        Loads a `DataObject` from the graph
+        Loads `DataObjects <.DataObject>` by matching between the object graph and the RDF graph
+
+        Parameters
+        ----------
+        graph : rdflib.graph.ConjunctiveGraph
+            the RDF graph to load from
         '''
         return load(self.rdf if graph is None else graph,
                     self,
@@ -729,8 +750,12 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
                     self.context,
                     _Resolver.get_instance())
 
-    def fill(self):
-        pass
+    @property
+    def expr(self):
+        '''
+        Create a query expression rooted at this object
+        '''
+        return DataObjectExpr(self)
 
     def variable(self):
         if self._variable is None:
@@ -959,6 +984,93 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
             return contextualized_data_object(context, self)
         else:
             return self
+
+
+class DataObjectExpr(object):
+    def __init__(self, dataobject):
+        self.dataobject = dataobject
+        self.created_sub_expressions = dict()
+        self.terms = None
+        self.rdf = self.dataobject.rdf
+        self.combos = []
+
+    def terms_provider(self):
+        return list(self.dataobject.load_terms())
+
+    def to_terms(self):
+        if self.terms is None:
+            self.terms = self.terms_provider()
+        return self.terms
+
+    def to_objects(self):
+        return list(SP.ExprResultObj(self, t) for t in self.to_terms())
+
+    @property
+    def rdf_type(self):
+        '''
+        Short-hand for `rdf_type_property`
+        '''
+        return self.rdf_type_property
+
+    def __repr__(self):
+        return f'{FCN(type(self))}({repr(self.dataobject)})'
+
+    def property(self, property_class):
+        link = property_class.link
+
+        if ('link', link) in self.created_sub_expressions:
+            return self.created_sub_expressions[('link', link)]
+
+        triples_choices = self.rdf.triples_choices
+
+        def terms_provider():
+            terms = list(self.terms_provider())
+            for c in triples_choices(
+                    (terms, link, None)):
+                yield c[2]
+
+        def triples_provider():
+            terms = list(self.terms_provider())
+            for c in triples_choices(
+                    (terms, link, None)):
+                yield c
+
+        res = SP.PropertyExpr([property_class],
+                terms_provider=terms_provider,
+                triples_provider=triples_provider,
+                origin=self)
+        self.created_sub_expressions[('link', property_class.link)] = res
+        return res
+
+    def __getattr__(self, attr):
+        if ('attr', attr) in self.created_sub_expressions:
+            return self.created_sub_expressions[('attr', attr)]
+
+        sub_prop = getattr(self.dataobject, attr)
+
+        if self.dataobject.defined:
+            res = SP.PropertyExpr([sub_prop])
+        else:
+            link = sub_prop.link
+            triples_choices = self.rdf.triples_choices
+
+            def terms_provider():
+                terms = list(self.terms_provider())
+                for c in triples_choices(
+                        (terms, link, None)):
+                    yield c[2]
+
+            def triples_provider():
+                terms = list(self.terms_provider())
+                for c in triples_choices(
+                        (terms, link, None)):
+                    yield c
+            res = SP.PropertyExpr([sub_prop], terms_provider=terms_provider,
+                    triples_provider=triples_provider,
+                    origin=self)
+
+        self.created_sub_expressions[('attr', attr)] = res
+        return res
 
 
 class _Resolver(RDFTypeResolver):

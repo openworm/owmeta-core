@@ -94,4 +94,5 @@ def test_to_objects_prop_getitem():
     prup.get_terms.return_value = [URIRef('v1'), URIRef('v2')]
     p = PropertyExpr([prup])
     p.property(a_property)()
-    assert p.to_objects()[0].property(a_property) == URIRef('v1o')
+    assert (p.to_objects()[0].property(a_property) == URIRef('v1o') and
+            p.to_objects()[1].property(a_property) == URIRef('v2o'))

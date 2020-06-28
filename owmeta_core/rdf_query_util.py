@@ -67,6 +67,25 @@ def load_base(graph, idents, target_type, context, resolver):
             yield resolver.id2ob(ident, the_type, context)
 
 
+def load_terms(graph, start, target_type):
+    '''
+    Loads a set of terms based on the object graph starting from `start`
+
+    Parameters
+    ----------
+    graph : rdflib.graph.Graph
+        The graph to query from
+    start : .graph_object.GraphObject
+        The graph object to start the query from
+    target_type : rdflib.term.URIRef
+        URI of the target type. Any result will be a sub-class of this type
+    '''
+
+    L.debug("load: start %s target_type %s", start, target_type)
+    g = ZeroOrMoreTQLayer(zomifier(target_type), graph)
+    return GraphObjectQuerier(start, g, parallel=False, hop_scorer=goq_hop_scorer)()
+
+
 def load(graph, start, target_type, *args):
     '''
     Loads a set of objects based on the graph starting from `start`
@@ -79,13 +98,9 @@ def load(graph, start, target_type, *args):
         The graph object to start the query from
     target_type : rdflib.term.URIRef
         URI of the target type. Any result will be a sub-class of this type
-    context : .context.Context
-        Limits the scope of the query to statements within or entailed by this context
     '''
 
-    L.debug("load: start %s", start)
-    g = ZeroOrMoreTQLayer(zomifier(target_type), graph)
-    idents = GraphObjectQuerier(start, g, parallel=False, hop_scorer=goq_hop_scorer)()
+    idents = load_terms(graph, start, target_type)
 
     return load_base(graph, idents, target_type, *args)
 
