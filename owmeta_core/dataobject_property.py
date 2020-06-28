@@ -118,6 +118,9 @@ class _StatementContextRDFObjectFactory(Contextualizable):
 
 
 class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualizable)):
+    '''
+    A property attached to a `~owmeta_core.dataobject.DataObject`.
+    '''
     multiple = False
     link = R.URIRef("property")
     linkName = "property"
@@ -132,6 +135,9 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
 
     @property
     def expr(self):
+        '''
+        An query expression from this property
+        '''
         if self._expr is None:
             self._expr = PropertyExpr([self])
         return self._expr
@@ -149,12 +155,19 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
         return decontextualize_helper(self)
 
     def has_value(self):
+        '''
+        Returns `True` if there is a value set on this property in the currrent context
+        '''
         for x in self._v:
             if x.context == self.context:
                 return True
         return False
 
     def has_defined_value(self):
+        '''
+        Returns `True` if this property has a value in the current context which is either
+        a `GraphObject` with `defined` set to `True` or a literal value
+        '''
         hdf = self._hdf.get(self.context)
         if hdf is not None:
             return hdf
@@ -165,6 +178,9 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
         return False
 
     def set(self, v):
+        '''
+        Set the value for or add a value to this property
+        '''
         if v is None:
             raise ValueError('It is not permitted to declare a property to have value the None')
 
@@ -189,11 +205,17 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
 
     @property
     def defined_values(self):
+        '''
+        The "defined" values set on this property in the current context
+        '''
         return tuple(x.object for x in self._v
                      if x.object.defined and x.context == self.context)
 
     @property
     def values(self):
+        '''
+        Return all values set on this property in the current context
+        '''
         return tuple(self._values_helper())
 
     def _values_helper(self):
@@ -216,6 +238,9 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
 
     @property
     def identifier(self):
+        '''
+        Alias to `link`
+        '''
         return self.link
 
     def get(self):
@@ -260,6 +285,9 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
         self._v.remove(Statement(self.owner, self, v, self.context))
 
     unset = _remove_value
+    '''
+    Remove a from this property
+    '''
 
     def __call__(self, *args, **kwargs):
         """ If arguments are given ``set`` method is called. Otherwise, the ``get``
@@ -283,9 +311,21 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
         return '{}(owner={})'.format(fcn, repr(self.owner))
 
     def one(self):
+        '''
+        Query for a single value from this property.
+
+        For a multi-valued property, the returned value is chosen arbitrarily. If there's
+        no value returned from the query, then `None` is returned.
+
+        '''
         return next(iter(self.get()), None)
 
     def onedef(self):
+        '''
+        Return a single defined value set on this property in the current context
+
+        This does not execute a query, but returns a value which was set on this property.
+        '''
         for x in self._v:
             if x.object.defined and x.context == self.context:
                 return x.object
