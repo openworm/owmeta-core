@@ -26,12 +26,12 @@ A clear and concise description of what actually happened *instead of the expect
 **Screenshots**
 If applicable, add screenshots to help explain your problem.
 
-**Desktop (please complete the following information):**
+**Environment (please complete the following information):**
  - OS: [e.g. Linux]
- - OS Version [e.g. 22]
+ - OS Version: [e.g. 22]
 
-**owmeta version**
-- 0.11.3 [must a version actually released on PyPI]
+**owmeta-core version**
+- 0.11.3 [must be a version actually released on PyPI. For an issue with an unreleased version, talk with the developer responsible]
 
 **Additional context**
 [Add any other context about the problem here.]
