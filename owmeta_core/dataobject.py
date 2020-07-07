@@ -705,13 +705,6 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
             k = self.namespace_manager.normalizeUri(k)
         return '{}({})'.format(self.__class__.__name__, k)
 
-    def __eq__(self, other):
-        """ This method should not be overridden by subclasses """
-        return (isinstance(other, BaseDataObject) and
-                self.defined and
-                other.defined and
-                (self.identifier == other.identifier))
-
     def __setattr__(self, name, val):
         if isinstance(val, _partial_property):
             val(owner=self, linkName=name)
@@ -762,9 +755,15 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
             self._variable = self.next_variable()
         return self._variable
 
-    def __hash__(self):
-        """ This method should not be overridden by subclasses """
-        return hash(self.idl)
+    __eq__ = object.__eq__
+    '''
+    `DataObject` comparison by identity by default.
+    '''
+
+    __hash__ = object.__hash__
+    '''
+    `DataObject` comparison by identity by default.
+    '''
 
     def __getitem__(self, x):
         try:

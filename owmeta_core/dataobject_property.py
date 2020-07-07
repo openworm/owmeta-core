@@ -726,7 +726,7 @@ class DatatypeProperty(DatatypePropertyMixin, PropertyCountMixin, Property):
         return itertools.chain(self.defined_statements,
                                (Statement(self.owner,
                                           self,
-                                          self.resolver.deserializer(x[2]),
+                                          ContextualizedPropertyValue(x[2]),
                                           Context(ident=x[3]))
                                 for x in super(DatatypeProperty, self).statements))
 

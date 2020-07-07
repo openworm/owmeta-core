@@ -72,6 +72,8 @@ class CustomProperty(with_metaclass(CustomPropertyMeta, Contextualizable, DataUs
         # This should set some values and call DataObject.save()
         raise NotImplementedError()
 
+    get_terms = get
+
     def one(self):
         """
         Returns a single value for the `CustomProperty` whether or not it is multivalued.

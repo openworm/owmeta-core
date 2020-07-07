@@ -4,19 +4,22 @@ import rdflib as R
 
 from .DataTestTemplate import _DataTest
 
+from owmeta_core.statement import Statement
+from owmeta_core.property_value import PropertyValue
 from owmeta_core.dataobject import DataObject
+from owmeta_core.context import Context
 
 
-class SimplePropertyTest(_DataTest):
+class DataobjectPropertyTest(_DataTest):
     ctx_classes = (DataObject,)
 
     def setUp(self):
-        super(SimplePropertyTest, self).setUp()
+        super(DataobjectPropertyTest, self).setUp()
         from owmeta_core.dataobject import PropertyTypes
         PropertyTypes.clear()
 
     def tearDown(self):
-        super(SimplePropertyTest, self).tearDown()
+        super(DataobjectPropertyTest, self).tearDown()
         from owmeta_core.dataobject import PropertyTypes
         PropertyTypes.clear()
 
@@ -127,3 +130,73 @@ class SimplePropertyTest(_DataTest):
         print(l1)
         b = list(x)
         self.assertEqual([4], b)
+
+    def test_defined_statements_across_contexts_datatype_property(self):
+        '''
+        Statements have the Context included as a regular attribute, so we don't filter
+        by the property's current context
+        '''
+        do = self.ctx.DataObject(ident=R.URIRef("http://example.org"))
+        ctx = Context('http://example.org/ctx/')
+        do.birds = DataObject.DatatypeProperty(multiple=True)
+        ctx(do).birds(4)
+        do.birds(5)
+        stmts = list(ctx(do).birds.defined_statements)
+        assert stmts == [Statement(do, do.birds, PropertyValue(R.Literal(4)), ctx),
+                         Statement(do, do.birds, PropertyValue(R.Literal(5)), self.context)]
+
+    def test_defined_statements_across_contexts_object_property(self):
+        '''
+        Statements have the Context included as a regular attribute, so we don't filter
+        by the property's current context
+        '''
+        do = self.ctx.DataObject(ident=R.URIRef("http://example.org/1"))
+        ctx = Context('http://example.org/ctx/')
+        do.bugs = DataObject.ObjectProperty(multiple=True)
+        dp = self.ctx.DataObject(ident=R.URIRef("http://example.org/2"))
+        ctx(do).bugs(do)
+        do.bugs(dp)
+        stmts = list(ctx(do).bugs.defined_statements)
+        assert stmts == [Statement(do, do.bugs, do, ctx),
+                         Statement(do, do.bugs, dp, self.context)]
+
+    def test_statements_staged(self):
+        '''
+        Statements have the Context included as a regular attribute, so we don't filter
+        by the property's current context.
+
+        The property's `rdf` attribute evals to the context's staged graph, so we get an
+        "extra" entry from the context
+        '''
+        do = self.ctx.DataObject(ident=R.URIRef("http://example.org"))
+        ctx = Context('http://example.org/ctx/')
+        do.birds = DataObject.DatatypeProperty(multiple=True)
+        ctx(do).birds(4)
+        do.birds(5)
+        stmts = list(do.birds.statements)
+        for s in stmts:
+            print(s.to_quad())
+        # Split up into 3 asserts so you can actually read pytest' error print-out...
+        assert stmts[0] == Statement(do, do.birds, PropertyValue(R.Literal(4)), ctx)
+        assert stmts[1] == Statement(do, do.birds, PropertyValue(R.Literal(5)), self.context)
+
+        # These statements are not actually equal because statements mints a new Context
+        # for what it retrieves from the RDF graph (it has to)
+        assert stmts[2].to_quad() == Statement(do, do.birds, PropertyValue(R.Literal(5)), self.context).to_quad()
+
+    def test_statements_query_empty(self):
+        '''
+        Statements have the Context included as a regular attribute, so we don't filter
+        by the property's current context.
+
+        The property's `rdf` attribute evals to the context's staged graph, so we get an
+        "extra" entry from the context
+        '''
+        do = self.ctx.DataObject(ident=R.URIRef("http://example.org"))
+        ctx = Context('http://example.org/ctx/')
+        do.birds = DataObject.DatatypeProperty(multiple=True)
+        ctx(do).birds(4)
+        do.birds(5)
+        stmts = list(Context('http://example.org/ctx/')(do).birds.statements)
+        assert stmts == [Statement(do, do.birds, PropertyValue(R.Literal(4)), ctx),
+                         Statement(do, do.birds, PropertyValue(R.Literal(5)), self.context)]
