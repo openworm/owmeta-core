@@ -21,7 +21,6 @@ class READMETest(unittest.TestCase):
     def setUp(self):
         self.startdir = os.getcwd()
         self.testdir = tempfile.mkdtemp(prefix=__name__ + '.')
-        shutil.copytree('.owm', p(self.testdir, '.owm'), symlinks=True)
         shutil.copyfile('README.md', p(self.testdir, 'README.md'))
         shutil.copyfile('readme.conf', p(self.testdir, 'readme.conf'))
         os.chdir(self.testdir)
