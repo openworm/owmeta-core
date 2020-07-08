@@ -1,10 +1,8 @@
 from __future__ import absolute_import
 from six.moves import range
-import unittest
 from owmeta_core.data import DataUser
-from owmeta_core.configure import (Configurable, BadConf, Configuration)
+from owmeta_core.configure import Configurable
 import rdflib
-import rdflib as R
 
 from .DataTestTemplate import _DataTest
 
@@ -25,65 +23,6 @@ class DataUserTest(_DataTest):
     def test_init_False_with_default(self):
         """ Should suceed if the default configuration is a Data object """
         DataUser(conf=False)
-
-    @unittest.expectedFailure
-    def test_init_config_no_Data(self):
-        """ Should fail if given a non-Data configuration """
-        # XXX: This test touches some machinery in
-        # owmeta_core/__init__.py. Feel like it's a bad test
-        tmp = Configurable.default_config
-        Configurable.default_config = Configuration()
-        with self.assertRaises(BadConf):
-            DataUser()
-        Configurable.default_config = tmp
-
-    @unittest.skip("Should be tracked by version control")
-    def test_add_statements_has_uploader(self):
-        """ Assert that each statement has an uploader annotation """
-        g = R.Graph()
-
-        # Make a statement (triple)
-        s = rdflib.URIRef("http://somehost.com/s")
-        p = rdflib.URIRef("http://somehost.com/p")
-        o = rdflib.URIRef("http://somehost.com/o")
-
-        # Add it to an RDF graph
-        g.add((s, p, o))
-
-        # Make a datauser
-        du = DataUser(self.config)
-
-        try:
-            # Add all of the statements in the graph
-            du.add_statements(g)
-        except Exception as e:
-            self.fail(
-                "Should be able to add statements in the first place: " +
-                str(e))
-
-        g0 = du.conf['rdf.graph']
-
-        # These are the properties that we should find
-        uploader_n3_uri = du.conf['rdf.namespace']['uploader'].n3()
-        upload_date_n3_uri = du.conf['rdf.namespace']['upload_date'].n3()
-
-        # This is the query to get uploader information
-        q = """
-        Select ?u ?t where
-        {
-        GRAPH ?g
-        {
-         <http://somehost.com/s>
-         <http://somehost.com/p>
-         <http://somehost.com/o> .
-        }
-
-        ?g """ + uploader_n3_uri + """ ?u.
-        ?g """ + upload_date_n3_uri + """ ?t.
-        } LIMIT 1
-        """
-        for x in g0.query(q):
-            self.assertEqual(du.conf['user.email'], str(x['u']))
 
     def test_add_statements_completes(self):
         """ Test that we can upload lots of triples.

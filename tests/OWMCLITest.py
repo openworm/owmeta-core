@@ -3,8 +3,6 @@ from rdflib.term import URIRef
 from os.path import join as p
 import os
 import re
-import shlex
-import shutil
 import transaction
 from pytest import mark
 
@@ -137,7 +135,7 @@ def test_translator_list(owm_project):
 
             DT1.definition_context.save(conn.conf['rdf.graph'])
             # Create a translator
-            dt = ctx(DT1)()
+            ctx(DT1)()
 
             ctx_id = conn.conf[DEFAULT_CONTEXT_KEY]
             main_ctx = Context(ident=ctx_id, conf=conn.conf)
@@ -163,7 +161,6 @@ class DT2(DataTranslator):
         return source
 
 
-@mark.xfail
 def test_translate_data_source_loader(owm_project):
     with OWM(owmdir=p(owm_project.testdir, '.owm')).connect() as conn:
         with transaction.manager:
@@ -175,7 +172,7 @@ def test_translate_data_source_loader(owm_project):
                 torrent_file_name='d9da5ce947c6f1c127dfcdc2ede63320.torrent'
             )
             ctx.mapper.process_class(DT2)
-            dt = ctx(DT2)()
+            ctx(DT2)()
             # Create a translator
             ctx_id = conn.conf[DEFAULT_CONTEXT_KEY]
             DT2.definition_context.save(conn.conf['rdf.graph'])

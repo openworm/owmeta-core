@@ -8,8 +8,6 @@ import tempfile
 from six import string_types
 from os.path import join as p
 
-from .TestUtilities import xfail_without_db
-
 
 class ExampleRunnerTest(unittest.TestCase):
 
@@ -24,9 +22,6 @@ class ExampleRunnerTest(unittest.TestCase):
         shutil.copytree('examples', p(self.testdir, 'examples'), symlinks=True)
         self.startdir = os.getcwd()
         os.chdir(p(self.testdir, 'examples'))
-
-    def setUp(self):
-        xfail_without_db()
 
     @classmethod
     def tearDownClass(self):

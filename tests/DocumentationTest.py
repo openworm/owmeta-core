@@ -9,13 +9,7 @@ from os.path import join as p
 import tempfile
 import shutil
 import pytest
-from collections import namedtuple
-try:
-    from unittest.mock import MagicMock
-except ImportError:
-    from mock import MagicMock
 from .doctest_plugin import ALLOW_UNICODE, UnicodeOutputChecker
-from .TestUtilities import xfail_without_db
 
 
 doctest.OutputChecker = UnicodeOutputChecker
@@ -25,7 +19,6 @@ doctest.OutputChecker = UnicodeOutputChecker
 class READMETest(unittest.TestCase):
     ''' Executes doctests '''
     def setUp(self):
-        xfail_without_db()
         self.startdir = os.getcwd()
         self.testdir = tempfile.mkdtemp(prefix=__name__ + '.')
         shutil.copytree('.owm', p(self.testdir, '.owm'), symlinks=True)

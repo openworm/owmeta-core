@@ -6,8 +6,6 @@ from six import StringIO, string_types
 import logging
 import re
 
-import pytest
-
 excludedFiles = ['TestUtilities.py', 'pytest_profile.py']
 
 
@@ -51,21 +49,6 @@ def listFunctionNames():
                 if count:
                     print('\n')
                     count = False
-
-
-def xfail_without_db():
-    db_path = os.path.join(
-        os.path.dirname(  # project root
-            os.path.dirname(  # test dir
-                os.path.realpath(__file__)  # this file
-            )
-        ),
-        ".owm",
-        "worm.db"
-    )
-
-    if not os.path.isfile(db_path):
-        pytest.xfail("Database is not installed. Try \n\towm clone https://github.com/openworm/OpenWormData.git")
 
 
 # Add function to find dummy tests, i.e. ones that are simply marked pass.
