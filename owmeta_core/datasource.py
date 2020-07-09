@@ -235,7 +235,7 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
         '''
         self.commit_augment()
 
-    def commit_augment():
+    def commit_augment(self):
         pass
 
     def defined_augment(self):

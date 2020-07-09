@@ -208,9 +208,11 @@ class Data(object):
         return 'Data({})'.format(', '.join(items))
 
     def writefile(self, name, contents):
-        with open(p(self.testdir, name), 'w') as f:
+        fname = p(self.testdir, name)
+        with open(fname, 'w') as f:
             print(dedent(contents), file=f)
             f.flush()
+        return fname
 
     def sh(self, *command, **kwargs):
         if not command:

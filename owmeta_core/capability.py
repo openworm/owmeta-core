@@ -1,31 +1,35 @@
 '''
 Defines 'capabilities', pieces of functionality that an object needs which must
-be injected.
+be injected. The receiver of the capability is called a :dfn:`capable`.
 
 A given capability can be provided by more than one capability provider, but,
 for a given set of providers, only one will be bound at a time. Logically, each
 provider that provides the capability is asked, in a user-provided preference
-order, whether it can provide the capability for the *specific* object and the
+order, whether it can provide the capability for the *specific* capable and the
 first one which can provide the capability is bound to the object.
 
-The core idea is dependency injection: a capability does not modify the object:
-the object receives the provider and an identifier for the capability provided,
-but how the object uses the provider is up to the object. This is important
-because the user of the object should not condition its behavior on the
-particular capability provider used, although it may know about which
-capabilities the object has.
+The core idea is dependency injection: a capability does not modify the capable:
+the capable receives the provider and a reference to the capability provided,
+but how the capable uses the provider is up to the capable. This is important
+because the user of the capable should not condition its behavior on the
+particular capability provider used, although it may change its behavior based
+on which capabilities the capable has.
 
 Note, that there may be some providers that lose their ability to provide a
-capability. This loss should be communicated with a 'CannotProvideCapability'
-exception when the relevant methods are called on the provider. This *may* allow
-certain operations to be retried with a provider lower on the capability order,
-*but* a provider that throws CannotProvide may validly be asked if it can
-provide the capability again -- if it *still* cannot provide the capability, it
-should communicate that when asked.
+capability after they have been bound to a capable. This loss should be
+communicated with a `CannotProvideCapability` exception when the relevant
+methods are called on the provider. This *may* allow certain operations to be
+retried with a provider lower on the capability order, *but* a provider that
+throws `CannotProvideCapability` may validly be asked if it can provide the
+capability again -- if it *still* cannot provide the capability, it should
+communicate that by returning `None` from its `provides_to` method.
 
-Providers may keep state between calls to provide a capability, but their
+Providers may keep state between calls to provide a capability but their
 correctness must not depend on any ordering of method calls except that, of
-course, their ``__init__`` is called first.
+course, their ``__init__`` is called first. For instance, a provider can retain
+an index that it downloads to answer `provides_to`, but if that index can
+expire, the provider should check for that and retrieve an updated index if
+necessary.
 '''
 import six
 from .utils import FCN
@@ -50,15 +54,42 @@ class Capability(six.with_metaclass(_Singleton)):
 
 class Provider(object):
     '''
-    A capability provider
+    A capability provider.
     '''
-    def provides(self, cap):
+    def provides(self, cap, obj):
         '''
-        Returns the provider if the given capability is one this provider provides;
-        otherwise, returns None
+        Returns a provider of the given capability if it's one this provider provides;
+        otherwise, returns None.
+
+        By default, the
+
+        Parameters
+        ----------
+        cap : Capability
+            The capability to provide
+        obj : Capable
+            The object to provide the capability to
+
+        Returns
+        -------
+        Provider or None
         '''
         if cap in getattr(self, 'provided_capabilities', ()):
-            return self
+            return self.provides_to(obj)
+
+    def provides_to(self, obj):
+        '''
+        Returns a `Provider` if the provider provides a capability to the given object;
+        otherwise, returns `None`.
+
+        The default implementation always returns `None`. Implementers of `Provider` should
+        check they can actually provide the capability for the given object.
+
+        Returns
+        -------
+        Provider or None
+        '''
+        return None
 
 
 class Capable(object):
@@ -128,8 +159,8 @@ class NoProviderAvailable(Exception):
 
 class NoProviderGiven(Exception):
     '''
-    Thrown by a `Capable` when no capability has been given (i.e., when
-    `accept_capability_provider` has not been called on it)
+    Thrown by a `Capable` when a `Capability` is needed, but none has been
+    provided by a call to `accept_capability_provider`
     '''
     def __init__(self, cap, receiver=None):
         '''
@@ -190,14 +221,20 @@ def get_provider(ob, cap, provs):
         Capability needed
     provs : list of Provider
         All providers available
+
+    Returns
+    -------
+    Provider
+        A provider of the given capability or `None`
     '''
-    for p, provides_to in get_providers(cap, provs):
-        provfn = provides_to(ob)
-        if provfn:
-            return provfn
+    for provider in get_providers(cap, provs, ob):
+        ob_provider = provider.provides_to(ob)
+        if ob_provider:
+            return ob_provider
+    return None
 
 
-def get_providers(cap, provs):
+def get_providers(cap, provs, ob):
     '''
     Get providers for a capabilty
 
@@ -207,11 +244,16 @@ def get_providers(cap, provs):
         Capability needed
     provs : list of Provider
         All providers available
+
+    Yields
+    ------
+    Provider
+        A Provider that provides the given capability
     '''
     for p in provs:
-        provfn = p.provides(cap)
+        provfn = p.provides(cap, ob)
         if provfn:
-            yield p, provfn
+            yield provfn
 
 
 def is_capable(ob):
@@ -222,5 +264,11 @@ def is_capable(ob):
     ----------
     ob : object
         An object which may be a `Capable`
+
+    Returns
+    -------
+    bool
+        True if the given object accepts capability providers of some kind. Otherwise,
+        false.
     '''
     return isinstance(ob, Capable)

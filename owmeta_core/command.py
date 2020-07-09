@@ -460,7 +460,7 @@ class OWMContexts(object):
 
     def edit(self, context=None, format=None, editor=None, list_formats=False):
         '''
-        Edit a provided context or the current data context.
+        Edit a provided context or the current default context.
 
         The file name of the serialization will be passed as the sole argument to the editor. If the editor argument is
         not provided, will use the EDITOR environment variable. If EDITOR is also not defined, will try a few known
@@ -1226,7 +1226,7 @@ class OWM(object):
             os.chdir(d)
             with transaction.manager:
                 try:
-                    res = translator_obj(*positional_sources,
+                    res = self._default_ctx(translator_obj)(*positional_sources,
                                          output_identifier=output_identifier,
                                          output_key=output_key,
                                          **named_sources)
@@ -1293,7 +1293,8 @@ class OWM(object):
 
     @property
     def _cap_provs(self):
-        return [DataSourceDirectoryProvider(self._dsd)]
+        return [DataSourceDirectoryProvider(self._dsd),
+                WorkingDirectoryProvider()]
 
     @property
     def _default_ctx(self):
@@ -1308,7 +1309,7 @@ class OWM(object):
 
     def serialize(self, context=None, destination=None, format='nquads', include_imports=False, whole_graph=False):
         '''
-        Serialize the current data context or the one provided
+        Serialize the current default context or the one provided
 
         Parameters
         ----------
@@ -1544,6 +1545,27 @@ class OWM(object):
             yield l
 
 
+class WorkingDirectoryProvider(FilePathProvider):
+    '''
+    Provides file paths from the current working directory for
+    `.data_trans.local_file_ds.LocalFileDataSource` instances.
+    '''
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.cwd = os.getcwd()
+
+    def provides_to(self, obj):
+        from owmeta_core.data_trans.local_file_ds import LocalFileDataSource
+        if (isinstance(obj, LocalFileDataSource) and
+                exists(pth_join(self.cwd, obj.file_name.one()))):
+            return self
+        return None
+
+    def file_path(self):
+        return self.cwd
+
+
 class _OWMSaveContext(Context):
 
     def __init__(self, backer, user_module=None):
@@ -1701,7 +1723,7 @@ class DataSourceDirectoryProvider(FilePathProvider):
     def __init__(self, dsd):
         self._dsd = dsd
 
-    def __call__(self, ob):
+    def provides_to(self, ob):
         try:
             path = self._dsd[ob]
         except KeyError:
