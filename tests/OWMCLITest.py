@@ -6,19 +6,16 @@ import re
 import transaction
 from pytest import mark
 
-import owmeta_core
-from owmeta_core.data_trans.local_file_ds import LocalFileDataSource as LFDS
-from owmeta_core.datasource import DataTranslator
 from owmeta_core.command import OWM
 from owmeta_core.context import Context, IMPORTS_CONTEXT_KEY, DEFAULT_CONTEXT_KEY
 from owmeta_core.context_common import CONTEXT_IMPORTS
+from owmeta_core.data_trans.local_file_ds import LocalFileDataSource as LFDS
+from owmeta_core.datasource import DataTranslator
 
+from .test_modules.owmclitest01 import DT2
 from .TestUtilities import assertRegexpMatches
 
 pytestmark = mark.owm_cli_test
-
-__distribution__ = dict(name='owmeta-core',
-                        version=owmeta_core.__version__)
 
 
 def test_save_diff(owm_project):
@@ -81,15 +78,8 @@ def test_save_classes(owm_project):
     assertRegexpMatches(owm_project.sh('owm diff'), r'<[^>]+>')
 
 
-def make_module(owm_project, module):
-    modpath = p(owm_project.testdir, module)
-    os.mkdir(modpath)
-    open(p(modpath, '__init__.py'), 'w').close()
-    return modpath
-
-
 def test_save_imports(owm_project):
-    modpath = make_module(owm_project, 'test_module')
+    modpath = owm_project.make_module('test_module')
     owm_project.writefile(p(modpath, 'monkey.py'), '''\
         from owmeta_core.dataobject import DataObject, DatatypeProperty
 
@@ -159,17 +149,6 @@ def test_translator_list(owm_project):
     )
 
 
-class DT2(DataTranslator):
-    class_context = 'http://example.org/context'
-    input_type = LFDS
-    output_type = LFDS
-    translator_identifier = 'http://example.org/trans1'
-
-    def translate(self, source):
-        print(source.full_path())
-        return source
-
-
 def test_translate_data_source_loader(owm_project):
     with OWM(owmdir=p(owm_project.testdir, '.owm')).connect() as conn:
         with transaction.manager:
@@ -197,25 +176,11 @@ def test_translate_data_source_loader(owm_project):
             main_ctx.save_imports()
             ctx.save()
             print(conn.rdf.serialize(format='nquads').decode('utf-8'))
-    modpath = make_module(owm_project, 'tests')
+    owm_project.make_module('tests')
+    modpath = owm_project.copy('tests/test_modules', 'tests/test_modules')
     dsfile = owm_project.writefile('DSFile', 'some stuff')
-    owm_project.writefile(p(modpath, 'OWMCLITest.py'), '''\
-        from owmeta_core.data_trans.local_file_ds import LocalFileDataSource as LFDS
-        from owmeta_core.datasource import DataTranslator
-        from owmeta_core.mapper import mapped
-        from owmeta_core.context import Context
-
-        @mapped
-        class DT2(DataTranslator):
-            class_context = 'http://example.org/context'
-            input_type = LFDS
-            output_type = LFDS
-            translator_identifier = 'http://example.org/trans1'
-
-            def translate(self, source):
-                print(source.full_path(), end='')
-                return self.make_new_output((source,), file_name='Outfile')
-        ''')
+    owm_project.writefile(p(modpath, 'OWMCLITest.py'),
+        'tests/test_modules/owmclitest01.py')
 
     # Do translation
     assertRegexpMatches(

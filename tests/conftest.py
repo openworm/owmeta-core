@@ -5,7 +5,7 @@ from multiprocessing import Process, Queue
 from subprocess import check_output, CalledProcessError
 from os import chdir
 import os
-from os.path import join as p
+from os.path import join as p, exists
 from textwrap import dedent
 import shutil
 import shlex
@@ -207,10 +207,22 @@ class Data(object):
             items.append(m + '=' + repr(getattr(self, m)))
         return 'Data({})'.format(', '.join(items))
 
-    def writefile(self, name, contents):
+    def copy(self, source, dest):
+        return shutil.copytree(source, p(self.testdir, dest))
+
+    def make_module(self, module):
+        modpath = p(self.testdir, module)
+        os.mkdir(modpath)
+        open(p(modpath, '__init__.py'), 'w').close()
+        return modpath
+
+    def writefile(self, name, contents=None):
         fname = p(self.testdir, name)
         with open(fname, 'w') as f:
-            print(dedent(contents), file=f)
+            if exists(contents):
+                print(open(contents).read(), file=f)
+            else:
+                print(dedent(contents), file=f)
             f.flush()
         return fname
 
