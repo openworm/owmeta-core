@@ -1,4 +1,4 @@
-from rdflib.term import URIRef
+from . import BASE_SCHEMA_URL
 from .mapper import mapped
 from .dataobject import DataObject, DatatypeProperty, UnionProperty, Alias
 
@@ -28,7 +28,7 @@ class Bag(DataObject):
         nm = list(u.value())
     """
 
-    class_context = URIRef('http://openworm.org/schema')
+    class_context = BASE_SCHEMA_URL
 
     value = UnionProperty()
     '''An object in the group'''

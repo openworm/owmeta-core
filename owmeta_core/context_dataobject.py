@@ -1,4 +1,4 @@
-from rdflib.term import URIRef
+from . import BASE_CONTEXT
 from .dataobject import DataObject, ObjectProperty, This
 from .context_common import CONTEXT_IMPORTS
 from .mapper import mapped
@@ -10,8 +10,8 @@ from .mapper import mapped
 @mapped
 class ContextDataObject(DataObject):
     """ Represents a context """
-    class_context = 'http://openworm.org/schema'
-    rdf_type = URIRef('http://openworm.org/schema/Context')
+    class_context = BASE_CONTEXT
+    rdf_type = BASE_CONTEXT.base_namespace['Context']
     imports = ObjectProperty(value_type=This,
                              multiple=True,
                              link=CONTEXT_IMPORTS)

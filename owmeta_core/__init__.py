@@ -21,7 +21,7 @@ from os.path import join as pth_join
 LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(logging.NullHandler())
 
-BASE_SCHEMA_URL = 'http://openworm.org/schema'
+BASE_SCHEMA_URL = 'http://openworm.org/2020/07/schema'
 
 # The c extensions are incompatible with our code...
 os.environ['WRAPT_DISABLE_EXTENSIONS'] = '1'

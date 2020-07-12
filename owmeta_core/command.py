@@ -1448,9 +1448,15 @@ class OWM(object):
         files.append(index_fname)
         repo.add([relpath(f, self.owmdir) for f in files] + [relpath(self.config_file, self.owmdir)])
 
-    def diff(self):
+    def diff(self, color=False):
         """
         Show differences between what's in the working context set and what's in the serializations
+
+        Parameters
+        ----------
+        color : bool
+            If set, then ANSI color escape codes will be incorporated into diff output.
+            Default is to output without color.
         """
         from difflib import unified_diff
         from os.path import basename
@@ -1502,12 +1508,15 @@ class OWM(object):
                 tofile = self._fname_contexts.get(bfname, bfname)
 
             try:
-                sys.stdout.writelines(
-                        self._colorize_diff(unified_diff([x.decode('utf-8') + '\n' for x in adata],
-                                     [x.decode('utf-8') + '\n' for x in bdata],
-                                     fromfile='a ' + fromfile,
-                                     tofile='b ' + tofile,
-                                     lineterm='\n')))
+                diff = unified_diff([x.decode('utf-8') + '\n' for x in adata],
+                                    [x.decode('utf-8') + '\n' for x in bdata],
+                                    fromfile='a ' + fromfile,
+                                    tofile='b ' + tofile,
+                                    lineterm='\n')
+                if color:
+                    diff = self._colorize_diff(diff)
+
+                sys.stdout.writelines(diff)
             except Exception:
                 if adata and not bdata:
                     sys.stdout.writelines('Deleted ' + fromfile + '\n')
@@ -1518,14 +1527,16 @@ class OWM(object):
                     asha = a_blob.hexsha
                     bsize = b_blob.size
                     bsha = b_blob.hexsha
-                    sys.stdout.writelines(self._colorize_diff('''
+                    diff = dedent('''\
                     --- a {fromfile}
                     --- Size: {asize}
                     --- Shasum: {asha}
                     +++ b {tofile}
                     +++ Size: {bsize}
-                    +++ Shasum: {bsha}
-                    '''.strip().format(locals())))
+                    +++ Shasum: {bsha}''').format(locals())
+                    if color:
+                        diff = self._colorize_diff(diff)
+                    sys.stdout.writelines(diff)
 
     def _colorize_diff(self, lines):
         from termcolor import colored

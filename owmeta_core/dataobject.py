@@ -61,7 +61,7 @@ class PropertyProperty(Contextualizable, property):
     def __init__(self, cls=None, *args, cls_thunk=None):
         super(PropertyProperty, self).__init__(*args)
         self._cls = cls
-        self._cls_thunk=cls_thunk
+        self._cls_thunk = cls_thunk
         self._super_init_args = args
 
     def contextualize_augment(self, context):
@@ -561,8 +561,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
     """
     rdf_type = R.RDFS['Resource']
     class_context = BASE_SCHEMA_URL
-    base_namespace = R.Namespace("http://openworm.org/entities/")
-
+    base_namespace = R.Namespace(BASE_SCHEMA_URL + "/")
 
     _next_variable_int = 0
 
