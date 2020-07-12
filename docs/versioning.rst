@@ -28,7 +28,7 @@ Documentation versioning
 The documentation will have a distinct version number from the software. The
 version numbers for the documentation must change at least as often as the
 software versioning since the relationship of the documentation to the software
-necessarily changes. However, changes _only_ to the non-API documentation will
+necessarily changes. However, changes *only* to the non-API documentation will
 not be a cause for a change to any of the components of the software version
 number. For documentation releases which coincide with software releases, the
 documentation version number will simply be the software version number. Any
@@ -36,4 +36,50 @@ subsequent change to documentation between software releases will compel an
 increase in the documentation version number by one. The documentation version
 number for such documentation releases will be represented as
 ``${software_version}+docs${documentation_increment}``.
+
+Mapped Class Versioning
+-----------------------
+Versioning for mapped classes has special considerations related to how Python
+classes map to RDF types. RDF types map to a specific class, module, and
+package version through the "class registry". This class registry is contained
+within a :ref:`bundle <project_bundles>` and each bundle is free to have its
+own registry. The registry, moreover, can be replaced by another registry by
+the user of the bundle.
+
+We want data created with later versions of a mapped class to be compatible
+with earlier versions of that class so that we can use pre-existing analysis
+and transformations (e.g., with a `.DataTranslator`). This flexibility allows
+for pre-existing processes to keep working without change even as the upstream
+moves on. On the other hand, newer versions of a software package should still
+have access to the data created with older versions of the corresponding Python
+classes so that users of that package are not forced to translate or abandon
+the old data.
+
+The two-way compatibility described above is appropriate in the context of the
+`"open world assumption"`_: the relationships an RDF type participates in are
+described by the Python class, but that description may be incomplete. We may
+make the description of a RDF type more complete by adding properties to the
+Python class or constraining existing properties. When we add properties,
+however, we should create a new Python class rather than modifying the existing
+one: this allows for querying for data created with the earlier version of the
+Python class while also being able to create instances of the new class. The
+new class should not, however, have the same RDF type as the old one since the
+code for resolving types from the class registry only supports mapping to one
+Python type from any given RDF type [1]_. The recommended way to handle this is
+to include a version number in the URI for the RDF type and, when making the
+new type, to increment the version number for the new URI. The new type should
+be declared as a sub-class of the old type, and |owm| will add the appropriate
+sub-class relationships so that querying for the old type will return instances
+of the new type as well. This split also means that while I use the new
+software package, I can utilize the data generated with the old Python class
+without needing to have the old Python package because the new package retains
+the old class.
+
+.. _"open world assumption": https://en.wikipedia.org/wiki/Open-world_assumption
+
+Notes:
+
+.. [1] One alternative to this is returning, for each RDF instance of a type,
+   ``N`` Python instances for ``N`` Python classes in the registry mapped to the
+   RDF type.
 
