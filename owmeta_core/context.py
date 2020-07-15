@@ -39,6 +39,14 @@ The imports context holds the relationships between contexts, especially the imp
 relationship
 '''
 
+CLASS_REGISTRY_CONTEXT_KEY = 'class_registry_context_id'
+'''
+Configuration file key for the URI of the class registry RDF graph context.
+
+The class registry context holds the mappings between RDF types and Python classes for a
+project or bundle.
+'''
+
 
 class ModuleProxy(wrapt.ObjectProxy):
     def __init__(self, ctx, *args, **kwargs):
@@ -647,8 +655,9 @@ class Context(six.with_metaclass(ContextMeta, ImportContextualizer,
                             c = matching_classes[0]
                         if len(matching_classes) > 1:
                             L.warning('More than one class has the same name in'
-                            ' __yarom_mapped_classes__ for {}, so we are picking the'
-                            ' first one as the resolved class among {}'.format(mod, ymc))
+                                    ' __yarom_mapped_classes__ for %s, so we are picking'
+                                    ' the first one as the resolved class among %s',
+                                    mod, matching_classes)
                 break
         return c
 

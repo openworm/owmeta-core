@@ -26,7 +26,8 @@ from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError
                            DEFAULT_OWM_DIR)
 from . import connect, OWMETA_PROFILE_DIR
 from .commands.bundle import OWMBundle
-from .context import Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY
+from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
+                      CLASS_REGISTRY_CONTEXT_KEY)
 from .capability import provide
 from .capabilities import FilePathProvider
 from .datasource_loader import DataSourceDirLoader, LoadFailed
@@ -787,7 +788,16 @@ class OWM(object):
                 def save_classes(ns):
                     mapper = conf['mapper']
                     mapper.process_module(module, mod)
+                    try:
+                        class_registry_id = conf[CLASS_REGISTRY_CONTEXT_KEY]
+                    except KeyError:
+                        raise GenericUserError('Configuration missing class registry.'
+                                ' Unable to save class registry entries')
+                    regctx = ns.new_context(class_registry_id)
+                    ns.include_context(regctx)
                     for mapped_class in mapped_classes:
+                        regctx(mapped_class).declare_python_class_registry_entry()
+                        regctx.add_import(mapped_class.definition_context)
                         ns.include_context(mapped_class.definition_context)
                     orig_prov(ns)
                 prov = save_classes
@@ -860,8 +870,8 @@ class OWM(object):
         else:
             return self._conf().get(IMPORTS_CONTEXT_KEY)
 
-    def init(self, update_existing_config=False, imports_context_id=None,
-            default_context_id=None):
+    def init(self, update_existing_config=False, default_context_id=None,
+            imports_context_id=None, class_registry_context_id=None):
         """
         Makes a new graph store.
 
@@ -869,22 +879,30 @@ class OWM(object):
         *does* exist, the location of the database store will, by default, not
         be changed in that file
 
+        If not provided, some values will be prompted for, unless batch (non-interactive)
+        mode is enabled. If batch mode is enabled, either an error will be returned or a
+        default value will be used for missing options. Values which are required either
+        in a prompt or as options are indicated as "Required" below.
+
         Parameters
         ----------
         update_existing_config : bool
             If True, updates the existing config file to point to the given
             file for the store configuration
-        imports_context_id : str
-            URI for the imports context. If not provided, it will be prompted for
         default_context_id : str
-            URI for the default context. If not provided, it will be prompted for
+            URI for the default context. Required
+        imports_context_id : str
+            URI for the imports context.
+        class_registry_context_id : str
+            URI for the class registry context. If not provided, it will be prompted for
         """
         try:
             reinit = exists(self.owmdir)
             self._ensure_owmdir()
             if not exists(self.config_file):
                 self._init_config_file(imports_context_id=imports_context_id,
-                        default_context_id=default_context_id)
+                        default_context_id=default_context_id,
+                        class_registry_context_id=class_registry_context_id)
             elif update_existing_config:
                 with open(self.config_file, 'r+') as f:
                     conf = json.load(f)
@@ -907,7 +925,10 @@ class OWM(object):
         if exists(self.owmdir):
             shutil.rmtree(self.owmdir)
 
-    def _init_config_file(self, default_context_id=None, imports_context_id=None):
+    def _init_config_file(self,
+            default_context_id=None,
+            imports_context_id=None,
+            class_registry_context_id=None):
         with open(self._default_config_file_name(), 'r') as f:
             default = json.load(f)
             with open(self.config_file, 'w') as of:
@@ -921,23 +942,51 @@ class OWM(object):
 
                     Please provide the URI of the default context: '''))
 
-                if default_context_id:
-                    default[DEFAULT_CONTEXT_KEY] = str(default_context_id).strip()
-                else:
+                default_context_id = default_context_id and str(default_context_id).strip()
+                if not default_context_id:
                     raise GenericUserError("A default context ID is required")
+
+                default[DEFAULT_CONTEXT_KEY] = str(default_context_id).strip()
 
                 if not imports_context_id and not self.non_interactive:
                     imports_context_id = self.prompt(dedent('''\
                     The imports context contains import statements between contexts.
+
                     If a URI is not provided for this context, one will be generated at random.
 
                     Please provide the URI of the imports context: '''))
+                imports_context_id = imports_context_id and str(imports_context_id).strip()
                 if not imports_context_id:
                     import uuid
-                    imports_context_id = uuid.uuid4().urn
+                    imports_context_id = str(uuid.uuid4().urn).strip()
 
-                if imports_context_id:
-                    default[IMPORTS_CONTEXT_KEY] = str(imports_context_id).strip()
+                imports_context_id = imports_context_id
+
+                if not imports_context_id:
+                    # XXX: Shouldn't actually happen...
+                    raise GenericUserError('An import context ID is required')
+                default[IMPORTS_CONTEXT_KEY] = imports_context_id
+
+                if not class_registry_context_id and not self.non_interactive:
+                    class_registry_context_id = self.prompt(dedent('''\
+                    The class registry context contains mappings between Python classes
+                    (known as "mapped classes") and RDF types.
+
+                    If a URI is not provided for this context, one will be generated at random.
+
+                    Please provide the URI of the class registry context: '''))
+
+                class_registry_context_id = class_registry_context_id and str(class_registry_context_id).strip()
+                if not class_registry_context_id:
+                    import uuid
+                    class_registry_context_id = str(uuid.uuid4().urn).strip()
+
+                class_registry_context_id = class_registry_context_id
+
+                if not class_registry_context_id:
+                    # XXX: Shouldn't actually happen...
+                    raise GenericUserError('A class registry context ID is required')
+                default[CLASS_REGISTRY_CONTEXT_KEY] = class_registry_context_id
 
                 write_config(default, of)
 
@@ -1863,6 +1912,7 @@ class OWMSaveNamespace(object):
         self.validate()
         for c in self._created_ctxs:
             c.save_context(*args, **kwargs)
+            c.save_imports(*args, **kwargs)
         for c in self._external_contexts:
             c.save_context(*args, **kwargs)
         self.context.save_imports(*args, **kwargs)

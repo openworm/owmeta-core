@@ -8,8 +8,7 @@ import rdflib as R
 from rdflib.term import URIRef
 import six
 
-import owmeta_core  # noqa
-from . import BASE_SCHEMA_URL, DEF_CTX, __version__ as OWMETA_VERSION
+from . import BASE_SCHEMA_URL, DEF_CTX
 from .contextualize import (Contextualizable,
                             ContextualizableClass,
                             contextualize_helper,
@@ -355,7 +354,6 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
         Called after the module has been loaded. See :class:`owmeta_core.mapper.Mapper`
         '''
         self.init_rdf_type_object()
-        self.init_python_class_registry_entries()
 
     def init_rdf_type_object(self):
         if not hasattr(self, 'rdf_type_object') or \
@@ -399,26 +397,13 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
                   ' module, {}, does not have "{}" in its'
                   ' namespace'.format(self, self.__module__, self.__name__))
 
-    def init_python_class_registry_entries(self):
+    def declare_python_class_registry_entry(self):
         self._check_is_good_class_registry()
-        re = RegistryEntry.contextualize(self.definition_context)()
-        cd = PythonClassDescription.contextualize(self.definition_context)()
+        re = RegistryEntry.contextualize(self.context)()
+        cd = PythonClassDescription.contextualize(self.context)()
 
-        mo = PythonModule.contextualize(self.definition_context)()
+        mo = PythonModule.contextualize(self.context)()
         mo.name(self.__module__)
-
-        my_module = import_module(self.__module__)
-        distro = getattr(my_module, '__distribution__', None)
-        if isinstance(distro, dict):
-            dist_name = distro.get('name')
-            dist_version = distro.get('version')
-            if dist_name and dist_version:
-                # We need a package version to distinguish different versions of a class
-                pkg = PythonPackage.contextualize(self.definition_context)(
-                    name=dist_name,
-                    version=dist_version
-                )
-                mo.package(pkg)
 
         cd.module(mo)
         cd.name(self.__name__)
@@ -1330,10 +1315,7 @@ class PythonModule(Module):
     name = DatatypeProperty()
     ''' The full name of the module '''
 
-    package = ObjectProperty(value_type=PythonPackage)
-    ''' The Python package '''
-
-    key_properties = (name, package)
+    key_property = dict(name='name', type='direct')
 
 
 @mapped
@@ -1358,12 +1340,4 @@ class PythonClassDescription(ClassDescription):
     name = DatatypeProperty()
     ''' Local name of the class (i.e., relative to the module name) '''
 
-    def defined_augment(self):
-        return self.name.has_defined_value() and self.module.has_defined_value()
-
-    def identifier_augment(self):
-        return self.make_identifier(self.name.defined_values[0].identifier.n3() +
-                                    self.module.defined_values[0].identifier.n3())
-
-
-__distribution__ = dict(name='owmeta_core', version=OWMETA_VERSION)
+    key_properties = (name, 'module')

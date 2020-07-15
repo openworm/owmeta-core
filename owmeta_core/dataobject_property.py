@@ -47,20 +47,14 @@ class ContextMappedPropertyClass(ContextualizableClass):
     def definition_context(self):
         return self.__definition_context
 
-    def after_mapper_module_load(self, mapper):
-        '''
-        Called after the module has been loaded. See :class:`owmeta_core.mapper.Mapper`
-        '''
-        self.init_python_class_registry_entries()
-
-    def init_python_class_registry_entries(self):
+    def declare_python_class_registry_entry(self):
         #self._check_is_good_class_registry()
         from owmeta_core.dataobject import (RegistryEntry, PythonClassDescription,
-                                       PythonModule)
-        re = RegistryEntry.contextualize(self.definition_context)()
-        cd = PythonClassDescription.contextualize(self.definition_context)()
+                                            PythonModule)
+        re = RegistryEntry.contextualize(self.context)()
+        cd = PythonClassDescription.contextualize(self.context)()
 
-        mo = PythonModule.contextualize(self.definition_context)()
+        mo = PythonModule.contextualize(self.context)()
         mo.name(self.__module__)
 
         cd.module(mo)
