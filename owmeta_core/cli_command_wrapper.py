@@ -312,7 +312,7 @@ class CLICommandWrapper(object):
 
         if params: # Assuming the Parameters section is the last 'paragraph'
             paragraphs = paragraphs[:-1]
-        detail = '\n'.join(x for x in paragraphs if x)
+        detail = '\n \n'.join(x for x in paragraphs if x)
 
         return summary, detail, params
 
@@ -384,7 +384,10 @@ class CLICommandWrapper(object):
             if isinstance(val, (types.FunctionType, types.MethodType)):
                 command_name = key.replace('_', '-')
                 summary, detail, params = self.extract_args(val)
-                subparser = sp().add_parser(command_name, help=summary, description=detail)
+                subparser = sp().add_parser(command_name,
+                        help=summary,
+                        description=detail,
+                        formatter_class=argparse.RawDescriptionHelpFormatter)
                 self._handle_method(command_name, subparser, key, val, params)
             elif isinstance(val, property):
                 doc = getattr(val, '__doc__', None)
