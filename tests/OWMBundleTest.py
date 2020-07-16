@@ -383,3 +383,5 @@ def test_checkout(owm_project):
 
 # TODO: Test for bundles with extras that aren't installed
 # TODO: Test for bundle remotes that depend on extras that aren't installed
+# TODO: Test for bundles with classes that must be retrieved from the class registry
+# TODO: Test for installing Python code for mapped classes that cannot be imported

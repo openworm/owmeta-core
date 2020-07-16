@@ -29,7 +29,7 @@ class ContextTest(_DataTest):
         a = ctx1(A)(ident='a')
         b = ctx2(B)(ident='b')
         a.a(b)
-        expected = (URIRef('b'), URIRef('http://openworm.org/entities/B/b'), URIRef('a'))
+        expected = (URIRef('b'), B.rdf_namespace['b'], URIRef('a'))
         self.assertIn(expected, list(ctx1.contents_triples()))
 
     def test_defined(self):

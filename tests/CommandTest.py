@@ -15,7 +15,8 @@ from owmeta_core.git_repo import GitRepoProvider, _CloneProgress
 from owmeta_core.command import (OWM, UnreadableGraphException, GenericUserError, StatementValidationError,
                             OWMConfig, OWMSource, OWMTranslator,
                             DEFAULT_SAVE_CALLABLE_NAME, OWMDirDataSourceDirLoader, _DSD)
-from owmeta_core.context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY, Context
+from owmeta_core.context import (DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
+                                 CLASS_REGISTRY_CONTEXT_KEY, Context)
 from owmeta_core.context_common import CONTEXT_IMPORTS
 from owmeta_core.bittorrent import BitTorrentDataSourceDirLoader
 from owmeta_core.command_util import IVar, PropertyIVar
@@ -491,12 +492,18 @@ class OWMTest(BaseTest):
                 self.cut.save('tests', DEFAULT_SAVE_CALLABLE_NAME)
 
     def test_save_no_provider_yarom_mapped_classes(self):
-        self._init_conf({DEFAULT_CONTEXT_KEY: 'http://example.org/mdc'})
+        self._init_conf({DEFAULT_CONTEXT_KEY: 'http://example.org/mdc',
+                         CLASS_REGISTRY_CONTEXT_KEY: 'http://example.org/crc'})
         with patch('importlib.import_module') as im, \
                 patch('owmeta_core.mapper.Mapper.process_module'):
             module = Mock(spec=['__yarom_mapped_classes__'])
+            # The class registry includes an import of the definition_context and saves
+            # the imports, so, since ObjectProperty does a type-check, we need to give it
+            # a GraphObject
+            cls = MagicMock()
+            cls.definition_context.rdf_object = ContextDataObject()
             # must have at least one entry in mapped classes
-            module.__yarom_mapped_classes__ = [MagicMock()]
+            module.__yarom_mapped_classes__ = [cls]
             im.return_value = module
             self.cut.save('tests')
             # then, no exception was raised

@@ -150,7 +150,8 @@ def test_translator_list(owm_project):
 
 
 def test_translate_data_source_loader(owm_project):
-    with OWM(owmdir=p(owm_project.testdir, '.owm')).connect() as conn:
+    owm = OWM(owmdir=p(owm_project.testdir, '.owm'))
+    with owm.connect() as conn:
         with transaction.manager:
             # Create data sources
             ctx = Context(ident='http://example.org/context', conf=conn.conf)
@@ -169,6 +170,8 @@ def test_translate_data_source_loader(owm_project):
             DT2.definition_context.save(conn.rdf)
             print(conn.rdf.serialize(format='nquads').decode('utf-8'))
             print("-------------------------")
+            owm.save(LFDS.__module__)
+            owm.save(DT2.__module__)
             LFDS.definition_context.save(conn.rdf)
             main_ctx = Context(ident=ctx_id, conf=conn.conf)
             main_ctx.add_import(ctx)

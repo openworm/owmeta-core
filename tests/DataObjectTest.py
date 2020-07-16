@@ -260,6 +260,7 @@ class ClassRegistryTest(_DataTest):
 
         with captured_logging() as logs:
             self.context.mapper.process_class(A)
+            self.context(A).declare_python_class_registry_entry()
             log = logs.getvalue()
             self.assertRegexpMatches(log, 'registry')
             self.assertRegexpMatches(log, 'tests.DataObjectTest')
@@ -279,15 +280,15 @@ class ClassRegistryTest(_DataTest):
             finally:
                 delattr(mod, '__yarom_mapped_classes__')
 
-    def test_resolve_class_in_ymc(self):
+    def test_resolve_class_from_registry_in_ymc(self):
         class A(DataObject):
             class_context = self.context
             rdf_type = R.URIRef('http://example.org/A')
 
         # given
         mod = import_module('tests.DataObjectTest')
-        mod.__distribution__ = dict(name='example', version=4)
         self.context.mapper.process_class(A)
+        self.context(A).declare_python_class_registry_entry()
 
         mod.__yarom_mapped_classes__ = (A,)
 
@@ -299,7 +300,6 @@ class ClassRegistryTest(_DataTest):
             self.assertIsNotNone(res)
         finally:
             delattr(mod, '__yarom_mapped_classes__')
-            delattr(mod, '__distribution__')
 
     def test_resolve_class_not_in_ymc(self):
         class A(DataObject):
@@ -325,8 +325,8 @@ class ClassRegistryTest(_DataTest):
         with captured_logging() as logs:
             # given
             mod = import_module('tests.DataObjectTest')
-            mod.__distribution__ = dict(name='example', version=4)
             self.context.mapper.process_class(A)
+            self.context(A).declare_python_class_registry_entry()
 
             mod.__yarom_mapped_classes__ = (A, A)
 
@@ -338,7 +338,6 @@ class ClassRegistryTest(_DataTest):
                 self.assertRegexpMatches(logs.getvalue(), r'More than one.*__yarom_mapped_classes__')
             finally:
                 delattr(mod, '__yarom_mapped_classes__')
-                delattr(mod, '__distribution__')
 
 
 class KeyPropertiesTest(_DataTest):

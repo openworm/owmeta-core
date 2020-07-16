@@ -24,7 +24,7 @@ from tempfile import TemporaryDirectory
 
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
                            DEFAULT_OWM_DIR)
-from . import connect, OWMETA_PROFILE_DIR
+from . import connect, OWMETA_PROFILE_DIR, BASE_CONTEXT
 from .commands.bundle import OWMBundle
 from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
                       CLASS_REGISTRY_CONTEXT_KEY)
@@ -795,6 +795,8 @@ class OWM(object):
                                 ' Unable to save class registry entries')
                     regctx = ns.new_context(class_registry_id)
                     ns.include_context(regctx)
+                    ns.context.add_import(regctx)
+                    regctx.add_import(BASE_CONTEXT)
                     for mapped_class in mapped_classes:
                         regctx(mapped_class).declare_python_class_registry_entry()
                         regctx.add_import(mapped_class.definition_context)
@@ -1637,7 +1639,9 @@ class _OWMSaveContext(Context):
     def add_import(self, ctx):
         self._imported_ctx_ids.add(ctx.identifier)
         # Remove unvalidated statements which had this new context as the one they are missing
-        self._unvalidated_statements = [p for p in self._unvalidated_statements if p[2][0] != ctx.identifier]
+        self._unvalidated_statements = [p for p in self._unvalidated_statements
+                                        if isinstance(p.validation_record, UnimportedContextRecord) and
+                                        p.validation_record.context != ctx.identifier]
         return self._backer.add_import(ctx)
 
     def add_statement(self, stmt):
@@ -1648,7 +1652,10 @@ class _OWMSaveContext(Context):
                 if (x.context is not None and
                         x.context.identifier is not None and
                         x.context.identifier not in self._imported_ctx_ids):
-                    yield UnimportedContextRecord(x.context.identifier, i, stmt)
+                    yield UnimportedContextRecord(self._backer.identifier,
+                                                  x.context.identifier,
+                                                  i,
+                                                  stmt)
 
             for i, x in enumerate(stmt_tuple):
                 if (x.context is not None and
@@ -1703,8 +1710,8 @@ class OWMDirMissingException(GenericUserError):
 
 
 class SaveValidationFailureRecord(namedtuple('_SaveValidationFailureRecord', ['user_module',
-                                                                             'stack',
-                                                                             'validation_record'])):
+                                                                              'stack',
+                                                                              'validation_record'])):
     '''
     Record of a validation failure in `OWM.save`
     '''
@@ -1933,7 +1940,8 @@ class NullContextRecord(namedtuple('_NullContextRecord', ['node_index', 'stateme
                           triple_to_n3(trip))
 
 
-class UnimportedContextRecord(namedtuple('_UnimportedContextRecord', ['context', 'node_index', 'statement'])):
+class UnimportedContextRecord(namedtuple('_UnimportedContextRecord',
+                                         ['importer', 'context', 'node_index', 'statement'])):
     '''
     Stored when statements include a reference to an object but do not include the
     context of that object in the callback passed to `OWM.save`. For example, if we had a
@@ -1952,8 +1960,9 @@ class UnimportedContextRecord(namedtuple('_UnimportedContextRecord', ['context',
     def __str__(self):
         from .rdf_utils import triple_to_n3
         trip = self.statement.to_triple()
-        fmt = 'Missing import of context {} for {} of statement "{}"'
+        fmt = 'Missing import of context {} from {} for {} of statement "{}"'
         return fmt.format(self.context.n3(),
+                          self.importer.n3(),
                           trip[self.node_index].n3(),
                           triple_to_n3(trip))
 

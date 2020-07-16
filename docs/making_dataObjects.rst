@@ -21,12 +21,12 @@ reactions::
 
     >>> class Dog(DataObject):
     ...     breed = DatatypeProperty()
-    
+
     >>> class Drug(DataObject):
     ...     name = DatatypeProperty()
     ...     drug_name = Alias(name)
     ...     key_property = dict(property=name, type='direct')
-    
+
     >>> class Experiment(DataObject):
     ...     drug = ObjectProperty(value_type=Drug)
     ...     subject = ObjectProperty(value_type=Dog)
@@ -34,7 +34,7 @@ reactions::
     ...     reaction = DatatypeProperty()
 
     # Do some accounting stuff to register the classes. Usually happens behind
-    # the scenes. 
+    # the scenes.
     >>> m = Mapper()
     >>> ModuleRecorder.add_listener(m)
     >>> m.process_classes(Drug, Experiment, Dog)
@@ -69,7 +69,7 @@ either ObjectProperty or DatatypeProperty on the class::
 
     >>> d = ctx(Drug)(name='moon rocks')
     >>> Drug.DatatypeProperty('granularity', owner=d)
-    __main__.Drug_granularity(owner=Drug(ident=rdflib.term.URIRef(u'http://openworm.org/entities/Drug/moon%20rocks')))
+    __main__.Drug_granularity(owner=Drug(ident=rdflib.term.URIRef(u'http://openworm.org/2020/07/schema/Drug/moon%20rocks')))
 
     >>> d.granularity('ground up')
     owmeta_core.statement.Statement(...Context(.../experiments"))
