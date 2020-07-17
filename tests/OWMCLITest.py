@@ -23,32 +23,11 @@ def test_save_diff(owm_project):
     modpath = p(owm_project.testdir, 'test_module')
     os.mkdir(modpath)
     open(p(modpath, '__init__.py'), 'w').close()
-    owm_project.writefile(p(modpath, 'command_test_save.py'), '''\
-        from test_module.monkey import Monkey
+    owm_project.writefile(p(modpath, 'command_test_save.py'),
+            'tests/test_modules/owmclitest02_command_test_save.py')
 
-
-        def owm_data(ns):
-            ns.context.add_import(Monkey.definition_context)
-            ns.context(Monkey)(bananas=55)
-        ''')
-
-    owm_project.writefile(p(modpath, 'monkey.py'), '''\
-        from owmeta_core.dataobject import DataObject, DatatypeProperty
-
-
-        class Monkey(DataObject):
-            class_context = 'http://example.org/primate/monkey'
-
-            bananas = DatatypeProperty()
-            def identifier_augment(owm_project):
-                return type(owm_project).rdf_namespace['paul']
-
-            def defined_augment(owm_project):
-                return True
-
-
-        __yarom_mapped_classes__ = (Monkey,)
-        ''')
+    owm_project.writefile(p(modpath, 'monkey.py'),
+            'tests/test_modules/owmclitest03_monkey.py')
     print(owm_project.sh('owm save test_module.command_test_save'))
     assertRegexpMatches(owm_project.sh('owm diff'), r'<[^>]+>')
 
@@ -57,53 +36,17 @@ def test_save_classes(owm_project):
     modpath = p(owm_project.testdir, 'test_module')
     os.mkdir(modpath)
     open(p(modpath, '__init__.py'), 'w').close()
-    owm_project.writefile(p(modpath, 'monkey.py'), '''\
-        from owmeta_core.dataobject import DataObject, DatatypeProperty
-
-
-        class Monkey(DataObject):
-            class_context = 'http://example.org/primate/monkey'
-
-            bananas = DatatypeProperty()
-            def identifier_augment(owm_project):
-                return type(owm_project).rdf_namespace['paul']
-
-            def defined_augment(owm_project):
-                return True
-
-
-        __yarom_mapped_classes__ = (Monkey,)
-        ''')
+    owm_project.writefile(p(modpath, 'monkey.py'),
+            'tests/test_modules/owmclitest03_monkey.py')
     print(owm_project.sh('owm save test_module.monkey'))
     assertRegexpMatches(owm_project.sh('owm diff'), r'<[^>]+>')
 
 
 def test_save_imports(owm_project):
     modpath = owm_project.make_module('test_module')
-    owm_project.writefile(p(modpath, 'monkey.py'), '''\
-        from owmeta_core.dataobject import DataObject, DatatypeProperty
+    owm_project.writefile(p(modpath, 'monkey.py'),
+            'tests/test_modules/owmclitest04_monkey_giraffe.py')
 
-        class Monkey(DataObject):
-            class_context = 'http://example.org/primate/monkey'
-
-            bananas = DatatypeProperty()
-            def identifier_augment(self):
-                return type(self).rdf_namespace['paul']
-
-            def defined_augment(self):
-                return True
-
-
-        class Giraffe(DataObject):
-            class_context = 'http://example.org/ungulate/giraffe'
-
-
-        def owm_data(ns):
-            ns.context.add_import(Monkey.definition_context)
-            ns.context.add_import(Giraffe.definition_context)
-
-        __yarom_mapped_classes__ = (Monkey,)
-        ''')
     print(owm_project.sh('owm save test_module.monkey'))
     with OWM(owmdir=p(owm_project.testdir, '.owm')).connect() as conn:
         ctx = Context(ident=conn.conf[IMPORTS_CONTEXT_KEY], conf=conn.conf)
