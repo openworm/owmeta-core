@@ -1,0 +1,9 @@
+@prefix ns2: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix ns4: <http://schema.openworm.org/2020/07/Person/> .
+
+<http://schema.openworm.org/2020/07/Person> a <http://www.w3.org/2000/01/rdf-schema#Class> ;
+    ns2:subClassOf <http://schema.openworm.org/2020/07/DataObject> .
+
+ns4:first_name a <http://www.w3.org/1999/02/22-rdf-syntax-ns#Property> .
+
+ns4:last_name a <http://www.w3.org/1999/02/22-rdf-syntax-ns#Property> .

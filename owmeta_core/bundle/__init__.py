@@ -19,7 +19,7 @@ from textwrap import dedent
 import transaction
 import yaml
 
-from .. import OWMETA_PROFILE_DIR
+from .. import OWMETA_PROFILE_DIR, connect
 from ..context import (DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
                        CLASS_REGISTRY_CONTEXT_KEY, Context)
 from ..context_common import CONTEXT_IMPORTS
@@ -380,6 +380,8 @@ class Bundle(object):
         self._given_conf = conf
         self.conf = None
         self._contexts = None
+        self.connection = None
+        ''' The owmeta_core connection to the bundle's indexed database '''
 
     @property
     def identifier(self):
@@ -415,7 +417,7 @@ class Bundle(object):
             self.conf['rdf.store_conf'] = self._construct_store_config(
                     bundle_directory,
                     manifest_data)
-            self.conf.init()
+            self.connection = connect(conf=self.conf)
 
     def _construct_store_config(self, bundle_directory, manifest_data, current_path=None, paths=None):
         if paths is None:
@@ -499,7 +501,8 @@ class Bundle(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         # Close the database connection
-        self.conf.destroy()
+        self.connection.disconnect()
+        self.connection = None
         self.conf = None
 
     def __call__(self, target):
@@ -1124,7 +1127,6 @@ class Installer(object):
     def _generate_bundle_imports_ctx(self, descriptor, graphs_directory):
         if not self.imports_ctx:
             return
-        # XXX: Refactor this method
         imports_ctxg = self.graph.get_context(self.imports_ctx)
         # select all of the imports for all of the contexts in the bundle and serialize
         contexts = []

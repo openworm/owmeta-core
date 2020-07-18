@@ -24,7 +24,7 @@ def zomifier(target_type):
 
 def load_base(graph, idents, target_type, context, resolver):
     '''
-    Loads a set of objects based on the graph starting from `start`
+    Loads a set of objects from an RDF graph given their identifiers
 
     Parameters
     ----------

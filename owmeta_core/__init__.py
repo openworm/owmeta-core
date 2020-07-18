@@ -33,12 +33,6 @@ ImportOverrider = None
 ModuleRecorder = None
 
 
-BASE_MAPPER = Mapper(name='base')
-'''
-Handles some of the owmeta_core DataObjects regardless of whether there's been any connection. Used by Contexts outside
-of a connection.
-'''
-
 OWMETA_PROFILE_DIR = os.environ.get('OWMETA_PROFILE_DIR', pth_join('~', '.owmeta'))
 '''
 Base directory in the user's profile for owmeta (e.g., shared configuration, bundle cache)
@@ -59,7 +53,6 @@ def install_module_import_wrapper():
 
 
 install_module_import_wrapper()
-ModuleRecorder.add_listener(BASE_MAPPER)
 from .configure import Configurable
 from .context import Context, ClassContext
 
@@ -99,6 +92,10 @@ def get_data(path):
 
 
 class Connection(object):
+    '''
+    Connection to an owmeta_core database. Essentially, wraps a `~owmeta_core.data.Data`
+    object.
+    '''
 
     def __init__(self, conf):
         self.conf = conf
@@ -129,6 +126,9 @@ class Connection(object):
         return self.conf['rdf.graph']
 
     def disconnect(self):
+        '''
+        Close the database and stop listening to module loaders
+        '''
         self.conf.closeDatabase()
         ModuleRecorder.remove_listener(self.conf['mapper'])
 
@@ -155,13 +155,16 @@ class Connection(object):
                 store_conf=conf.get('rdf.store_conf', 'default'))
 
 
-def disconnect(c=False):
-    """ Close the database. """
+def disconnect(c=None):
+    """ Close the connection. """
     if c:
         c.disconnect()
 
 
 class ConnectionFailError(Exception):
+    '''
+    Thrown when a connection fails
+    '''
     def __init__(self, cause, *args):
         if args:
             super(ConnectionFailError, self).__init__('owmeta_core connection failed: {}. {}'.format(cause, *args))
@@ -170,15 +173,21 @@ class ConnectionFailError(Exception):
 
 
 def connect(configFile=None,
-            conf=None,
-            dataFormat='n3'):
+            conf=None):
     """
     Load desired configuration and open the database
 
-    :param configFile: (Optional) The configuration file for owmeta_core
-    :param conf: (Optional) a configuration object for the connection. Takes precedence over `configFile`
-    :param data: (Optional) specify the file to load into the library
-    :param dataFormat: (Optional) file format of `data`. Currently n3 is supported
+    Parameters
+    ----------
+    configFile : str, optional
+        The configuration file for owmeta_core.
+    conf : dict, .Configuration, .Data, optional
+        A configuration object for the connection. Takes precedence over `configFile`
+
+    Returns
+    -------
+    Connection
+        connection wrapping the configuration
     """
     from .data import Data, DatabaseConflict
 
