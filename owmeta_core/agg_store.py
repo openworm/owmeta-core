@@ -23,6 +23,7 @@ class AggregateStore(Store):
     def __init__(self, configuration=None, identifier=None):
         super(AggregateStore, self).__init__(configuration, identifier)
         self.__stores = []
+        self.__bound_ns = dict()
 
     # -- Store methods -- #
 
@@ -53,7 +54,7 @@ class AggregateStore(Store):
             for trip in store.triples_choices(triple, context=context):
                 yield trip
 
-    def __len__(self):
+    def __len__(self, context=None):
         # rdflib specifies a context argument for __len__, but how do you even pass that
         # argument to len?
         return sum(len(store) for store in self.__stores)
@@ -81,12 +82,19 @@ class AggregateStore(Store):
                 msg = 'multiple namespaces ({},{}) for prefix {}'.format(namespace, anamespace, prefix)
                 raise AggregatedStoresConflict(msg)
             namespace = anamespace
+        if namespace is None:
+            namespace = self.__bound_ns.get(prefix)
         return namespace
 
     def namespaces(self):
         for store in self.__stores:
             for ns in store.namespaces():
                 yield ns
+        for ns in self.__bound_ns.values():
+            yield ns
+
+    def bind(self, prefix, namespace):
+        self.__bound_ns[prefix] = namespace
 
     def close(self, *args, **kwargs):
         for store in self.__stores:
