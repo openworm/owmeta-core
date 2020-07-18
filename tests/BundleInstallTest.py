@@ -1,4 +1,5 @@
 from collections import namedtuple
+import json
 from os import listdir, makedirs
 from os.path import join as p, isdir, isfile
 import transaction
@@ -11,8 +12,8 @@ from rdflib.term import URIRef
 
 from owmeta_core.bundle import (Installer, Descriptor, make_include_func, FilesDescriptor,
                                 UncoveredImports, DependencyDescriptor, TargetIsNotEmpty,
-                                Remote, Bundle)
-from owmeta_core.context import IMPORTS_CONTEXT_KEY
+                                Remote, Bundle, BUNDLE_MANIFEST_FILE_NAME)
+from owmeta_core.context import IMPORTS_CONTEXT_KEY, CLASS_REGISTRY_CONTEXT_KEY
 from owmeta_core.context_common import CONTEXT_IMPORTS
 
 
@@ -412,6 +413,48 @@ def test_imports_in_transitive_dependency_not_included(dirs):
     bi.install(dep_d)
     with pytest.raises(UncoveredImports):
         bi.install(d)
+
+
+def test_class_registry_in_manifest(dirs):
+    '''
+    If a class registry context is specified, then include it
+    '''
+    cr_ctxid = 'http://example.org/class_registry'
+
+    # Make a descriptor that includes ctx1 and the imports, but not ctx2
+    d = Descriptor('test')
+
+    # Add some triples so the contexts aren't empty -- we can't save an empty context
+    g = rdflib.ConjunctiveGraph()
+
+    bi = Installer(*dirs, class_registry_ctx=cr_ctxid, graph=g)
+    bdir = bi.install(d)
+    with open(p(bdir, BUNDLE_MANIFEST_FILE_NAME)) as mf:
+        manifest_data = json.load(mf)
+        assert manifest_data[CLASS_REGISTRY_CONTEXT_KEY]
+
+
+def test_class_registry_contents(dirs):
+    '''
+    If a class registry context is specified, then include it
+    '''
+    cr_ctxid = 'http://example.org/class_registry'
+
+    # Make a descriptor that includes ctx1 and the imports, but not ctx2
+    d = Descriptor('test')
+
+    # Add some triples so the contexts aren't empty -- we can't save an empty context
+    g = rdflib.ConjunctiveGraph()
+    cg_cr = g.get_context(cr_ctxid)
+    with transaction.manager:
+        cg_cr.add((aURI('blah'), aURI('bruh'), aURI('uhhhh')))
+
+    bi = Installer(*dirs, class_registry_ctx=cr_ctxid, graph=g)
+    bi.install(d)
+
+    with Bundle(d.id, dirs.bundles_directory) as bnd:
+        g = bnd.rdf.get_context(bnd.conf[CLASS_REGISTRY_CONTEXT_KEY])
+        assert (aURI('blah'), aURI('bruh'), aURI('uhhhh')) in g
 
 
 def test_fail_on_non_empty_target(dirs):
