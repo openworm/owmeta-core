@@ -7,11 +7,13 @@ import tarfile
 
 import pytest
 from pytest import mark
+import rdflib
 from rdflib.term import URIRef, Literal
 import transaction
 
+from owmeta_core.context import Context
 from owmeta_core.command import DEFAULT_OWM_DIR as OD, OWM
-from owmeta_core.bundle import Descriptor
+from owmeta_core.bundle import Descriptor, Bundle, make_include_func
 
 
 from .TestUtilities import assertRegexpMatches, assertNotRegexpMatches
@@ -372,6 +374,51 @@ def test_deploy_sftp(owm_project_with_customizations, custom_bundle):
             owm_project.apply_customizations()
             output = owm_project.sh('owm bundle deploy test/main')
             assert 'FAILED' not in output
+
+
+def test_load_from_class_registry_from_conjunctive(custom_bundle):
+    '''
+    Test that transitive dependenices shared by multiple bundles are included more than
+    once if there's an exclude that makes one of them different
+    '''
+    from owmeta_core.dataobject import DataObject
+
+    class_registry_ctxid = 'http://example.org/class_registry'
+    data_ctxid = 'http://example.org/data_context'
+    defctxid = 'http://example.org/Person'
+
+    # Add some triples so the contexts aren't empty -- we can't save an empty context
+    g = rdflib.ConjunctiveGraph()
+
+    cr_ctx = Context(class_registry_ctxid)
+    cr_ctx.save(g)
+
+    data_ctx = Context(data_ctxid)
+    data_ctx.save(g)
+
+    with open(p('tests', 'test_data', 'owmbundletest01_data.n3'), 'rb') as f:
+        g.get_context(data_ctxid).parse(f, format='n3')
+
+    with open(p('tests', 'test_data', 'owmbundletest01_class_registry.n3'), 'rb') as f:
+        g.get_context(class_registry_ctxid).parse(f, format='n3')
+
+    with open(p('tests', 'test_data', 'owmbundletest01_defctx.n3'), 'rb') as f:
+        g.get_context(defctxid).parse(f, format='n3')
+
+    # Make a descriptor that includes ctx1 and the imports, but not ctx2
+    d = Descriptor('test')
+    d.includes.add(make_include_func(data_ctxid))
+    d.includes.add(make_include_func(defctxid))
+
+    with custom_bundle(d, graph=g, class_registry_ctx=class_registry_ctxid) as testbun, \
+            Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
+
+        bctx = bnd(Context)().stored
+        for m in bctx(DataObject)().load():
+            assert type(m).__name__ == 'Person'
+            break
+        else: # no break
+            pytest.fail('Expected an object')
 
 
 def test_checkout(owm_project):
