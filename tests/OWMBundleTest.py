@@ -421,6 +421,17 @@ def test_load_from_class_registry_from_conjunctive(custom_bundle):
             pytest.fail('Expected an object')
 
 
+    with custom_bundle(d, graph=g) as testbun, \
+            Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
+
+        bctx = bnd(Context)().stored
+        for m in bctx(DataObject)().load():
+            assert type(m).__name__ == 'Person'
+            break
+        else: # no break
+            pytest.fail('Expected an object')
+
+
 def test_checkout(owm_project):
     '''
     Checking out a bundle changes the set of graphs to the chosen bundle
