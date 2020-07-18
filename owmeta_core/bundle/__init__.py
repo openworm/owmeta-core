@@ -20,7 +20,8 @@ import transaction
 import yaml
 
 from .. import OWMETA_PROFILE_DIR
-from ..context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY, Context
+from ..context import (DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
+                       CLASS_REGISTRY_CONTEXT_KEY, Context)
 from ..context_common import CONTEXT_IMPORTS
 from ..data import Data
 from ..file_match import match_files
@@ -405,11 +406,11 @@ class Bundle(object):
         if self.conf is None:
             bundle_directory = self.resolve()
             self.conf = Data().copy(self._given_conf)
-            self.conf[IMPORTS_CONTEXT_KEY] = fmt_bundle_ctx_id(self.ident)
             with open(p(bundle_directory, BUNDLE_MANIFEST_FILE_NAME)) as mf:
                 manifest_data = json.load(mf)
                 self.conf[DEFAULT_CONTEXT_KEY] = manifest_data.get(DEFAULT_CONTEXT_KEY)
                 self.conf[IMPORTS_CONTEXT_KEY] = manifest_data.get(IMPORTS_CONTEXT_KEY)
+                self.conf[CLASS_REGISTRY_CONTEXT_KEY] = manifest_data.get(CLASS_REGISTRY_CONTEXT_KEY)
             self.conf['rdf.store'] = 'agg'
             self.conf['rdf.store_conf'] = self._construct_store_config(
                     bundle_directory,
@@ -945,7 +946,8 @@ class Installer(object):
     '''
 
     def __init__(self, source_directory, bundles_directory, graph,
-                 imports_ctx=None, default_ctx=None, installer_id=None, remotes=(), remotes_directory=None):
+                 imports_ctx=None, default_ctx=None, class_registry_ctx=None,
+                 installer_id=None, remotes=(), remotes_directory=None):
         '''
         Parameters
         ----------
@@ -963,6 +965,9 @@ class Installer(object):
         imports_ctx : str, optional
             The ID of the imports context this installer should use. Imports relationships
             are selected from this graph according to the included contexts.
+        class_registry_ctx : str, optional
+            The ID of the class registry context this installer should use. Class registry
+            entries are retrieved from this graph.
         installer_id : iterable of Remote or str, optional
             Name of this installer for purposes of mutual exclusion
         remotes : iterable of Remote, optional
@@ -981,6 +986,7 @@ class Installer(object):
         self.installer_id = installer_id
         self.imports_ctx = imports_ctx
         self.default_ctx = default_ctx
+        self.class_registry_ctx = class_registry_ctx
         self.remotes = list(remotes)
         self.remotes_directory = remotes_directory
 
@@ -1041,6 +1047,7 @@ class Installer(object):
         self._write_manifest(descriptor, staging_directory)
         self._initdb(staging_directory)
         self._generate_bundle_imports_ctx(descriptor, staging_directory)
+        self._generate_bundle_class_registry_ctx(descriptor, staging_directory)
         self._build_indexed_database(staging_directory, progress_reporter)
 
     def _set_up_directories(self, staging_directory):
@@ -1109,12 +1116,19 @@ class Installer(object):
         manifest_data = {}
         if self.default_ctx:
             manifest_data[DEFAULT_CONTEXT_KEY] = self.default_ctx
+
         if self.imports_ctx:
             # If an imports context was specified, then we'll need to generate an
             # imports context with the appropriate imports. We don't use the source
             # imports context ID for the bundle's imports context because the bundle
             # imports that we actually need are a subset of the total set of imports
-            manifest_data[IMPORTS_CONTEXT_KEY] = fmt_bundle_ctx_id(descriptor.id)
+            manifest_data[IMPORTS_CONTEXT_KEY] = fmt_bundle_imports_ctx_id(descriptor.id,
+                    descriptor.version)
+
+        if self.class_registry_ctx:
+            manifest_data[CLASS_REGISTRY_CONTEXT_KEY] = fmt_bundle_class_registry_ctx_id(descriptor.id,
+                    descriptor.version)
+
         manifest_data['id'] = descriptor.id
         manifest_data['version'] = descriptor.version
         manifest_data['manifest_version'] = BUNDLE_MANIFEST_VERSION
@@ -1127,7 +1141,8 @@ class Installer(object):
     def _generate_bundle_imports_ctx(self, descriptor, bundle_directory):
         if not self.imports_ctx:
             return
-        ctx_id = fmt_bundle_ctx_id(descriptor.id)
+        # XXX: Refactor this method
+        ctx_id = fmt_bundle_imports_ctx_id(descriptor.id, descriptor.version)
         imports_ctxg = self.graph.get_context(self.imports_ctx)
         # select all of the imports for all of the contexts in the bundle and serialize
         contexts = []
@@ -1147,6 +1162,46 @@ class Installer(object):
         gbname = hsh.hexdigest() + '.nt'
         ctx_file_name = p(graphs_directory, gbname)
         rename(temp_fname, ctx_file_name)
+        dest = self.conf['rdf.graph']
+        ctxg = dest.get_context(ctx_id)
+        with transaction.manager:
+            dest.addN(trip + (ctxg,) for trip in
+                    imports_ctxg.triples_choices((contexts, CONTEXT_IMPORTS, None)))
+        with open(p(graphs_directory, 'hashes'), 'ab') as hash_out,\
+                open(p(graphs_directory, 'index'), 'ab') as index_out:
+            ctxidb = ctx_id.encode('UTF-8')
+            # Write hash
+            hash_out.write(ctxidb + b'\x00' + pack('B', hsh.digest_size) + hsh.digest() + b'\n')
+            # Write index
+            index_out.write(ctxidb + b'\x00' + gbname.encode('UTF-8') + b'\n')
+
+    def _generate_bundle_class_registry_ctx(self, descriptor, bundle_directory):
+        if not self.class_registry_ctx:
+            return
+        ctx_id = fmt_bundle_class_registry_ctx_id(descriptor.id, descriptor.version)
+        imports_ctxg = self.graph.get_context(self.class_registry_ctx)
+        # select all of the imports for all of the contexts in the bundle and serialize
+        contexts = []
+        graphs_directory = p(bundle_directory, 'graphs')
+        idx_fname = p(graphs_directory, 'index')
+        with open(idx_fname) as index_file:
+            for l in index_file:
+                ctx, _ = l.strip().split('\x00')
+                contexts.append(URIRef(ctx))
+        for c in descriptor.empties:
+            contexts.append(URIRef(c))
+        temp_fname = p(graphs_directory, 'graph.tmp')
+        write_canonical_to_file(imports_ctxg.triples_choices((contexts, CONTEXT_IMPORTS, None)), temp_fname)
+        hsh = self.context_hash()
+        with open(temp_fname, 'rb') as ctx_fh:
+            hash_file(hsh, ctx_fh)
+        gbname = hsh.hexdigest() + '.nt'
+        ctx_file_name = p(graphs_directory, gbname)
+        rename(temp_fname, ctx_file_name)
+
+        # Add the generated imports context to the indexed database for the bundle to the
+        # indexed database for the bundle....double-check if this is necessary...
+        # shouldn't be necessary...
         dest = self.conf['rdf.graph']
         ctxg = dest.get_context(ctx_id)
         with transaction.manager:
@@ -1225,8 +1280,16 @@ class Installer(object):
         return uncovered_contexts
 
 
-def fmt_bundle_ctx_id(id):
-    return 'http://openworm.org/data/generated_imports_ctx?bundle_id=' + urlquote(id)
+def fmt_bundle_imports_ctx_id(id, version):
+    return fmt_bundle_ctx_id('generated_imports_ctx', id, version)
+
+
+def fmt_bundle_class_registry_ctx_id(id, version):
+    return fmt_bundle_ctx_id('generated_class_registry_ctx', id, version)
+
+
+def fmt_bundle_ctx_id(kind, id, version):
+    return f'http://openworm.org/data/{kind}?bundle_id={urlquote(id)}&bundle_version={version}'
 
 
 class FilesDescriptor(object):

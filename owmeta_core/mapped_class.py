@@ -36,9 +36,20 @@ class MappedClass(type):
             L.debug("Setting rdf_namespace to {}".format(rdf_ns))
             self.__rdf_namespace = rdf_ns
 
+        self.__schema_namespace = None
+        schema_ns = dct.get('schema_namespace', None)
+        if schema_ns is not None:
+            L.debug("Setting schema_namespace to {}".format(schema_ns))
+            self.__schema_namespace = schema_ns
+
         if self.__rdf_namespace is None:
-            L.debug("Setting rdf_namespace to {}".format(self.base_namespace[self.__name__]))
+            L.debug("Setting rdf_namespace to {}".format(self.base_namespace[self.__name__] + '#'))
             self.__rdf_namespace = R.Namespace(
+                self.base_namespace[self.__name__] + "#")
+
+        if self.__schema_namespace is None:
+            L.debug("Setting schema_namespace to {}".format(self.base_namespace[self.__name__] + '/'))
+            self.__schema_namespace = R.Namespace(
                 self.base_namespace[self.__name__] + "/")
 
     @property
@@ -55,6 +66,10 @@ class MappedClass(type):
     @property
     def rdf_namespace(self):
         return self.__rdf_namespace
+
+    @property
+    def schema_namespace(self):
+        return self.__schema_namespace
 
     def __lt__(self, other):
         res = False

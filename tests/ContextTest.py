@@ -1,6 +1,5 @@
 import rdflib
 from rdflib.term import URIRef, Variable
-from owmeta_core.utils import FCN
 from owmeta_core.dataobject import DataObject, InverseProperty
 from owmeta_core.mapper import Mapper
 from owmeta_core.context import Context
@@ -29,7 +28,7 @@ class ContextTest(_DataTest):
         a = ctx1(A)(ident='a')
         b = ctx2(B)(ident='b')
         a.a(b)
-        expected = (URIRef('b'), B.rdf_namespace['b'], URIRef('a'))
+        expected = (URIRef('b'), B.schema_namespace['b'], URIRef('a'))
         self.assertIn(expected, list(ctx1.contents_triples()))
 
     def test_defined(self):
@@ -344,7 +343,7 @@ class ContextStoreTest(_DataTest):
         ctx.contents_triples.return_value = ()
         m.contents_triples.return_value = [('a', 'b', 'c')]
         with patch('owmeta_core.context_store.RDFContextStore'):
-            cut = ContextStore(ctx, include_stored=True)
+            ContextStore(ctx, include_stored=True)
             m.contents_triples.assert_called()
 
 

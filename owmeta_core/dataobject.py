@@ -345,7 +345,8 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
         '''
         res = super(ContextMappedClass, self).contextualize_class_augment(context,
                 rdf_type=self.rdf_type,
-                rdf_namespace=self.rdf_namespace)
+                rdf_namespace=self.rdf_namespace,
+                schema_namespace=self.schema_namespace)
         res.__module__ = self.__module__
         return res
 
@@ -380,7 +381,8 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             meta = type(self)
             self.__query_form = meta(self.__name__, (_QueryMixin, self),
                     dict(rdf_type=self.rdf_type,
-                         rdf_namespace=self.rdf_namespace))
+                         rdf_namespace=self.rdf_namespace,
+                         schema_namespace=self.schema_namespace))
             self.__query_form.__module__ = self.__module__
         return self.__query_form
 
@@ -537,6 +539,9 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         The RDF type URI for objects of this type
     rdf_namespace : rdflib.namespace.Namespace
         The rdflib namespace (prefix for URIs) for objects from this class
+    schema_namespace : rdflib.namespace.Namespace
+        The rdflib namespace (prefix for URIs) for types that are part of this class'
+        schema
     properties : list of owmeta_core.dataobject_property.Property or \
             owmeta_core.custom_dataobject_property.CustomProperty
         Properties belonging to this object
@@ -544,8 +549,8 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
             owmeta_core.custom_dataobject_property.CustomProperty
         Properties belonging to parents of this object
     """
+    class_context = 'http://www.w3.org/2000/01/rdf-schema'
     rdf_type = R.RDFS['Resource']
-    class_context = BASE_SCHEMA_URL
     base_namespace = R.Namespace(BASE_SCHEMA_URL + "/")
 
     _next_variable_int = 0
@@ -853,9 +858,9 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
                     klass = getattr(SP, property_type)
 
             if link is None:
-                if owner_class.rdf_namespace is None:
-                    raise Exception("{}.rdf_namespace is None".format(FCN(owner_class)))
-                link = owner_class.rdf_namespace[linkName]
+                if owner_class.schema_namespace is None:
+                    raise Exception("{}.schema_namespace is None".format(FCN(owner_class)))
+                link = owner_class.schema_namespace[linkName]
 
             props = dict(linkName=linkName,
                          link=link,
