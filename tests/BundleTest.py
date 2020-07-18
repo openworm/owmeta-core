@@ -493,8 +493,8 @@ def test_bundle_store_conf_with_two_dep_levels(custom_bundle):
     g = rdflib.ConjunctiveGraph()
     cg_1 = g.get_context(ctxid_1)
     cg_2 = g.get_context(ctxid_2)
-    cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
-    cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
+    cg_1.add((aURI('a'), aURI('b'), aURI('c')))
+    cg_2.add((aURI('d'), aURI('e'), aURI('f')))
 
     # End setup
 
@@ -545,8 +545,8 @@ def test_bundle_store_conf_with_two_levels_excludes(custom_bundle):
     g = rdflib.ConjunctiveGraph()
     cg_1 = g.get_context(ctxid_1)
     cg_2 = g.get_context(ctxid_2)
-    cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
-    cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
+    cg_1.add((aURI('a'), aURI('b'), aURI('c')))
+    cg_2.add((aURI('d'), aURI('e'), aURI('f')))
 
     # End setup
 
@@ -575,3 +575,7 @@ def test_bundle_store_conf_with_two_levels_excludes(custom_bundle):
                         url=p(depdepbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
                         read_only=True))
                 ]))]
+
+
+def aURI(c):
+    return URIRef(f'http://example.org/uri#{c}')

@@ -1,4 +1,4 @@
-def hash_file(hsh, fh, blocksize=None):
+def hash_file(hsh, fname, blocksize=None):
     '''
     Updates the given hash object with the contents of a file.
 
@@ -8,16 +8,18 @@ def hash_file(hsh, fh, blocksize=None):
     ----------
     hsh : `hashlib.hash <hashlib>`
         The hash object to update
-    fh : :term:`file object`
-        The file to hash
+    fname : str
+        The filename for the file to hash
     blocksize : int, optional
         The number of bytes to read at a time. If not provided, will use
         `hsh.block_size <hashlib.hash.block_size>` instead.
     '''
     if not blocksize:
         blocksize = hsh.block_size
-    while True:
-        block = fh.read(blocksize)
-        if not block:
-            break
-        hsh.update(block)
+
+    with open(fname, 'rb') as fh:
+        while True:
+            block = fh.read(blocksize)
+            if not block:
+                break
+            hsh.update(block)

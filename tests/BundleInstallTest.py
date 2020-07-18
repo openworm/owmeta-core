@@ -1,17 +1,19 @@
-from tempfile import TemporaryDirectory
-import rdflib
-import transaction
 from collections import namedtuple
-from rdflib.term import URIRef
-from owmeta_core.bundle import (Installer, Descriptor, make_include_func, FilesDescriptor,
-                                UncoveredImports, DependencyDescriptor, TargetIsNotEmpty,
-                                Remote)
-from owmeta_core.context_common import CONTEXT_IMPORTS
-from os.path import join as p, isdir, isfile
 from os import listdir, makedirs
+from os.path import join as p, isdir, isfile
+import transaction
 from unittest.mock import patch
+from tempfile import TemporaryDirectory
 
 import pytest
+import rdflib
+from rdflib.term import URIRef
+
+from owmeta_core.bundle import (Installer, Descriptor, make_include_func, FilesDescriptor,
+                                UncoveredImports, DependencyDescriptor, TargetIsNotEmpty,
+                                Remote, Bundle)
+from owmeta_core.context import IMPORTS_CONTEXT_KEY
+from owmeta_core.context_common import CONTEXT_IMPORTS
 
 
 Dirs = namedtuple('Dirs', ('source_directory', 'bundles_directory'))
@@ -37,7 +39,7 @@ def test_context_hash_file_exists(dirs):
     d.includes.add(make_include_func(ctxid))
     g = rdflib.ConjunctiveGraph()
     cg = g.get_context(ctxid)
-    cg.add((URIRef('a'), URIRef('b'), URIRef('c')))
+    cg.add((aURI('a'), aURI('b'), aURI('c')))
     bi = Installer(*dirs, graph=g)
     bi.install(d)
     assert isfile(p(dirs.bundles_directory, 'test', '1', 'graphs', 'hashes'))
@@ -49,7 +51,7 @@ def test_context_index_file_exists(dirs):
     d.includes.add(make_include_func(ctxid))
     g = rdflib.ConjunctiveGraph()
     cg = g.get_context(ctxid)
-    cg.add((URIRef('a'), URIRef('b'), URIRef('c')))
+    cg.add((aURI('a'), aURI('b'), aURI('c')))
     bi = Installer(*dirs, graph=g)
     bi.install(d)
     assert isfile(p(dirs.bundles_directory, 'test', '1', 'graphs', 'index'))
@@ -62,7 +64,7 @@ def test_context_hash_file_contains_ctxid(dirs):
     g = rdflib.ConjunctiveGraph()
     cg = g.get_context(ctxid)
     with transaction.manager:
-        cg.add((URIRef('a'), URIRef('b'), URIRef('c')))
+        cg.add((aURI('a'), aURI('b'), aURI('c')))
     bi = Installer(*dirs, graph=g)
     bi.install(d)
     with open(p(dirs.bundles_directory, 'test', '1', 'graphs', 'hashes'), 'rb') as f:
@@ -76,7 +78,7 @@ def test_context_index_file_contains_ctxid(dirs):
     g = rdflib.ConjunctiveGraph()
     cg = g.get_context(ctxid)
     with transaction.manager:
-        cg.add((URIRef('a'), URIRef('b'), URIRef('c')))
+        cg.add((aURI('a'), aURI('b'), aURI('c')))
     bi = Installer(*dirs, graph=g)
     bi.install(d)
     with open(p(dirs.bundles_directory, 'test', '1', 'graphs', 'index'), 'rb') as f:
@@ -92,11 +94,11 @@ def test_multiple_context_hash(dirs):
     g = rdflib.ConjunctiveGraph()
     cg = g.get_context(ctxid_1)
     with transaction.manager:
-        cg.add((URIRef('a'), URIRef('b'), URIRef('c')))
+        cg.add((aURI('a'), aURI('b'), aURI('c')))
 
     cg = g.get_context(ctxid_2)
     with transaction.manager:
-        cg.add((URIRef('a'), URIRef('b'), URIRef('c')))
+        cg.add((aURI('a'), aURI('b'), aURI('c')))
 
     bi = Installer(*dirs, graph=g)
     bi.install(d)
@@ -121,11 +123,11 @@ def test_no_dupe(dirs):
     g = rdflib.ConjunctiveGraph()
     cg = g.get_context(ctxid_1)
     with transaction.manager:
-        cg.add((URIRef('a'), URIRef('b'), URIRef('c')))
+        cg.add((aURI('a'), aURI('b'), aURI('c')))
 
     cg = g.get_context(ctxid_2)
     with transaction.manager:
-        cg.add((URIRef('a'), URIRef('b'), URIRef('c')))
+        cg.add((aURI('a'), aURI('b'), aURI('c')))
 
     bi = Installer(*dirs, graph=g)
     bi.install(d)
@@ -182,6 +184,34 @@ def test_file_hash_content(dirs):
         assert b'somefile' in contents
 
 
+def test_uncovered_imports(dirs):
+    '''
+    If we have imports and no dependencies, then thrown an exception if we have not
+    included them in the bundle
+    '''
+    imports_ctxid = 'http://example.org/imports'
+    ctxid_1 = 'http://example.org/ctx1'
+    ctxid_2 = 'http://example.org/ctx2'
+
+    # Make a descriptor that includes ctx1 and the imports, but not ctx2
+    d = Descriptor('test')
+    d.includes.add(make_include_func(ctxid_1))
+
+    # Add some triples so the contexts aren't empty -- we can't save an empty context
+    g = rdflib.ConjunctiveGraph()
+    cg_1 = g.get_context(ctxid_1)
+    cg_2 = g.get_context(ctxid_2)
+    cg_imp = g.get_context(imports_ctxid)
+    with transaction.manager:
+        cg_1.add((aURI('a'), aURI('b'), aURI('c')))
+        cg_2.add((aURI('d'), aURI('e'), aURI('f')))
+        cg_imp.add((URIRef(ctxid_1), CONTEXT_IMPORTS, URIRef(ctxid_2)))
+
+    bi = Installer(*dirs, imports_ctx=imports_ctxid, graph=g)
+    with pytest.raises(UncoveredImports):
+        bi.install(d)
+
+
 def test_imports_are_included(dirs):
     '''
     If we have imports and no dependencies, then thrown an exception if we have not
@@ -194,7 +224,7 @@ def test_imports_are_included(dirs):
     # Make a descriptor that includes ctx1 and the imports, but not ctx2
     d = Descriptor('test')
     d.includes.add(make_include_func(ctxid_1))
-    d.includes.add(make_include_func(imports_ctxid))
+    d.includes.add(make_include_func(ctxid_2))
 
     # Add some triples so the contexts aren't empty -- we can't save an empty context
     g = rdflib.ConjunctiveGraph()
@@ -202,13 +232,49 @@ def test_imports_are_included(dirs):
     cg_2 = g.get_context(ctxid_2)
     cg_imp = g.get_context(imports_ctxid)
     with transaction.manager:
-        cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
-        cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
+        cg_1.add((aURI('a'), aURI('b'), aURI('c')))
+        cg_2.add((aURI('d'), aURI('e'), aURI('f')))
         cg_imp.add((URIRef(ctxid_1), CONTEXT_IMPORTS, URIRef(ctxid_2)))
 
     bi = Installer(*dirs, imports_ctx=imports_ctxid, graph=g)
-    with pytest.raises(UncoveredImports):
-        bi.install(d)
+    bi.install(d)
+    with Bundle(d.id, dirs.bundles_directory) as bnd:
+        g = bnd.rdf.get_context(bnd.conf[IMPORTS_CONTEXT_KEY])
+        assert (URIRef(ctxid_1), CONTEXT_IMPORTS, URIRef(ctxid_2)) in g
+
+
+def test_unrelated_imports_excluded(dirs):
+    imports_ctxid = 'http://example.org/imports'
+    ctxid_1 = 'http://example.org/ctx1'
+    ctxid_2 = 'http://example.org/ctx2'
+    ctxid_3 = 'http://example.org/ctx3'
+    ctxid_4 = 'http://example.org/ctx4'
+
+    # Make a descriptor that includes ctx1 and the imports, but not ctx2
+    d = Descriptor('test')
+    d.includes.add(make_include_func(ctxid_1))
+    d.includes.add(make_include_func(ctxid_2))
+
+    # Add some triples so the contexts aren't empty -- we can't save an empty context
+    g = rdflib.ConjunctiveGraph()
+    cg_1 = g.get_context(ctxid_1)
+    cg_2 = g.get_context(ctxid_2)
+    cg_3 = g.get_context(ctxid_3)
+    cg_4 = g.get_context(ctxid_4)
+    cg_imp = g.get_context(imports_ctxid)
+    with transaction.manager:
+        cg_1.add((aURI('a'), aURI('b'), aURI('c')))
+        cg_2.add((aURI('d'), aURI('e'), aURI('f')))
+        cg_3.add((aURI('g'), aURI('h'), aURI('i')))
+        cg_4.add((aURI('j'), aURI('k'), aURI('l')))
+        cg_imp.add((URIRef(ctxid_1), CONTEXT_IMPORTS, URIRef(ctxid_2)))
+        cg_imp.add((URIRef(ctxid_3), CONTEXT_IMPORTS, URIRef(ctxid_4)))
+
+    bi = Installer(*dirs, imports_ctx=imports_ctxid, graph=g)
+    bi.install(d)
+    with Bundle(d.id, dirs.bundles_directory) as bnd:
+        g = bnd.rdf.get_context(bnd.conf[IMPORTS_CONTEXT_KEY])
+        assert (URIRef(ctxid_3), CONTEXT_IMPORTS, URIRef(ctxid_4)) not in g
 
 
 def test_imports_in_dependencies(dirs):
@@ -238,8 +304,8 @@ def test_imports_in_dependencies(dirs):
     cg_2 = g.get_context(ctxid_2)
     cg_imp = g.get_context(imports_ctxid)
     with transaction.manager:
-        cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
-        cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
+        cg_1.add((aURI('a'), aURI('b'), aURI('c')))
+        cg_2.add((aURI('d'), aURI('e'), aURI('f')))
         cg_imp.add((URIRef(ctxid_1), CONTEXT_IMPORTS, URIRef(ctxid_2)))
 
     bi = Installer(*dirs, imports_ctx=imports_ctxid, graph=g)
@@ -337,8 +403,8 @@ def test_imports_in_transitive_dependency_not_included(dirs):
     cg_1 = g.get_context(ctxid_1)
     cg_2 = g.get_context(ctxid_2)
     cg_imp = g.get_context(imports_ctxid)
-    cg_1.add((URIRef('a'), URIRef('b'), URIRef('c')))
-    cg_2.add((URIRef('d'), URIRef('e'), URIRef('f')))
+    cg_1.add((aURI('a'), aURI('b'), aURI('c')))
+    cg_2.add((aURI('d'), aURI('e'), aURI('f')))
     cg_imp.add((URIRef(ctxid_1), CONTEXT_IMPORTS, URIRef(ctxid_2)))
 
     bi = Installer(*dirs, imports_ctx=imports_ctxid, graph=g)
@@ -357,3 +423,7 @@ def test_fail_on_non_empty_target(dirs):
     makedirs(sma)
     with pytest.raises(TargetIsNotEmpty):
         bi.install(d)
+
+
+def aURI(c):
+    return URIRef(f'http://example.org/uri#{c}')

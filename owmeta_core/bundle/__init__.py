@@ -27,7 +27,7 @@ from ..data import Data
 from ..file_match import match_files
 from ..file_lock import lock_file
 from ..file_utils import hash_file
-from ..graph_serialization import write_canonical_to_file
+from ..graph_serialization import write_canonical_to_file, read_canonical_from_file
 from ..rdf_utils import transitive_lookup, BatchAddGraph
 from ..utils import FCN, aslist
 
@@ -1045,9 +1045,9 @@ class Installer(object):
         self._write_file_hashes(descriptor, files_directory)
         self._write_context_data(descriptor, graphs_directory)
         self._write_manifest(descriptor, staging_directory)
+        self._generate_bundle_imports_ctx(descriptor, graphs_directory)
+        self._generate_bundle_class_registry_ctx(descriptor, graphs_directory)
         self._initdb(staging_directory)
-        self._generate_bundle_imports_ctx(descriptor, staging_directory)
-        self._generate_bundle_class_registry_ctx(descriptor, staging_directory)
         self._build_indexed_database(staging_directory, progress_reporter)
 
     def _set_up_directories(self, staging_directory):
@@ -1067,9 +1067,8 @@ class Installer(object):
             for fname in _select_files(descriptor, self.source_directory):
                 hsh = self.file_hash()
                 source_fname = p(self.source_directory, fname)
-                with open(source_fname, 'rb') as fh:
-                    hash_file(hsh, fh)
-                hash_out.write(fname.encode('UTF-8') + b'\x00' + pack('B', hsh.digest_size) + hsh.digest() + b'\n')
+                hash_file(hsh, source_fname)
+                self._write_hash_line(hash_out, fname.encode('UTF-8'), hsh)
                 shutil.copy2(source_fname, p(files_directory, fname))
 
     def _write_context_data(self, descriptor, graphs_directory):
@@ -1080,37 +1079,21 @@ class Installer(object):
 
         included_context_ids = set()
 
-        with open(p(graphs_directory, 'hashes'), 'wb') as hash_out,\
-                open(p(graphs_directory, 'index'), 'wb') as index_out:
-            imported_contexts = set()
-            for ctxid, ctxgraph in contexts:
-                hsh = self.context_hash()
-                temp_fname = p(graphs_directory, 'graph.tmp')
-                write_canonical_to_file(ctxgraph, temp_fname)
-                with open(temp_fname, 'rb') as ctx_fh:
-                    hash_file(hsh, ctx_fh)
-                included_context_ids.add(ctxid)
-                ctxidb = ctxid.encode('UTF-8')
-                # Write hash
-                hash_out.write(ctxidb + b'\x00' + pack('B', hsh.digest_size) + hsh.digest() + b'\n')
-                gbname = hsh.hexdigest() + '.nt'
-                # Write index
-                index_out.write(ctxidb + b'\x00' + gbname.encode('UTF-8') + b'\n')
+        for ctxid in self._write_graphs(graphs_directory, *contexts):
+            included_context_ids.add(ctxid)
 
-                ctx_file_name = p(graphs_directory, gbname)
-                rename(temp_fname, ctx_file_name)
-
-                if imports_ctxg is not None:
-                    imported_contexts |= transitive_lookup(imports_ctxg,
-                                                           ctxid,
-                                                           CONTEXT_IMPORTS,
-                                                           seen=imported_contexts)
-            uncovered_contexts = imported_contexts - included_context_ids
-            uncovered_contexts = self._cover_with_dependencies(uncovered_contexts, descriptor)
-            if uncovered_contexts:
-                raise UncoveredImports(uncovered_contexts)
-            hash_out.flush()
-            index_out.flush()
+        # Compute imported contexts
+        imported_contexts = set()
+        for ctxid in included_context_ids:
+            if imports_ctxg is not None:
+                imported_contexts |= transitive_lookup(imports_ctxg,
+                                                       ctxid,
+                                                       CONTEXT_IMPORTS,
+                                                       seen=imported_contexts)
+        uncovered_contexts = imported_contexts - included_context_ids
+        uncovered_contexts = self._cover_with_dependencies(uncovered_contexts, descriptor)
+        if uncovered_contexts:
+            raise UncoveredImports(uncovered_contexts)
 
     def _write_manifest(self, descriptor, staging_directory):
         manifest_data = {}
@@ -1138,15 +1121,13 @@ class Installer(object):
         with open(p(staging_directory, BUNDLE_MANIFEST_FILE_NAME), 'w') as mf:
             json.dump(manifest_data, mf, separators=(',', ':'))
 
-    def _generate_bundle_imports_ctx(self, descriptor, bundle_directory):
+    def _generate_bundle_imports_ctx(self, descriptor, graphs_directory):
         if not self.imports_ctx:
             return
         # XXX: Refactor this method
-        ctx_id = fmt_bundle_imports_ctx_id(descriptor.id, descriptor.version)
         imports_ctxg = self.graph.get_context(self.imports_ctx)
         # select all of the imports for all of the contexts in the bundle and serialize
         contexts = []
-        graphs_directory = p(bundle_directory, 'graphs')
         idx_fname = p(graphs_directory, 'index')
         with open(idx_fname) as index_file:
             for l in index_file:
@@ -1154,66 +1135,61 @@ class Installer(object):
                 contexts.append(URIRef(ctx))
         for c in descriptor.empties:
             contexts.append(URIRef(c))
-        temp_fname = p(graphs_directory, 'graph.tmp')
-        write_canonical_to_file(imports_ctxg.triples_choices((contexts, CONTEXT_IMPORTS, None)), temp_fname)
-        hsh = self.context_hash()
-        with open(temp_fname, 'rb') as ctx_fh:
-            hash_file(hsh, ctx_fh)
-        gbname = hsh.hexdigest() + '.nt'
-        ctx_file_name = p(graphs_directory, gbname)
-        rename(temp_fname, ctx_file_name)
-        dest = self.conf['rdf.graph']
-        ctxg = dest.get_context(ctx_id)
-        with transaction.manager:
-            dest.addN(trip + (ctxg,) for trip in
-                    imports_ctxg.triples_choices((contexts, CONTEXT_IMPORTS, None)))
-        with open(p(graphs_directory, 'hashes'), 'ab') as hash_out,\
-                open(p(graphs_directory, 'index'), 'ab') as index_out:
-            ctxidb = ctx_id.encode('UTF-8')
-            # Write hash
-            hash_out.write(ctxidb + b'\x00' + pack('B', hsh.digest_size) + hsh.digest() + b'\n')
-            # Write index
-            index_out.write(ctxidb + b'\x00' + gbname.encode('UTF-8') + b'\n')
+        ctxid = fmt_bundle_imports_ctx_id(descriptor.id, descriptor.version)
+        ctxgraph = imports_ctxg.triples_choices((contexts, CONTEXT_IMPORTS, None))
 
-    def _generate_bundle_class_registry_ctx(self, descriptor, bundle_directory):
+        self._write_graph(graphs_directory, ctxid, ctxgraph)
+
+    def _generate_bundle_class_registry_ctx(self, descriptor, graphs_directory):
         if not self.class_registry_ctx:
             return
         ctx_id = fmt_bundle_class_registry_ctx_id(descriptor.id, descriptor.version)
-        imports_ctxg = self.graph.get_context(self.class_registry_ctx)
+        class_registry_ctxg = self.graph.get_context(self.class_registry_ctx)
         # select all of the imports for all of the contexts in the bundle and serialize
-        contexts = []
-        graphs_directory = p(bundle_directory, 'graphs')
-        idx_fname = p(graphs_directory, 'index')
-        with open(idx_fname) as index_file:
-            for l in index_file:
-                ctx, _ = l.strip().split('\x00')
-                contexts.append(URIRef(ctx))
-        for c in descriptor.empties:
-            contexts.append(URIRef(c))
-        temp_fname = p(graphs_directory, 'graph.tmp')
-        write_canonical_to_file(imports_ctxg.triples_choices((contexts, CONTEXT_IMPORTS, None)), temp_fname)
+        self._write_graph(graphs_directory, ctx_id, class_registry_ctxg)
+
+    def _write_graph(self, graphs_directory, ctxid, ctxgraph):
+        for _ in self._write_graphs(graphs_directory, (ctxid, ctxgraph)):
+            pass
+
+    def _write_graphs(self, graphs_directory, *graphs_sequence):
+        with open(p(graphs_directory, 'hashes'), 'ab') as hash_out,\
+                open(p(graphs_directory, 'index'), 'ab') as index_out:
+            for ctxid, ctxgraph in graphs_sequence:
+                ctxidb = ctxid.encode('UTF-8')
+                gbname, hsh = self._write_graph_to_file(ctxgraph, graphs_directory)
+                self._write_hash_line(hash_out, ctxidb, hsh)
+                self._write_index_line(index_out, ctxidb, gbname)
+                yield ctxid
+            hash_out.flush()
+            index_out.flush()
+
+    def _write_graph_to_file(self, ctxgraph, graphs_directory):
         hsh = self.context_hash()
-        with open(temp_fname, 'rb') as ctx_fh:
-            hash_file(hsh, ctx_fh)
+        temp_fname = p(graphs_directory, 'graph.tmp')
+        write_canonical_to_file(ctxgraph, temp_fname)
+        hash_file(hsh, temp_fname)
         gbname = hsh.hexdigest() + '.nt'
         ctx_file_name = p(graphs_directory, gbname)
         rename(temp_fname, ctx_file_name)
+        return gbname, hsh
 
-        # Add the generated imports context to the indexed database for the bundle to the
-        # indexed database for the bundle....double-check if this is necessary...
-        # shouldn't be necessary...
-        dest = self.conf['rdf.graph']
-        ctxg = dest.get_context(ctx_id)
-        with transaction.manager:
-            dest.addN(trip + (ctxg,) for trip in
-                    imports_ctxg.triples_choices((contexts, CONTEXT_IMPORTS, None)))
-        with open(p(graphs_directory, 'hashes'), 'ab') as hash_out,\
-                open(p(graphs_directory, 'index'), 'ab') as index_out:
-            ctxidb = ctx_id.encode('UTF-8')
-            # Write hash
-            hash_out.write(ctxidb + b'\x00' + pack('B', hsh.digest_size) + hsh.digest() + b'\n')
-            # Write index
-            index_out.write(ctxidb + b'\x00' + gbname.encode('UTF-8') + b'\n')
+    def _write_hash_line(self, hash_out, key, hsh):
+        hash_out.write(key + b'\x00' + pack('B', hsh.digest_size) + hsh.digest() + b'\n')
+
+    def _write_index_line(self, index_out, ctxidb, gbname):
+        index_out.write(ctxidb + b'\x00' + gbname.encode('UTF-8') + b'\n')
+
+    def _initdb(self, staging_directory):
+        self.conf = Data().copy({
+            'rdf.source': 'default',
+            'rdf.store': 'FileStorageZODB',
+            'rdf.store_conf': p(staging_directory, BUNDLE_INDEXED_DB_NAME)
+        })
+        # Create the database file and initialize some needed data structures
+        self.conf.init()
+        if not exists(self.conf['rdf.store_conf']):
+            raise Exception('Could not create the database file at ' + self.conf['rdf.store_conf'])
 
     def _build_indexed_database(self, staging_directory, progress=None):
         try:
@@ -1235,11 +1211,10 @@ class Installer(object):
                         line = line.strip()
                         if not line:
                             continue
-                        ctx, _ = line.split(b'\x00')
-                        sctxg = self.graph.get_context(ctx.decode('UTF-8'))
-                        ctxg = dest.get_context(ctx.decode('UTF-8'))
+                        ctx, fname = line.split(b'\x00')
 
-                        dest.addN(trip + (ctxg,) for trip in sctxg)
+                        graph_fname = p(graphs_directory, fname.decode('UTF-8'))
+                        read_canonical_from_file(ctx.decode('UTF-8'), dest, graph_fname)
 
                         if progress is not None:
                             progress.update(1)
@@ -1250,17 +1225,6 @@ class Installer(object):
         finally:
             if self.conf:
                 self.conf.close()
-
-    def _initdb(self, staging_directory):
-        self.conf = Data().copy({
-            'rdf.source': 'default',
-            'rdf.store': 'FileStorageZODB',
-            'rdf.store_conf': p(staging_directory, BUNDLE_INDEXED_DB_NAME)
-        })
-        # Create the database file and initialize some needed data structures
-        self.conf.init()
-        if not exists(self.conf['rdf.store_conf']):
-            raise Exception('Could not create the database file at ' + self.conf['rdf.store_conf'])
 
     def _cover_with_dependencies(self, uncovered_contexts, descriptor):
         # XXX: Will also need to check for the contexts having a given ID being consistent
