@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 import yaml
 
-from ..context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY
+from ..context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY, CLASS_REGISTRY_CONTEXT_KEY
 from ..command_util import GenericUserError, GeneratorWithData, SubCommand, IVar
 from ..bundle import (Descriptor,
                       Installer,
@@ -373,11 +373,13 @@ class OWMBundle(object):
 
         imports_ctx = self._parent._conf(IMPORTS_CONTEXT_KEY, None)
         default_ctx = self._parent._conf(DEFAULT_CONTEXT_KEY, None)
+        class_registry_ctx = self._parent._conf(CLASS_REGISTRY_CONTEXT_KEY, None)
         bi = Installer(self._parent.basedir,
                        self._bundles_directory(),
                        self._parent.rdf,
                        imports_ctx=imports_ctx,
-                       default_ctx=default_ctx)
+                       default_ctx=default_ctx,
+                       class_registry_ctx=class_registry_ctx)
         return self._install_helper(bi, descr)
 
     def _install_helper(self, bi, descr):
