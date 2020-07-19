@@ -106,7 +106,7 @@ class Remote(object):
         Generate the bundle loaders for this remote.
 
         Loaders are generated from `accessor_configs` and `LOADER_CLASSES` according with
-        which type of `Loader` can load a type of accessor
+        which type of `.Loader` can load a type of accessor
         '''
         for ac in self.accessor_configs:
             for lc in LOADER_CLASSES:
@@ -671,7 +671,7 @@ class Fetcher(_RemoteHandlerMixin):
                         except BundleNotFound:
                             self.fetch(dd['id'], dd.get('version'), remotes=remotes)
                 dat = self._post_fetch_dest_conf(bdir)
-                self._build_indexed_database(dat['rdf.graph'], bdir, progress_reporter,
+                build_indexed_database(dat['rdf.graph'], bdir, progress_reporter,
                         triples_progress_reporter)
                 dat.close()
                 return bdir
@@ -680,38 +680,6 @@ class Fetcher(_RemoteHandlerMixin):
                 shutil.rmtree(bdir)
         else:  # no break
             raise NoBundleLoader(bundle_id, given_bundle_version)
-
-    def _build_indexed_database(self, dest, bundle_directory, progress, trip_prog):
-        idx_fname = p(bundle_directory, 'graphs', 'index')
-        # This code was copied from OWM._load_all_graphs, but we don't have a specific
-        # reason for projects and bundles to have the same format, so keeping the logic
-        # separate
-        triples_read = 0
-        with open(idx_fname) as index_file:
-            cnt = 0
-            for l in index_file:
-                cnt += 1
-            index_file.seek(0)
-            if progress is not None:
-                progress.total = cnt
-            with transaction.manager:
-                bag = BatchAddGraph(dest, batchsize=10000)
-                for l in index_file:
-                    ctx, fname = l.strip().split('\x00')
-                    parser = plugin.get('nt', Parser)()
-                    graph_fname = p(bundle_directory, 'graphs', fname)
-                    with open(graph_fname, 'rb') as f, bag.get_context(ctx) as g:
-                        parser.parse(create_input_source(f), g)
-
-                    if progress is not None:
-                        progress.update(1)
-                    if trip_prog is not None:
-                        trip_prog.update(bag.count - triples_read)
-                    triples_read = g.count
-                if progress is not None:
-                    progress.write('Finalizing writes to database...')
-        if progress is not None:
-            progress.write('Loaded {:,} triples'.format(triples_read))
 
     def _post_fetch_dest_conf(self, bundle_directory):
         res = Data().copy({
@@ -1195,35 +1163,8 @@ class Installer(object):
 
     def _build_indexed_database(self, staging_directory, progress=None):
         try:
-            graphs_directory = p(staging_directory, 'graphs')
-            idx_fname = p(graphs_directory, 'index')
-            if not exists(idx_fname):
-                raise Exception('Cannot find an index at {}'.format(repr(idx_fname)))
-
-            if progress is not None:
-                cnt = 0
-                for l in self.graph.contexts():
-                    cnt += 1
-                progress.total = cnt
-
             dest = self.conf['rdf.graph']
-            with transaction.manager:
-                with open(idx_fname, 'rb') as idx_file:
-                    for line in idx_file:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        ctx, fname = line.split(b'\x00')
-
-                        graph_fname = p(graphs_directory, fname.decode('UTF-8'))
-                        read_canonical_from_file(ctx.decode('UTF-8'), dest, graph_fname)
-
-                        if progress is not None:
-                            progress.update(1)
-                if progress is not None:
-                    progress.write('Finalizing writes to database...')
-            if progress is not None:
-                progress.write('Wrote indexed database')
+            build_indexed_database(dest, staging_directory, progress)
         finally:
             if self.conf:
                 self.conf.close()
@@ -1378,3 +1319,39 @@ def _select_contexts(descriptor, graph):
             if pat(ctx):
                 yield ctx, context
                 break
+
+
+def build_indexed_database(dest, bundle_directory, progress=None, trip_prog=None):
+    '''
+    Build the indexed database from a bundle directory
+    '''
+    idx_fname = p(bundle_directory, 'graphs', 'index')
+    # This code was copied from OWM._load_all_graphs, but we don't have a specific
+    # reason for projects and bundles to have the same format, so keeping the logic
+    # separate
+    triples_read = 0
+    with open(idx_fname) as index_file:
+        cnt = 0
+        for l in index_file:
+            cnt += 1
+        index_file.seek(0)
+        if progress is not None:
+            progress.total = cnt
+        with transaction.manager:
+            bag = BatchAddGraph(dest, batchsize=10000)
+            for l in index_file:
+                ctx, fname = l.strip().split('\x00')
+                parser = plugin.get('nt', Parser)()
+                graph_fname = p(bundle_directory, 'graphs', fname)
+                with open(graph_fname, 'rb') as f, bag.get_context(ctx) as g:
+                    parser.parse(create_input_source(f), g)
+
+                if progress is not None:
+                    progress.update(1)
+                if trip_prog is not None:
+                    trip_prog.update(bag.count - triples_read)
+                triples_read = g.count
+            if progress is not None:
+                progress.write('Finalizing writes to database...')
+    if progress is not None:
+        progress.write('Loaded {:,} triples'.format(triples_read))
