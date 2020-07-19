@@ -27,7 +27,7 @@ from ..data import Data
 from ..file_match import match_files
 from ..file_lock import lock_file
 from ..file_utils import hash_file
-from ..graph_serialization import write_canonical_to_file, read_canonical_from_file
+from ..graph_serialization import write_canonical_to_file
 from ..rdf_utils import transitive_lookup, BatchAddGraph
 from ..utils import FCN, aslist
 
@@ -1016,8 +1016,8 @@ class Installer(object):
         self._write_file_hashes(descriptor, files_directory)
         self._write_context_data(descriptor, graphs_directory)
         self._write_manifest(descriptor, staging_directory)
-        self._generate_bundle_imports_ctx(descriptor, graphs_directory)
         self._generate_bundle_class_registry_ctx(descriptor, graphs_directory)
+        self._generate_bundle_imports_ctx(descriptor, graphs_directory)
         self._initdb(staging_directory)
         self._build_indexed_database(staging_directory, progress_reporter)
 
@@ -1062,6 +1062,8 @@ class Installer(object):
                                                        CONTEXT_IMPORTS,
                                                        seen=imported_contexts)
         uncovered_contexts = imported_contexts - included_context_ids
+        if self.class_registry_ctx:
+            uncovered_contexts.discard(URIRef(self.class_registry_ctx))
         uncovered_contexts = self._cover_with_dependencies(uncovered_contexts, descriptor)
         if uncovered_contexts:
             raise UncoveredImports(uncovered_contexts)
@@ -1105,8 +1107,24 @@ class Installer(object):
                 contexts.append(URIRef(ctx))
         for c in descriptor.empties:
             contexts.append(URIRef(c))
+        if self.class_registry_ctx:
+            cr_ctxid = URIRef(fmt_bundle_class_registry_ctx_id(descriptor.id, descriptor.version))
+            contexts.append(cr_ctxid)
         ctxid = fmt_bundle_imports_ctx_id(descriptor.id, descriptor.version)
         ctxgraph = imports_ctxg.triples_choices((contexts, CONTEXT_IMPORTS, None))
+        if self.class_registry_ctx:
+            old_ctxgraph = ctxgraph
+
+            def replace_cr_ctxid():
+                src_cr_ctxid = URIRef(self.class_registry_ctx)
+                for t in old_ctxgraph:
+                    if t[0] == src_cr_ctxid:
+                        yield (cr_ctxid, t[1], t[2])
+                    elif t[2] == src_cr_ctxid:
+                        yield (t[0], t[1], cr_ctxid)
+                    else:
+                        yield t
+            ctxgraph = replace_cr_ctxid()
 
         self._write_graph(graphs_directory, ctxid, ctxgraph)
 
@@ -1115,7 +1133,7 @@ class Installer(object):
             return
         ctx_id = fmt_bundle_class_registry_ctx_id(descriptor.id, descriptor.version)
         class_registry_ctxg = self.graph.get_context(self.class_registry_ctx)
-        # select all of the imports for all of the contexts in the bundle and serialize
+
         self._write_graph(graphs_directory, ctx_id, class_registry_ctxg)
 
     def _write_graph(self, graphs_directory, ctxid, ctxgraph):
@@ -1166,8 +1184,7 @@ class Installer(object):
             dest = self.conf['rdf.graph']
             build_indexed_database(dest, staging_directory, progress)
         finally:
-            if self.conf:
-                self.conf.close()
+            self.conf.close()
 
     def _cover_with_dependencies(self, uncovered_contexts, descriptor):
         # XXX: Will also need to check for the contexts having a given ID being consistent

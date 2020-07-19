@@ -12,6 +12,6 @@ class Person(DataObject):
 def owm_data(ns):
     print(ns.context, Person.definition_context)
     ns.context.add_import(Person.definition_context)
-    ns.context(Person)(key='mevers',
+    ns.context(Person)(ident='http://example.org/people/mevers',
             first_name='Medgar',
             last_name='Evers')
