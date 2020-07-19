@@ -1,3 +1,4 @@
+from collections import namedtuple
 from contextlib import contextmanager
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 import logging
@@ -5,14 +6,17 @@ from multiprocessing import Process, Queue
 from subprocess import check_output, CalledProcessError
 from os import chdir
 import os
-from os.path import join as p, exists
+from os.path import join as p, exists, split as split_path, isdir, isabs
 from textwrap import dedent
 import shutil
 import shlex
 import tempfile
 
-from owmeta_core.bundle import Descriptor, Installer
+from owmeta_core.bundle import (Descriptor, Installer, find_bundle_directory,
+                                AccessorConfig, Remote, Fetcher)
+from owmeta_core.bundle.loaders import Loader
 from owmeta_core.bundle.archive import Archiver
+from owmeta_core.command import DEFAULT_OWM_DIR
 from pytest import fixture
 from rdflib.term import URIRef
 from rdflib.graph import ConjunctiveGraph
@@ -130,26 +134,81 @@ def wait_for_started(server_data, max_tries=10):
 
 
 @fixture
-def owm_project():
-    res = _shell_helper()
-    try:
-        res.sh('owm -b init --default-context-id "http://example.org/data"')
-        yield res
-    finally:
-        shutil.rmtree(res.testdir)
+def owm_project_with_customizations(request):
+    return contextmanager(_owm_project_helper(request))
 
 
 @fixture
-def owm_project_with_customizations():
-    @contextmanager
+def core_bundle(request):
+    print('core_bundle')
+    CoreBundle = namedtuple('CoreBundle', ('id', 'version', 'source_directory', 'remote'))
+    version_mark = request.node.get_closest_marker('core_bundle_version')
+    if not version_mark:
+        raise Exception('Must specify a version of the core bundle')
+    version = version_mark.args[0]
+    source_directory = find_bundle_directory('bundles', 'openworm/owmeta-core', version)
+
+    class TestAC(AccessorConfig):
+        def __eq__(self, other):
+            return other is self
+
+        def __hash__(self):
+            return object.__hash__(self)
+
+    class TestBundleLoader(Loader):
+        def __init__(self, ac):
+            pass
+
+        def bundle_versions(self):
+            return [1]
+
+        @classmethod
+        def can_load_from(cls, ac):
+            if isinstance(ac, TestAC):
+                return True
+            return False
+
+        def can_load(self, ident, version): return True
+
+        def load(self, ident, version):
+            shutil.copytree(source_directory, self.base_directory)
+
+    TestBundleLoader.register()
+    remote = Remote('test', (TestAC(),))
+
+    yield CoreBundle(
+            'openworm/owmeta-core',
+            version,
+            source_directory,
+            remote)
+
+
+def _owm_project_helper(request):
     def f(*args, **kwargs):
         res = _shell_helper(*args, **kwargs)
         try:
-            res.sh('owm -b init --default-context-id "http://example.org/data"')
+            default_context_id = 'http://example.org/data'
+            res.sh(f'owm -b init --default-context-id "{default_context_id}"')
+
+            add_core_bundle = request.node.get_closest_marker('core_bundle')
+            if add_core_bundle:
+                core_bundle = request.getfixturevalue('core_bundle')
+                bundles_directory = p(res.test_homedir, '.owmeta', 'bundles')
+                fetcher = Fetcher(bundles_directory, (core_bundle.remote,))
+                fetcher.fetch(core_bundle.id, core_bundle.version)
+
+            res.owmdir = p(res.testdir, DEFAULT_OWM_DIR)
+            res.default_context_id = default_context_id
             yield res
         finally:
             shutil.rmtree(res.testdir)
     return f
+
+
+@fixture
+def owm_project(request):
+    with contextmanager(_owm_project_helper(request))() as f:
+        yield f
 
 
 @fixture
@@ -208,15 +267,30 @@ class Data(object):
         return 'Data({})'.format(', '.join(items))
 
     def copy(self, source, dest):
-        return shutil.copytree(source, p(self.testdir, dest))
+        if isdir(source):
+            return shutil.copytree(source, p(self.testdir, dest))
+        else:
+            return shutil.copy(source, p(self.testdir, dest))
 
     def make_module(self, module):
+        if isabs(module):
+            raise Exception('Must use a relative path. Given ' + str(module))
         modpath = p(self.testdir, module)
-        os.mkdir(modpath)
-        open(p(modpath, '__init__.py'), 'w').close()
+        os.makedirs(modpath)
+        last_dname = None
+        dname = modpath
+        while last_dname != dname and dname != self.testdir:
+            open(p(dname, '__init__.py'), 'x').close()
+            base = ''
+            while not base and last_dname != dname:
+                last_dname = dname
+                dname, base = split_path(modpath)
+
         return modpath
 
     def writefile(self, name, contents=None):
+        if contents is None:
+            contents = name
         fname = p(self.testdir, name)
         with open(fname, 'w') as f:
             if exists(contents):

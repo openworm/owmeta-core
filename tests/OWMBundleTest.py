@@ -33,8 +33,8 @@ def test_load(owm_project):
     )
 
 
-def add_bundle(owm_project):
-    owm_project.writefile('abundle.yml', '''\
+def add_bundle(owm_project, descriptor=None):
+    owm_project.writefile('abundle.yml', descriptor or '''\
     ---
     id: abundle
     description: I'm a description
@@ -48,9 +48,6 @@ def add_bundle(owm_project):
                     URIRef('http://example.org/b'),
                     Literal('c')))
 
-    homedir = p(owm_project.testdir, 'home')
-    makedirs(homedir)
-    owm_project.homedir = homedir
     owm_project.sh('owm bundle register abundle.yml')
 
 
@@ -59,8 +56,7 @@ def test_install(owm_project):
     Install a bundle and make sure we can use it with Bundle
     '''
     add_bundle(owm_project)
-    print(owm_project.sh('owm bundle install abundle',
-        env={'HOME': owm_project.homedir}))
+    print(owm_project.sh('owm bundle install abundle'))
     owm_project.writefile('use.py', '''\
     from owmeta_core.bundle import Bundle
     from rdflib.term import URIRef, Literal
@@ -70,14 +66,13 @@ def test_install(owm_project):
                URIRef('http://example.org/b'),
                Literal('c')) in bnd.rdf, end='')
     ''')
-    assert owm_project.sh('python use.py', env={'HOME': owm_project.homedir}) == 'True'
+    assert owm_project.sh('python use.py') == 'True'
 
 
 def test_install_prompt_delete_when_target_directory_not_empty(owm_project):
     add_bundle(owm_project)
     # Install once
-    bundle_directory = owm_project.sh('owm bundle install abundle',
-            env={'HOME': owm_project.homedir}).strip()
+    bundle_directory = owm_project.sh('owm bundle install abundle').strip()
     if not bundle_directory:
         pytest.fail("Bundle directory not provided in install output")
     # Place a marker in the bundle directory
@@ -90,15 +85,14 @@ def test_install_prompt_delete_when_target_directory_not_empty(owm_project):
         inp.write('yes\n')
 
     with open(fname, 'r') as inp:
-        owm_project.sh('owm bundle install abundle', stdin=inp, env={'HOME': owm_project.homedir})
+        owm_project.sh('owm bundle install abundle', stdin=inp)
     assert not exists(marker)
 
 
 def test_install_prompt_keep_when_target_directory_not_empty(owm_project):
     add_bundle(owm_project)
     # Install once
-    bundle_directory = owm_project.sh('owm bundle install abundle',
-            env={'HOME': owm_project.homedir}).strip()
+    bundle_directory = owm_project.sh('owm bundle install abundle').strip()
     if not bundle_directory:
         pytest.fail("Bundle directory not provided in install output")
     # Place a marker in the bundle directory
@@ -111,15 +105,14 @@ def test_install_prompt_keep_when_target_directory_not_empty(owm_project):
         inp.write('no\n')
 
     with open(fname, 'r') as inp:
-        owm_project.sh('owm bundle install abundle', stdin=inp, env={'HOME': owm_project.homedir})
+        owm_project.sh('owm bundle install abundle', stdin=inp)
     assert exists(marker)
 
 
 def test_non_interactive_install_fail_when_target_directory_not_empty(owm_project):
     add_bundle(owm_project)
     # Install once
-    bundle_directory = owm_project.sh('owm bundle install abundle',
-            env={'HOME': owm_project.homedir}).strip()
+    bundle_directory = owm_project.sh('owm bundle install abundle').strip()
     if not bundle_directory:
         pytest.fail("Bundle directory not provided in install output")
     # Place a marker in the bundle directory
@@ -128,8 +121,34 @@ def test_non_interactive_install_fail_when_target_directory_not_empty(owm_projec
 
     # Attempt another install. Should fail
     with pytest.raises(subprocess.CalledProcessError):
-        owm_project.sh('owm -b bundle install abundle', env={'HOME': owm_project.homedir})
+        owm_project.sh('owm -b bundle install abundle')
     assert exists(marker)
+
+
+@pytest.mark.core_bundle_version(1)
+@pytest.mark.core_bundle
+def test_install_class_registry_load(owm_project, core_bundle):
+    from tests.test_modules.owmbundletest01 import Person
+
+    modpath = p('tests', 'test_modules')
+    owm_project.make_module(modpath)
+    owm_project.writefile(p(modpath, 'owmbundletest02_defs.py'))
+    owm_project.copy(p(modpath, 'owmbundletest02_query.py'), 'query.py')
+    owm_project.sh('owm save tests.test_modules.owmbundletest02_defs')
+    descriptor = f'''\
+    ---
+    id: person_bundle
+    description: A person in a bundle
+    includes: ["{owm_project.default_context_id}", "{Person.definition_context.identifier}"]
+    dependencies:
+        - id: openworm/owmeta-core
+          version: 1
+    '''
+    print(descriptor)
+    add_bundle(owm_project, descriptor)
+    # Install once
+    owm_project.sh('owm bundle install person_bundle')
+    owm_project.sh('python query.py')
 
 
 def test_register(owm_project):
@@ -378,8 +397,7 @@ def test_deploy_sftp(owm_project_with_customizations, custom_bundle):
 
 def test_load_from_class_registry_from_conjunctive(custom_bundle):
     '''
-    Test that transitive dependenices shared by multiple bundles are included more than
-    once if there's an exclude that makes one of them different
+    Test that we can load from the class registry for un-imported classes
     '''
     from owmeta_core.dataobject import DataObject
 
