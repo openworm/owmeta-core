@@ -15,7 +15,6 @@ reactions::
     ...                                     Alias)
     >>> from owmeta_core.context import Context
     >>> from owmeta_core.mapper import Mapper
-    >>> from owmeta_core import connect, ModuleRecorder
 
     >>> module_context = 'http://example.com/animals'
 
@@ -36,7 +35,6 @@ reactions::
     # Do some accounting stuff to register the classes. Usually happens behind
     # the scenes.
     >>> m = Mapper()
-    >>> ModuleRecorder.add_listener(m)
     >>> m.process_classes(Drug, Experiment, Dog)
 
 So, we have created I can then make a Drug object for moon rocks and describe an experiment by

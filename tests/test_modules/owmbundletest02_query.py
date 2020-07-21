@@ -10,4 +10,3 @@ with Bundle('person_bundle') as bnd:
         break
     else: # no break
         raise Exception('Expected a result')
-

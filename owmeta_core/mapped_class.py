@@ -52,6 +52,16 @@ class MappedClass(type):
             self.__schema_namespace = R.Namespace(
                 self.base_namespace[self.__name__] + "/")
 
+        self.__rdf_type_object = dct.get('rdf_type_object')
+
+    @property
+    def rdf_type_object(self):
+        return self.__rdf_type_object
+
+    @rdf_type_object.setter
+    def rdf_type_object(self, value):
+        self.__rdf_type_object = value
+
     @property
     def rdf_type(self):
         return self.__rdf_type

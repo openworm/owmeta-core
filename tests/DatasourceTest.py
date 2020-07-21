@@ -1,15 +1,8 @@
 from __future__ import absolute_import
 from __future__ import print_function
 import unittest
-try:
-    from unittest.mock import Mock, MagicMock, ANY, patch
-except ImportError:
-    from mock import Mock, MagicMock, ANY, patch
 
-from rdflib.term import URIRef
-
-from owmeta_core.datasource import Informational, DataSource, DuplicateAlsoException
-from owmeta_core.context_dataobject import ContextDataObject
+from owmeta_core.datasource import Informational, DataSource
 from .DataTestTemplate import _DataTest
 
 
@@ -28,18 +21,22 @@ class InformationalTest(unittest.TestCase):
         self.assertEqual(inf.display_name, 'test')
 
 
+class DS1(DataSource):
+    a = Informational(default_value='A')
+
+
+class DS2(DS1):
+    b = Informational()
+    a = 'D'
+
+
 class DataSourceTest(_DataTest):
+    ctx_classes = [DS1, DS2]
+
     def setUp(self):
         super(DataSourceTest, self).setUp()
-
-        class DS1(DataSource):
-            a = Informational(default_value='A')
-
-        class DS2(DS1):
-            b = Informational()
-            a = 'D'
-        self.DS1 = DS1
-        self.DS2 = DS2
+        self.DS1 = self.ctx.DS1
+        self.DS2 = self.ctx.DS2
 
     def test_subclass_class_assignment_1(self):
         ds1 = self.DS1()
@@ -162,3 +159,5 @@ class DataSourceTest(_DataTest):
             q = Informational(also=self.DS1.a, default_value='Q')
         c = C()
         self.assertEqual(c.a.onedef(), 'Q')
+
+# TODO: Test throwing DuplicateAlsoException

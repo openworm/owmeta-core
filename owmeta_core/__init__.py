@@ -39,20 +39,11 @@ Base directory in the user's profile for owmeta (e.g., shared configuration, bun
 '''
 
 
-def install_module_import_wrapper():
-    global ImportOverrider
-    global ModuleRecorder
-
-    if ImportOverrider is None:
-        ModuleRecorder = MR()
-        ImportOverrider = Overrider(mapper=ModuleRecorder)
-        ImportOverrider.wrap_import()
-    else:
-        LOGGER.info("Import overrider already installed")
-    return ImportOverrider
+ModuleRecorder = MR()
+ImportOverrider = Overrider(ModuleRecorder)
+ImportOverrider.wrap_import()
 
 
-install_module_import_wrapper()
 from .configure import Configurable
 from .context import Context, ClassContext
 

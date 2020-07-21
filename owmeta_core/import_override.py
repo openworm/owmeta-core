@@ -6,18 +6,18 @@ import six
 class Overrider(object):
     instance = None
 
-    def __new__(cls, mapper):
+    def __new__(cls, module_processor):
         if Overrider.instance is not None:
             raise Exception('Only one Overrider should exist. Here it is: {}'.format(Overrider.instance))
 
         Overrider.instance = super(Overrider, cls).__new__(cls)
         return Overrider.instance
 
-    def __init__(self, mapper):
-        if hasattr(self, 'mapper') and self.mapper is not None:
+    def __init__(self, module_processor):
+        if hasattr(self, 'module_processor') and self.module_processor is not None:
             return
 
-        self.mapper = mapper
+        self.module_processor = module_processor
 
         @wrapt.function_wrapper
         def import_wrapper(orig__import__, __, args, kwargs):
@@ -48,7 +48,7 @@ class Overrider(object):
                 else:
                     return mod
 
-            return mb(self.mapper.process_module(module_name=module_name, cb=cb, caller=caller))
+            return mb(self.module_processor.process_module(module_name=module_name, cb=cb, caller=caller))
         self.import_wrapper = import_wrapper
         self.wrapped = None
 

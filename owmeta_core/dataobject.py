@@ -55,6 +55,8 @@ This = object()
         ...     child = ObjectProperty(value_type=This)
 """
 
+_DEFERRED_RDF_TYPE_OBJECT_INIT = []
+
 
 class PropertyProperty(Contextualizable, property):
     def __init__(self, cls=None, *args, cls_thunk=None):
@@ -337,6 +339,11 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
 
         self.__query_form = None
 
+        try:
+            _DEFERRED_RDF_TYPE_OBJECT_INIT.append(self)
+        except NameError:
+            self.init_rdf_type_object()
+
     def contextualize_class_augment(self, context):
         '''
         For MappedClass, rdf_type and rdf_namespace have special behavior where they can
@@ -346,19 +353,13 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
         res = super(ContextMappedClass, self).contextualize_class_augment(context,
                 rdf_type=self.rdf_type,
                 rdf_namespace=self.rdf_namespace,
+                rdf_type_object=self.rdf_type_object,
                 schema_namespace=self.schema_namespace)
         res.__module__ = self.__module__
         return res
 
-    def after_mapper_module_load(self, mapper):
-        '''
-        Called after the module has been loaded. See :class:`owmeta_core.mapper.Mapper`
-        '''
-        self.init_rdf_type_object()
-
     def init_rdf_type_object(self):
-        if not hasattr(self, 'rdf_type_object') or \
-                self.rdf_type_object is not None and self.rdf_type_object.identifier != self.rdf_type:
+        if self.rdf_type_object is None or self.rdf_type_object.identifier != self.rdf_type:
             if self.definition_context is None:
                 raise Exception("The class {0} has no context for TypeDataObject(ident={1})".format(
                     self, self.rdf_type))
@@ -381,6 +382,7 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             meta = type(self)
             self.__query_form = meta(self.__name__, (_QueryMixin, self),
                     dict(rdf_type=self.rdf_type,
+                         rdf_type_object=self.rdf_type_object,
                          rdf_namespace=self.rdf_namespace,
                          schema_namespace=self.schema_namespace))
             self.__query_form.__module__ = self.__module__
@@ -1346,3 +1348,8 @@ class PythonClassDescription(ClassDescription):
     ''' Local name of the class (i.e., relative to the module name) '''
 
     key_properties = (name, 'module')
+
+
+for c in _DEFERRED_RDF_TYPE_OBJECT_INIT:
+    c.init_rdf_type_object()
+del _DEFERRED_RDF_TYPE_OBJECT_INIT
