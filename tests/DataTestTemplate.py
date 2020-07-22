@@ -36,6 +36,7 @@ class _DataTest(unittest.TestCase):
             self.TestConfig['rdf.store_conf'] = h + x
         self.delete_dir()
         self.connection = owmeta_core.connect(conf=self.TestConfig)
+        self.mapper = self.connection.mapper
         self.process_class = self.connection.mapper.process_class
         self.context = Context(ident='http://example.org/test-context',
                                conf=self.TestConfig)

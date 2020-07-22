@@ -6,7 +6,6 @@ import rdflib as R
 
 from .utils import FCN
 from .configure import Configurable
-from .module_recorder import ModuleRecordListener
 
 
 __all__ = ["Mapper",
@@ -30,7 +29,7 @@ class ClassRedefinitionAttempt(Exception):
                     maybe_cls, mapper, cls))
 
 
-class Mapper(ModuleRecordListener, Configurable):
+class Mapper(Configurable):
     '''
     Keeps track of relationships between classes, between modules, and between classes and modules
     '''
@@ -62,6 +61,15 @@ class Mapper(ModuleRecordListener, Configurable):
         if name is None:
             name = hex(id(self))
         self.name = name
+        self._bootstrap_mappings()
+
+    def _bootstrap_mappings(self):
+        from .dataobject import (DataObject, PythonClassDescription, Module, PythonModule,
+                                 RegistryEntry)
+        # Add classes needed for resolving other classes...
+        # XXX: Smells off...probably don't want to have to do this.
+        self.process_classes(DataObject, PythonClassDescription, Module,
+                PythonModule, RegistryEntry)
 
     def decorate_class(self, cls):
         '''

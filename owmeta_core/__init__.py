@@ -25,23 +25,13 @@ BASE_SCHEMA_URL = 'http://schema.openworm.org/2020/07'
 
 # The c extensions are incompatible with our code...
 os.environ['WRAPT_DISABLE_EXTENSIONS'] = '1'
-from .import_override import Overrider
-from .module_recorder import ModuleRecorder as MR
 from .mapper import Mapper
-
-ImportOverrider = None
-ModuleRecorder = None
 
 
 OWMETA_PROFILE_DIR = os.environ.get('OWMETA_PROFILE_DIR', pth_join('~', '.owmeta'))
 '''
 Base directory in the user's profile for owmeta (e.g., shared configuration, bundle cache)
 '''
-
-
-ModuleRecorder = MR()
-ImportOverrider = Overrider(ModuleRecorder)
-ImportOverrider.wrap_import()
 
 
 from .configure import Configurable
@@ -121,7 +111,6 @@ class Connection(object):
         Close the database and stop listening to module loaders
         '''
         self.conf.closeDatabase()
-        ModuleRecorder.remove_listener(self.conf['mapper'])
 
     def __enter__(self):
         return self
@@ -208,7 +197,5 @@ def connect(configFile=None,
     mapper = Mapper()
     conf['mapper'] = mapper
     # An "empty" context, that serves as the default when no context is defined
-
-    ModuleRecorder.add_listener(mapper)
 
     return Connection(conf)

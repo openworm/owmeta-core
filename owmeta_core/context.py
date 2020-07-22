@@ -8,7 +8,6 @@ from rdflib.graph import ConjunctiveGraph
 import wrapt
 from .data import DataUser
 
-from .import_contextualizer import ImportContextualizer
 from .context_store import ContextStore, RDFContextStore
 from .contextualize import (BaseContextualizable,
                             Contextualizable,
@@ -98,7 +97,7 @@ class ContextualizableDataUserMixin(Contextualizable, DataUser):
         super(ContextualizableDataUserMixin, self).conf = conf
 
 
-class Context(six.with_metaclass(ContextMeta, ImportContextualizer,
+class Context(six.with_metaclass(ContextMeta,
                                  ContextualizableDataUserMixin)):
     """
     A context. Analogous to an RDF context, with some special sauce

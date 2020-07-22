@@ -94,9 +94,6 @@ class MappedClass(type):
 
         Registers certain properties of the class
         """
-        self.mapper = mapper
-        L.debug("REGISTERING %s", self.__name__)
-
         return self
 
     def after_mapper_module_load(self, mapper):

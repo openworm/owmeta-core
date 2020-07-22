@@ -72,18 +72,23 @@ def test_translator_list(owm_project):
     with OWM(owmdir=p(owm_project.testdir, '.owm')).connect() as conn:
         with transaction.manager:
             # Create data sources
-            ctx = Context(ident='http://example.org/context', conf=conn.conf)
+            ctx = conn(Context)(ident='http://example.org/context')
             ctx.mapper.process_class(DT1)
 
-            DT1.definition_context.save(conn.conf['rdf.graph'])
+            DT1.definition_context.save(conn.rdf)
+            cr_ctx = conn(Context)(ident='http://example.org/class_registry')
+            cr_ctx(DT1).declare_python_class_registry_entry()
+            cr_ctx(DataTranslator).declare_python_class_registry_entry()
             # Create a translator
             ctx(DT1)()
 
             ctx_id = conn.conf[DEFAULT_CONTEXT_KEY]
-            main_ctx = Context(ident=ctx_id, conf=conn.conf)
+            main_ctx = conn(Context)(ident=ctx_id)
             main_ctx.add_import(ctx)
+            main_ctx.add_import(cr_ctx)
             main_ctx.save_imports()
             ctx.save()
+            cr_ctx.save()
 
     # List translators
     assertRegexpMatches(
@@ -110,6 +115,12 @@ def test_translate_data_source_loader(owm_project):
             print("-------------------------")
             print("DT2.definition_context",
                   DT2.definition_context, id(DT2.definition_context))
+
+            cr_ctx = conn(Context)(ident='http://example.org/class_registry')
+            cr_ctx(DT1).declare_python_class_registry_entry()
+            cr_ctx(DataTranslator).declare_python_class_registry_entry()
+            cr_ctx(LFDS).declare_python_class_registry_entry()
+
             DT2.definition_context.save(conn.rdf)
             print(conn.rdf.serialize(format='nquads').decode('utf-8'))
             print("-------------------------")
@@ -119,8 +130,10 @@ def test_translate_data_source_loader(owm_project):
             main_ctx = Context(ident=ctx_id, conf=conn.conf)
             main_ctx.add_import(ctx)
             main_ctx.add_import(LFDS.definition_context)
+            main_ctx.add_import(cr_ctx)
             main_ctx.save_imports()
             ctx.save()
+            cr_ctx.save()
             print(conn.rdf.serialize(format='nquads').decode('utf-8'))
     owm_project.make_module('tests')
     modpath = owm_project.copy('tests/test_modules', 'tests/test_modules')

@@ -202,6 +202,14 @@ class DataObjectTest(_DataTest):
 
 class ClassRegistryTest(_DataTest):
 
+    def setUp(self):
+        super(ClassRegistryTest, self).setUp()
+        from owmeta_core.dataobject import (PythonModule,
+                                            PythonClassDescription,
+                                            RegistryEntry,
+                                            Module)
+        self.mapper.process_classes(DataObject, PythonClassDescription, Module, PythonModule, RegistryEntry)
+
     def test_load_unloaded_subtype(self):
         '''
         This test actually combines a few different features:
@@ -211,7 +219,6 @@ class ClassRegistryTest(_DataTest):
         from owmeta_core.dataobject import (PythonModule,
                                             PythonClassDescription,
                                             RegistryEntry)
-
         ident = R.URIRef('http://openworm.org/entities/TDO01')
         rdftype = R.RDF['type']
         sc = R.RDFS['subClassOf']

@@ -1,6 +1,6 @@
 from __future__ import print_function
-import rdflib
 import logging
+import rdflib
 
 from .graph_object import (GraphObjectQuerier,
                            ZeroOrMoreTQLayer)
