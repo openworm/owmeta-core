@@ -4,6 +4,7 @@ import logging
 
 import rdflib as R
 
+from .dataobject import DataObject, RegistryEntry, PythonClassDescription, PythonModule
 from .utils import FCN
 from .configure import Configurable
 
@@ -64,8 +65,8 @@ class Mapper(Configurable):
         self._bootstrap_mappings()
 
     def _bootstrap_mappings(self):
-        from .dataobject import (DataObject, PythonClassDescription, Module, PythonModule,
-                                 RegistryEntry)
+        from .dataobject import Module
+
         # Add classes needed for resolving other classes...
         # XXX: Smells off...probably don't want to have to do this.
         self.process_classes(DataObject, PythonClassDescription, Module,
@@ -136,6 +137,85 @@ class Mapper(Configurable):
                 if m:
                     break
         return m
+
+    @property
+    def class_registry_context(self):
+        try:
+            return self.conf['mapper.class_registry_context']
+        except KeyError:
+            raise AttributeError('class_registry_context')
+
+    def _check_is_good_class_registry(self, cls):
+        module = IM.import_module(cls.__module__)
+        if hasattr(module, cls.__name__):
+            return
+
+        ymc = getattr(module, '__yarom_mapped_classes__', None)
+        if ymc and cls in ymc:
+            return
+
+        L.warning('While saving the registry entry of {}, we found that its'
+                  ' module, {}, does not have "{}" in its'
+                  ' namespace'.format(cls, cls.__module__, cls.__name__))
+
+    def save_class_registry(self):
+        self.class_registry_context.save()
+
+    def declare_python_class_registry_entry(self, *classes):
+        for cls in classes:
+            self._check_is_good_class_registry(cls)
+            cr_ctx = self.class_registry_context
+            re = RegistryEntry.contextualize(cr_ctx)()
+            cd = PythonClassDescription.contextualize(cr_ctx)()
+
+            mo = PythonModule.contextualize(cr_ctx)()
+            mo.name(cls.__module__)
+
+            cd.module(mo)
+            cd.name(cls.__name__)
+
+            re.rdf_class(cls.rdf_type)
+            re.class_description(cd)
+            cr_ctx.add_import(cls.definition_context)
+
+    def resolve_class(self, uri):
+        # look up the class in the registryCache
+        c = self.RDFTypeTable.get(uri)
+
+        if c is None:
+            # otherwise, attempt to load into the cache by
+            # reading the RDF graph.
+            from owmeta_core.dataobject import PythonClassDescription, RegistryEntry
+            cr_ctx = self.class_registry_context.stored
+
+            re = cr_ctx(RegistryEntry)()
+            re.rdf_class(uri)
+            cd = cr_ctx(PythonClassDescription)()
+            re.class_description(cd)
+
+            for cd_l in cd.load():
+                class_name = cd_l.name()
+                moddo = cd_l.module()
+                try:
+                    mod = self.load_module(moddo.name())
+                except ModuleNotFoundError:
+                    L.warn('Did not find module %s', moddo.name())
+                    continue
+                c = getattr(mod, class_name, None)
+                if c is None:
+                    ymc = getattr(mod, '__yarom_mapped_classes__', None)
+                    if ymc:
+                        matching_classes = tuple(mc for mc in ymc
+                                                 if mc.__name__ == class_name)
+                        if matching_classes:
+                            c = matching_classes[0]
+                        if len(matching_classes) > 1:
+                            L.warning('More than one class has the same name in'
+                                    ' __yarom_mapped_classes__ for %s, so we are picking'
+                                    ' the first one as the resolved class among %s',
+                                    mod, matching_classes)
+                break
+        return c
 
     def load_class(self, cname_or_mname, cnames=None):
         if cnames:
@@ -225,20 +305,6 @@ class _ClassOrderable(object):
         elif issubclass(scls, ocls) == issubclass(ocls, scls):
             res = scls.__name__ < ocls.__name__
         return res
-
-
-def mapped(cls):
-    '''
-    A decorator for declaring that a class is 'mapped'. This is required for Mapper to
-    find the class
-    '''
-    module = IM.import_module(cls.__module__)
-    if not hasattr(module, '__yarom_mapped_classes__'):
-        module.__yarom_mapped_classes__ = [cls]
-    else:
-        module.__yarom_mapped_classes__.append(cls)
-
-    return cls
 
 
 def parents_str(cls):

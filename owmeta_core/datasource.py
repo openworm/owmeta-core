@@ -12,7 +12,6 @@ from . import BASE_CONTEXT
 from .utils import FCN
 from .context import Context
 from .dataobject import DataObject, ObjectProperty, This
-from .mapper import mapped
 
 L = logging.getLogger(__name__)
 
@@ -145,7 +144,6 @@ class DataSourceType(type(DataObject)):
         return self.__info_fields
 
 
-@mapped
 class DataSource(six.with_metaclass(DataSourceType, DataObject)):
     '''
     A source for data that can get translated into owmeta_core objects.
@@ -284,7 +282,6 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
             return res
 
 
-@mapped
 class Translation(DataObject):
     """
     Representation of the method by which a DataSource was translated and
@@ -304,7 +301,6 @@ class Translation(DataObject):
         return self.make_identifier(self.translator.onedef().identifier.n3())
 
 
-@mapped
 class GenericTranslation(Translation):
     """
     A generic translation that just has sources in order
@@ -351,7 +347,6 @@ class GenericTranslation(Translation):
         return sio.getvalue()
 
 
-@mapped
 class DataObjectContextDataSource(DataSource):
 
     class_context = BASE_CONTEXT
@@ -385,7 +380,6 @@ class DataTransatorType(type(DataObject)):
                                                 self.translator_identifier)
 
 
-@mapped
 class BaseDataTranslator(six.with_metaclass(DataTransatorType, DataObject)):
     """ Translates from a data source to owmeta_core objects """
 
@@ -459,7 +453,6 @@ class OneOrMore(object):
         return FCN(type(self)) + '(' + repr(self.source_type) + ')'
 
 
-@mapped
 class DataTranslator(BaseDataTranslator):
     """
     A specialization with the :class:`GenericTranslation` translation type that adds
@@ -477,7 +470,6 @@ class DataTranslator(BaseDataTranslator):
         return res
 
 
-@mapped
 class PersonDataTranslator(BaseDataTranslator):
     """
     A person who was responsible for carrying out the translation of a data source

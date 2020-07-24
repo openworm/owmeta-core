@@ -25,7 +25,6 @@ BASE_SCHEMA_URL = 'http://schema.openworm.org/2020/07'
 
 # The c extensions are incompatible with our code...
 os.environ['WRAPT_DISABLE_EXTENSIONS'] = '1'
-from .mapper import Mapper
 
 
 OWMETA_PROFILE_DIR = os.environ.get('OWMETA_PROFILE_DIR', pth_join('~', '.owmeta'))
@@ -35,7 +34,7 @@ Base directory in the user's profile for owmeta (e.g., shared configuration, bun
 
 
 from .configure import Configurable
-from .context import Context, ClassContext
+from .context import Context, ClassContext, CLASS_REGISTRY_CONTEXT_KEY
 
 __all__ = [
     "get_data",
@@ -170,6 +169,7 @@ def connect(configFile=None,
         connection wrapping the configuration
     """
     from .data import Data, DatabaseConflict
+    from .mapper import Mapper
 
     if configFile is not None and not isinstance(configFile, str):
         conf = configFile
@@ -194,8 +194,10 @@ def connect(configFile=None,
 
     # Base class names is empty because we won't be adding any objects to the
     # context automatically
-    mapper = Mapper()
+    mapper = Mapper(conf=conf)
     conf['mapper'] = mapper
+    conf['mapper.class_registry_context'] = Context(conf.get(CLASS_REGISTRY_CONTEXT_KEY, None), conf=conf)
+    conf['mapper.class_registry_context'].add_import(BASE_CONTEXT)
     # An "empty" context, that serves as the default when no context is defined
 
     return Connection(conf)

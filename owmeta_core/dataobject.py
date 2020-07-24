@@ -15,7 +15,6 @@ from .contextualize import (Contextualizable,
                             decontextualize_helper)
 from .context import ContextualizableDataUserMixin, ClassContext, Context
 from .context_mapped_class_util import find_class_context, find_base_namespace
-from .mapper import mapped
 
 from .graph_object import (GraphObject,
                            ComponentTripler,
@@ -388,33 +387,6 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             self.__query_form.__module__ = self.__module__
         return self.__query_form
 
-    def _check_is_good_class_registry(self):
-        module = import_module(self.__module__)
-        if hasattr(module, self.__name__):
-            return
-
-        ymc = getattr(module, '__yarom_mapped_classes__', None)
-        if ymc and self in ymc:
-            return
-
-        L.warning('While saving the registry entry of {}, we found that its'
-                  ' module, {}, does not have "{}" in its'
-                  ' namespace'.format(self, self.__module__, self.__name__))
-
-    def declare_python_class_registry_entry(self):
-        self._check_is_good_class_registry()
-        re = RegistryEntry.contextualize(self.context)()
-        cd = PythonClassDescription.contextualize(self.context)()
-
-        mo = PythonModule.contextualize(self.context)()
-        mo.name(self.__module__)
-
-        cd.module(mo)
-        cd.name(self.__name__)
-
-        re.rdf_class(self.rdf_type)
-        re.class_description(cd)
-
     def __call__(self, *args, **kwargs):
         o = super(ContextMappedClass, self).__call__(*args, **kwargs)
 
@@ -524,7 +496,6 @@ class ContextFilteringList(Contextualizable, set):
         return set(super(ContextFilteringList, self).__iter__())
 
 
-@mapped
 class BaseDataObject(six.with_metaclass(ContextMappedClass,
                                         IdMixin(hashfunc=hashlib.md5),
                                         GraphObject,
@@ -1091,7 +1062,6 @@ class RDFTypeProperty(SP.ObjectProperty):
     lazy = False
 
 
-@mapped
 class RDFSClass(BaseDataObject):
     """ The GraphObject corresponding to rdfs:Class """
 
@@ -1112,7 +1082,6 @@ class RDFSClass(BaseDataObject):
         return cls.instance
 
 
-@mapped
 class RDFSSubClassOfProperty(SP.ObjectProperty):
     class_context = 'http://www.w3.org/2000/01/rdf-schema'
     link = R.RDFS.subClassOf
@@ -1123,7 +1092,6 @@ class RDFSSubClassOfProperty(SP.ObjectProperty):
     lazy = False
 
 
-@mapped
 class TypeDataObject(BaseDataObject):
     class_context = URIRef(BASE_SCHEMA_URL)
 
@@ -1164,7 +1132,6 @@ class DataObjectSingleton(six.with_metaclass(DataObjectSingletonMeta, BaseDataOb
         return cls.instance
 
 
-@mapped
 class PropertyDataObject(BaseDataObject):
     """ A PropertyDataObject represents the property-as-object.
 
@@ -1174,7 +1141,6 @@ class PropertyDataObject(BaseDataObject):
     class_context = 'http://www.w3.org/1999/02/22-rdf-syntax-ns'
 
 
-@mapped
 class RDFSCommentProperty(SP.DatatypeProperty):
     '''
     Corresponds to the rdfs:comment predicate
@@ -1187,7 +1153,6 @@ class RDFSCommentProperty(SP.DatatypeProperty):
     lazy = True
 
 
-@mapped
 class RDFSLabelProperty(SP.DatatypeProperty):
     '''
     Corresponds to the rdfs:label predicate
@@ -1200,7 +1165,6 @@ class RDFSLabelProperty(SP.DatatypeProperty):
     lazy = True
 
 
-@mapped
 class DataObject(BaseDataObject):
     '''
     An object that can be mapped to an RDF graph
@@ -1210,7 +1174,6 @@ class DataObject(BaseDataObject):
     rdfs_label = CPThunk(RDFSLabelProperty)
 
 
-@mapped
 class RDFProperty(DataObjectSingleton):
     """ The `DataObject` corresponding to rdf:Property """
     rdf_type = R.RDF['Property']
@@ -1227,7 +1190,6 @@ def disconnect():
     PropertyTypes.clear()
 
 
-@mapped
 class ModuleAccessor(DataObject):
     '''
     Describes how to access a module.
@@ -1238,7 +1200,6 @@ class ModuleAccessor(DataObject):
     class_context = BASE_SCHEMA_URL
 
 
-@mapped
 class Package(DataObject):
     ''' Describes an idealized software package identifiable by a name and version number '''
     class_context = BASE_SCHEMA_URL
@@ -1250,7 +1211,6 @@ class Package(DataObject):
     ''' The version of the package '''
 
 
-@mapped
 class Module(DataObject):
     '''
     Represents a module of code
@@ -1269,7 +1229,6 @@ class Module(DataObject):
     ''' Package that provides the module '''
 
 
-@mapped
 class ClassDescription(DataObject):
     '''
     Describes a class in the programming language
@@ -1280,7 +1239,6 @@ class ClassDescription(DataObject):
     ''' The module the class belongs to '''
 
 
-@mapped
 class RegistryEntry(DataObject):
     '''
     A mapping from a class in the programming language to an RDF class.
@@ -1308,14 +1266,12 @@ class RegistryEntry(DataObject):
                                     self.rdf_class.defined_values[0].identifier.n3())
 
 
-@mapped
 class PythonPackage(Package):
     ''' A Python package '''
     class_context = BASE_SCHEMA_URL
     key_properties = ('name', 'version')
 
 
-@mapped
 class PythonModule(Module):
     '''
     A Python module
@@ -1328,7 +1284,6 @@ class PythonModule(Module):
     key_property = dict(name='name', type='direct')
 
 
-@mapped
 class PIPInstall(ModuleAccessor):
     '''
     Describes a `pip install` command line
@@ -1340,7 +1295,6 @@ class PIPInstall(ModuleAccessor):
     version = DatatypeProperty()
 
 
-@mapped
 class PythonClassDescription(ClassDescription):
     '''
     Description for a Python class

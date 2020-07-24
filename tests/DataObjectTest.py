@@ -209,6 +209,11 @@ class ClassRegistryTest(_DataTest):
                                             RegistryEntry,
                                             Module)
         self.mapper.process_classes(DataObject, PythonClassDescription, Module, PythonModule, RegistryEntry)
+        mod = import_module('tests.DataObjectTest')
+        try:
+            delattr(mod, '__yarom_mapped_classes__')
+        except AttributeError:
+            pass
 
     def test_load_unloaded_subtype(self):
         '''
@@ -248,7 +253,7 @@ class ClassRegistryTest(_DataTest):
 
         class A(DataObject):
             class_context = self.context
-        self.context.mapper.process_class(A)
+        self.mapper.process_class(A)
 
         self.context.add_import(BASE_CONTEXT)
         m = self.context(Context)(ident='http://example.org/ctx', imported=(self.context,))
@@ -263,11 +268,11 @@ class ClassRegistryTest(_DataTest):
 
     def test_warning_for_class_not_in_module_dict(self):
         class A(DataObject):
+            unmapped = True
             class_context = self.context
 
         with captured_logging() as logs:
-            self.context.mapper.process_class(A)
-            self.context(A).declare_python_class_registry_entry()
+            self.mapper.declare_python_class_registry_entry(A)
             log = logs.getvalue()
             self.assertRegexpMatches(log, 'registry')
             self.assertRegexpMatches(log, 'tests.DataObjectTest')
@@ -281,7 +286,7 @@ class ClassRegistryTest(_DataTest):
             mod = import_module('tests.DataObjectTest')
             mod.__yarom_mapped_classes__ = (A,)
             try:
-                self.context.mapper.process_class(A)
+                self.mapper.process_class(A)
                 log = logs.getvalue()
                 self.assertNotRegexpMatches(log, 'registry')
             finally:
@@ -294,15 +299,16 @@ class ClassRegistryTest(_DataTest):
 
         # given
         mod = import_module('tests.DataObjectTest')
-        self.context.mapper.process_class(A)
-        self.context(A).declare_python_class_registry_entry()
+        self.mapper.process_class(A)
+        self.mapper.declare_python_class_registry_entry(A)
+        self.mapper.class_registry_context.save()
 
         mod.__yarom_mapped_classes__ = (A,)
 
         # when
         try:
-            del self.context.mapper.RDFTypeTable[A.rdf_type]
-            res = self.context.resolve_class(A.rdf_type)
+            del self.mapper.RDFTypeTable[A.rdf_type]
+            res = self.mapper.resolve_class(A.rdf_type)
             # then
             self.assertIsNotNone(res)
         finally:
@@ -314,33 +320,35 @@ class ClassRegistryTest(_DataTest):
             rdf_type = R.URIRef('http://example.org/A')
 
         # given
-        self.context.mapper.process_class(A)
+        self.mapper.process_class(A)
 
         import_module('tests.DataObjectTest')
 
         # when
-        del self.context.mapper.RDFTypeTable[A.rdf_type]
+        del self.mapper.RDFTypeTable[A.rdf_type]
 
         # then
         self.assertIsNone(self.context.resolve_class(A.rdf_type))
 
     def test_resolve_class_multiple_entries_in_ymc(self):
         class A(DataObject):
+            unmapped = True
             class_context = self.context
-            rdf_type = R.URIRef('http://example.org/A')
+            rdf_type = R.URIRef('http://example.org/A0')
+
+        # given
+        mod = import_module('tests.DataObjectTest')
+        self.mapper.process_class(A)
+        self.mapper.declare_python_class_registry_entry(A)
+        self.mapper.class_registry_context.save()
+
+        mod.__yarom_mapped_classes__ = (A, A)
 
         with captured_logging() as logs:
-            # given
-            mod = import_module('tests.DataObjectTest')
-            self.context.mapper.process_class(A)
-            self.context(A).declare_python_class_registry_entry()
-
-            mod.__yarom_mapped_classes__ = (A, A)
-
             # when
             try:
-                del self.context.mapper.RDFTypeTable[A.rdf_type]
-                self.context.resolve_class(A.rdf_type)
+                del self.mapper.RDFTypeTable[A.rdf_type]
+                self.mapper.resolve_class(A.rdf_type)
                 # then
                 self.assertRegexpMatches(logs.getvalue(), r'More than one.*__yarom_mapped_classes__')
             finally:

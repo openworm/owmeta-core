@@ -6,14 +6,12 @@ from rdflib.namespace import Namespace
 
 from .. import BASE_CONTEXT
 from ..datasource import Informational, DataTranslator
-from ..mapper import mapped
 
 from .common_data import DS_NS
 from .local_file_ds import LocalFileDataSource
 from .http_ds import HTTPFileDataSource
 
 
-@mapped
 class CSVDataSource(LocalFileDataSource):
     '''
     A CSV file data source
@@ -31,7 +29,6 @@ class CSVDataSource(LocalFileDataSource):
     csv_field_delimiter = Informational(display_name='CSV field delimiter')
 
 
-@mapped
 class CSVHTTPFileDataSource(HTTPFileDataSource):
     '''
     A CSV file retrieved over HTTP
@@ -46,7 +43,6 @@ class CSVHTTPFileDataSource(HTTPFileDataSource):
     csv_field_delimiter = Informational(display_name='CSV field delimiter')
 
 
-@mapped
 class CSVDataTranslator(DataTranslator):
     '''
     A data translator which handles CSV files

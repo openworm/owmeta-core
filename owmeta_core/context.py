@@ -316,6 +316,7 @@ class Context(six.with_metaclass(ContextMeta,
                 ctx.save_context(graph, inline_imports, autocommit=False,
                         saved_contexts=saved_contexts)
 
+        # XXX: Why is this here....?
         if hasattr(graph, 'bind') and self.mapper is not None:
             for c in self.mapper.mapped_classes():
                 if hasattr(c, 'rdf_namespace'):
@@ -627,37 +628,7 @@ class Context(six.with_metaclass(ContextMeta,
         # look up the class in the registryCache
         if self.mapper is None:
             return None
-        c = self.mapper.RDFTypeTable.get(uri)
-
-        if c is None:
-            # otherwise, attempt to load into the cache by
-            # reading the RDF graph.
-            from owmeta_core.dataobject import PythonClassDescription, RegistryEntry
-
-            re = self(RegistryEntry)()
-            re.rdf_class(uri)
-            cd = self(PythonClassDescription)()
-            re.class_description(cd)
-
-            for cd_l in cd.load():
-                class_name = cd_l.name()
-                moddo = cd_l.module()
-                mod = self.mapper.load_module(moddo.name())
-                c = getattr(mod, class_name, None)
-                if c is None:
-                    ymc = getattr(mod, '__yarom_mapped_classes__', None)
-                    if ymc:
-                        matching_classes = tuple(mc for mc in ymc
-                                                 if mc.__name__ == class_name)
-                        if matching_classes:
-                            c = matching_classes[0]
-                        if len(matching_classes) > 1:
-                            L.warning('More than one class has the same name in'
-                                    ' __yarom_mapped_classes__ for %s, so we are picking'
-                                    ' the first one as the resolved class among %s',
-                                    mod, matching_classes)
-                break
-        return c
+        return self.mapper.resolve_class(uri)
 
 
 class QueryContext(Context):

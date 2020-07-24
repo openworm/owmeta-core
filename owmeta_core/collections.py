@@ -1,9 +1,7 @@
 from . import BASE_SCHEMA_URL
-from .mapper import mapped
 from .dataobject import DataObject, DatatypeProperty, UnionProperty, Alias
 
 
-@mapped
 class Bag(DataObject):
 
     """

@@ -1,8 +1,6 @@
-from owmeta_core.mapper import mapped
 from owmeta_core.dataobject import DataObject, DatatypeProperty
 
 
-@mapped
 class Monkey(DataObject):
     class_context = 'http://example.org/primate/monkey'
 
@@ -15,7 +13,6 @@ class Monkey(DataObject):
         return True
 
 
-@mapped
 class Giraffe(DataObject):
     class_context = 'http://example.org/ungulate/giraffe'
 

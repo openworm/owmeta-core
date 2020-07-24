@@ -3,12 +3,10 @@ from rdflib.namespace import Namespace
 
 from .. import BASE_CONTEXT
 from ..datasource import Informational, DataSource
-from ..mapper import mapped
 
 from .common_data import DS_NS
 
 
-@mapped
 class FileDataSource(DataSource):
 
     class_context = BASE_CONTEXT

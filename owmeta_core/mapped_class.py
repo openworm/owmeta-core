@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import logging
+import importlib as IM
 
 import six
 import rdflib as R
@@ -17,11 +18,6 @@ class MappedClass(type):
     def __init__(self, name, bases, dct):
         L.debug("INITIALIZING %s", name)
         super(MappedClass, self).__init__(name, bases, dct)
-        if 'auto_mapped' in dct:
-            self.mapped = True
-        else:
-            self.mapped = False
-
         self.__rdf_type = None
         # Set the rdf_type early
         if 'rdf_type' in dct:
@@ -53,6 +49,13 @@ class MappedClass(type):
                 self.base_namespace[self.__name__] + "/")
 
         self.__rdf_type_object = dct.get('rdf_type_object')
+
+        if not getattr(self, 'unmapped', False) and not dct.get('unmapped'):
+            module = IM.import_module(self.__module__)
+            if not hasattr(module, '__yarom_mapped_classes__'):
+                module.__yarom_mapped_classes__ = [self]
+            else:
+                module.__yarom_mapped_classes__.append(self)
 
     @property
     def rdf_type_object(self):

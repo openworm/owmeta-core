@@ -4,7 +4,6 @@ from rdflib.namespace import Namespace
 from .. import BASE_CONTEXT
 from ..context import Context
 from ..context_dataobject import ContextDataObject
-from ..mapper import mapped
 
 
 class VariableIdentifierMixin(object):
@@ -57,7 +56,6 @@ class VariableIdentifierContext(VariableIdentifierMixin, Context):
         return self._rdf_object.contextualize(self.context)
 
 
-@mapped
 class VariableIdentifierContextDataObject(VariableIdentifierMixin, ContextDataObject):
     '''
     A ContextDataObject that gets its identifier and its configuration from its 'maker'

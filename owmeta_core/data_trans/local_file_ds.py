@@ -6,13 +6,11 @@ from .. import BASE_CONTEXT
 from ..datasource import Informational
 from ..capability import Capable, NoProviderGiven
 from ..capabilities import FilePathCapability
-from ..mapper import mapped
 
 from .file_ds import FileDataSource
 from .common_data import DS_NS
 
 
-@mapped
 class LocalFileDataSource(Capable, FileDataSource):
     '''
     File paths should be relative -- in general, path names on a given machine are not portable

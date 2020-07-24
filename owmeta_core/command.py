@@ -24,7 +24,7 @@ from tempfile import TemporaryDirectory
 
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
                            DEFAULT_OWM_DIR)
-from . import connect, OWMETA_PROFILE_DIR, BASE_CONTEXT
+from . import connect, OWMETA_PROFILE_DIR
 from .commands.bundle import OWMBundle
 from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
                       CLASS_REGISTRY_CONTEXT_KEY)
@@ -787,19 +787,10 @@ class OWM(object):
                 @wraps(prov)
                 def save_classes(ns):
                     mapper = conf['mapper']
+                    ns.include_context(mapper.class_registry_context)
                     mapper.process_module(module, mod)
-                    try:
-                        class_registry_id = conf[CLASS_REGISTRY_CONTEXT_KEY]
-                    except KeyError:
-                        raise GenericUserError('Configuration missing class registry.'
-                                ' Unable to save class registry entries')
-                    regctx = ns.new_context(class_registry_id)
-                    ns.include_context(regctx)
-                    ns.context.add_import(regctx)
-                    regctx.add_import(BASE_CONTEXT)
+                    mapper.declare_python_class_registry_entry(*mapped_classes)
                     for mapped_class in mapped_classes:
-                        regctx(mapped_class).declare_python_class_registry_entry()
-                        regctx.add_import(mapped_class.definition_context)
                         ns.include_context(mapped_class.definition_context)
                     orig_prov(ns)
                 prov = save_classes
