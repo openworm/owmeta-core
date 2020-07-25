@@ -175,7 +175,9 @@ class RDFContextStore(Store):
                 # case though if self.__include_imports is True, we could have an empty
                 # set of imports => we query against everything
                 self.__context_transitive_imports = set([self.__context.identifier])
-            self.__context_transitive_imports.add(getattr(self.__imports_graph, 'identifier', self.__imports_graph))
+            imports_id = getattr(self.__imports_graph, 'identifier', self.__imports_graph)
+            if imports_id is not None:
+                self.__context_transitive_imports.add(imports_id)
 
     def triples(self, pattern, context=None):
         self.__init_contexts()
