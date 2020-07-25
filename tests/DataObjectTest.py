@@ -2,15 +2,24 @@ from __future__ import absolute_import
 from __future__ import print_function
 
 from importlib import import_module
+import re
 import unittest
+import warnings
+
 import rdflib as R
 import six
-import warnings
 
 from owmeta_core import BASE_CONTEXT
 from owmeta_core.graph_object import IdentifierMissingException
 from owmeta_core.data import DataUser
-from owmeta_core.dataobject import DataObject, ObjectProperty, DatatypeProperty, _partial_property
+from owmeta_core.dataobject import (DataObject,
+                                    ObjectProperty,
+                                    DatatypeProperty,
+                                    _partial_property,
+                                    PythonModule,
+                                    PythonClassDescription,
+                                    RegistryEntry,
+                                    Module)
 from owmeta_core.context import Context
 from owmeta_core.rdf_query_util import get_most_specific_rdf_type
 from owmeta_core.utils import FCN
@@ -204,10 +213,6 @@ class ClassRegistryTest(_DataTest):
 
     def setUp(self):
         super(ClassRegistryTest, self).setUp()
-        from owmeta_core.dataobject import (PythonModule,
-                                            PythonClassDescription,
-                                            RegistryEntry,
-                                            Module)
         self.mapper.process_classes(DataObject, PythonClassDescription, Module, PythonModule, RegistryEntry)
         mod = import_module('tests.DataObjectTest')
         try:
@@ -221,9 +226,6 @@ class ClassRegistryTest(_DataTest):
             - loading a module from a ClassDescription
             - resolving subclasses from superclasses
         '''
-        from owmeta_core.dataobject import (PythonModule,
-                                            PythonClassDescription,
-                                            RegistryEntry)
         ident = R.URIRef('http://openworm.org/entities/TDO01')
         rdftype = R.RDF['type']
         sc = R.RDFS['subClassOf']
@@ -232,10 +234,14 @@ class ClassRegistryTest(_DataTest):
         pcd = R.URIRef('http://example.com/pycd')
         re = R.URIRef('http://example.com/re')
         g = R.ConjunctiveGraph()
+        crctx = g.get_context(self.mapper.class_registry_context.identifier)
         ctx = g.get_context(self.context.identifier)
         self.TestConfig['rdf.graph'] = g
         trips = [(ident, rdftype, tdo),
-                 (tdo, sc, DataObject.rdf_type),
+                 (tdo, sc, DataObject.rdf_type)]
+        for tr in trips:
+            ctx.add(tr)
+        trips = [(tdo, sc, DataObject.rdf_type),
                  (pm, rdftype, PythonModule.rdf_type),
                  (pm, PythonModule.name.link, R.Literal('tests.tmod.tdo')),
                  (pcd, PythonClassDescription.name.link, R.Literal('TDO')),
@@ -245,7 +251,7 @@ class ClassRegistryTest(_DataTest):
                  (re, RegistryEntry.rdf_class.link, tdo),
                  (re, RegistryEntry.class_description.link, pcd)]
         for tr in trips:
-            ctx.add(tr)
+            crctx.add(tr)
         o = list(self.context.stored(DataObject)(ident=ident).load())
         self.assertEqual('tests.tmod.tdo.TDO', FCN(type(o[0])))
 
@@ -353,6 +359,124 @@ class ClassRegistryTest(_DataTest):
                 self.assertRegexpMatches(logs.getvalue(), r'More than one.*__yarom_mapped_classes__')
             finally:
                 delattr(mod, '__yarom_mapped_classes__')
+
+
+class ClassRegistryMissingModuleTest(_DataTest):
+    def setUp(self):
+        super(ClassRegistryMissingModuleTest, self).setUp()
+        self.mapper.process_classes(DataObject, PythonClassDescription, Module, PythonModule, RegistryEntry)
+        mod = import_module('tests.DataObjectTest')
+        try:
+            delattr(mod, '__yarom_mapped_classes__')
+        except AttributeError:
+            pass
+        ident = R.URIRef('http://openworm.org/entities/TDO01')
+        rdftype = R.RDF['type']
+        sc = R.RDFS['subClassOf']
+        tdo = R.URIRef('http://openworm.org/entities/TDO')
+        pm = R.URIRef('http://example.com/pymod')
+        pcd = R.URIRef('http://example.com/pycd')
+        re = R.URIRef('http://example.com/re')
+        g = R.ConjunctiveGraph()
+        crctx = g.get_context(self.mapper.class_registry_context.identifier)
+        ctx = g.get_context(self.context.identifier)
+        self.TestConfig['rdf.graph'] = g
+        trips = [(ident, rdftype, tdo),
+                 (tdo, sc, DataObject.rdf_type)]
+        for tr in trips:
+            ctx.add(tr)
+        trips = [(tdo, sc, DataObject.rdf_type),
+                 (pm, rdftype, PythonModule.rdf_type),
+                 (pm, PythonModule.name.link, R.Literal('this.module.does.not.exist')),
+                 (pcd, PythonClassDescription.name.link, R.Literal('TDO')),
+                 (pcd, rdftype, PythonClassDescription.rdf_type),
+                 (pcd, PythonClassDescription.module.link, pm),
+                 (re, rdftype, RegistryEntry.rdf_type),
+                 (re, RegistryEntry.rdf_class.link, tdo),
+                 (re, RegistryEntry.class_description.link, pcd)]
+        for tr in trips:
+            crctx.add(tr)
+        self.ident = ident
+
+    def test_resolves_dataobject(self):
+        o = list(self.context.stored(DataObject)(ident=self.ident).load())
+        self.assertEqual(FCN(DataObject), FCN(type(o[0])))
+
+    def test_warns(self):
+        with captured_logging() as logs:
+            list(self.context.stored(DataObject)(ident=self.ident).load())
+            self.assertRegexpMatches(logs.getvalue(), r'Did not find module this.module.does.not.exist')
+
+
+sc = R.RDFS['subClassOf']
+rdftype = R.RDF['type']
+tdo = R.URIRef('http://openworm.org/entities/TDO')
+pm = R.URIRef('http://example.com/pymod')
+pcd = R.URIRef('http://example.com/pycd')
+re0 = R.URIRef('http://example.com/re0')
+
+
+class ClassRegistryMissingClassTest(_DataTest):
+    def setUp(self):
+        super(ClassRegistryMissingClassTest, self).setUp()
+        self.mapper.process_classes(DataObject, PythonClassDescription, Module, PythonModule, RegistryEntry)
+        mod = import_module('tests.DataObjectTest')
+        try:
+            delattr(mod, '__yarom_mapped_classes__')
+        except AttributeError:
+            pass
+        ident = R.URIRef('http://openworm.org/entities/TDO01')
+        g = R.ConjunctiveGraph()
+        self.crctx = g.get_context(self.mapper.class_registry_context.identifier)
+        ctx = g.get_context(self.context.identifier)
+        self.TestConfig['rdf.graph'] = g
+        trips = [(ident, rdftype, tdo),
+                 (tdo, sc, DataObject.rdf_type)]
+        for tr in trips:
+            ctx.add(tr)
+        trips = [(tdo, sc, DataObject.rdf_type),
+                 (pm, rdftype, PythonModule.rdf_type),
+                 (pm, PythonModule.name.link, R.Literal('tests.tmod.tdo')),
+                 (pcd, PythonClassDescription.name.link, R.Literal('NotTDO')),
+                 (pcd, rdftype, PythonClassDescription.rdf_type),
+                 (pcd, PythonClassDescription.module.link, pm),
+                 (re0, rdftype, RegistryEntry.rdf_type),
+                 (re0, RegistryEntry.rdf_class.link, tdo),
+                 (re0, RegistryEntry.class_description.link, pcd)]
+        for tr in trips:
+            self.crctx.add(tr)
+        self.ident = ident
+
+    def test_resolves_dataobject(self):
+        o = list(self.context.stored(DataObject)(ident=self.ident).load())
+        self.assertEqual(FCN(DataObject), FCN(type(o[0])))
+
+    def test_warns(self):
+        with captured_logging() as logs:
+            list(self.context.stored(DataObject)(ident=self.ident).load())
+            self.assertRegexpMatches(logs.getvalue(),
+                    re.compile(r'Did not find class NotTDO in tests.tmod.tdo$',
+                        flags=re.MULTILINE))
+
+    def test_warns_ymc(self):
+        with captured_logging() as logs:
+            list(self.context.stored(DataObject)(ident=self.ident).load())
+            self.assertRegexpMatches(logs.getvalue(),
+                    r'Did not find class NotTDO in tests.tmod.tdo.__yarom_mapped_classes__')
+
+    def test_failover(self):
+        pcd0 = R.URIRef('http://example.com/pycd0')
+        re1 = R.URIRef('http://example.com/re1')
+        trips = [(pcd0, PythonClassDescription.name.link, R.Literal('TDO')),
+                 (pcd0, rdftype, PythonClassDescription.rdf_type),
+                 (pcd0, PythonClassDescription.module.link, pm),
+                 (re1, rdftype, RegistryEntry.rdf_type),
+                 (re1, RegistryEntry.rdf_class.link, tdo),
+                 (re1, RegistryEntry.class_description.link, pcd0)]
+        for tr in trips:
+            self.crctx.add(tr)
+        o = list(self.context.stored(DataObject)(ident=self.ident).load())
+        self.assertEqual('tests.tmod.tdo.TDO', FCN(type(o[0])))
 
 
 class KeyPropertiesTest(_DataTest):

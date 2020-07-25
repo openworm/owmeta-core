@@ -6,8 +6,10 @@ import rdflib
 from rdflib.term import Variable, URIRef
 from rdflib.graph import ConjunctiveGraph
 import wrapt
+
 from .data import DataUser
 
+from .context_common import CONTEXT_IMPORTS
 from .context_store import ContextStore, RDFContextStore
 from .contextualize import (BaseContextualizable,
                             Contextualizable,
@@ -37,6 +39,7 @@ The imports context holds the relationships between contexts, especially the imp
 relationship
 '''
 
+# TODO: Move this into mapper or a new mapper_common module
 CLASS_REGISTRY_CONTEXT_KEY = 'class_registry_context_id'
 '''
 Configuration file key for the URI of the class registry RDF graph context.
@@ -143,11 +146,19 @@ class Context(six.with_metaclass(ContextMeta,
         if mapper is None:
             mapper = self.conf.get('mapper', None)
 
-        self.mapper = mapper
+        self.__mapper = mapper
         self.base_namespace = base_namespace
 
         self._change_counter = 0
         self._triples_saved = 0
+
+    @property
+    def mapper(self):
+        if self.__mapper is None:
+            from .mapper import Mapper
+            self.__mapper = Mapper(conf=self.conf)
+
+        return self.__mapper
 
     def contents(self):
         '''
@@ -641,6 +652,18 @@ class QueryContext(Context):
 
     def rdf_graph(self, *args, **kwargs):
         return self.__graph
+
+    @property
+    def imports(self):
+        ctxid = self.conf.get(IMPORTS_CONTEXT_KEY, None)
+        imports_graph = ctxid and self.__graph.get_context(URIRef(ctxid))
+        if imports_graph is None:
+            return
+        for t in imports_graph.triples((self.identifier, CONTEXT_IMPORTS, None)):
+            yield QueryContext(mapper=self.mapper,
+                    graph=self.__graph,
+                    ident=t[2],
+                    conf=self.conf)
 
     def add_import(self, *args, **kwargs): raise ContextIsReadOnly
     def save_imports(self, *args, **kwargs): raise ContextIsReadOnly

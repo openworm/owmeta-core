@@ -1,8 +1,9 @@
 import rdflib
 from rdflib.term import URIRef, Variable
+from owmeta_core.data import Data
 from owmeta_core.dataobject import DataObject, InverseProperty
 from owmeta_core.mapper import Mapper
-from owmeta_core.context import Context
+from owmeta_core.context import Context, IMPORTS_CONTEXT_KEY
 from owmeta_core.context_store import ContextStore, ContextStoreException, RDFContextStore
 from .DataTestTemplate import _DataTest
 try:
@@ -14,14 +15,19 @@ except ImportError:
 class ContextTest(_DataTest):
     def test_inverse_property_context(self):
         class A(DataObject):
+            unmapped = True
+
             def __init__(self, **kwargs):
                 super(A, self).__init__(**kwargs)
                 self.a = A.ObjectProperty(value_type=B)
 
         class B(DataObject):
+            unmapped = True
+
             def __init__(self, **kwargs):
                 super(B, self).__init__(**kwargs)
                 self.b = B.ObjectProperty(value_type=A)
+
         InverseProperty(B, 'b', A, 'a')
         ctx1 = Context(ident='http://example.org/context_1')
         ctx2 = Context(ident='http://example.org/context_2')
@@ -60,6 +66,42 @@ class ContextTest(_DataTest):
         with patch('owmeta_core.data.ALLOW_UNCONNECTED_DATA_USERS', False):
             with self.assertRaisesRegexp(Exception, r'graph'):
                 ctx.save_context()
+
+    def test_imports_no_imports_graph_in_stored(self):
+        # create a Data config so all contexts use the same rdflib.Graph
+        conf = Data()
+        ctx = Context('http://example.org/ctx1', conf=conf)
+        imported_ctx = Context('http://example.org/ctx2', conf=conf)
+        other_ctx = Context('http://example.org/other_ctx', conf=conf)
+        ctx.add_import(imported_ctx)
+        ctx.save_imports(other_ctx)
+
+        assert list(ctx.stored.imports) == []
+
+    def test_imports_in_diff_context_with_imports_graph_in_stored(self):
+        # create a Data config so all contexts use the same rdflib.Graph
+        conf = Data()
+        conf[IMPORTS_CONTEXT_KEY] = 'http://example.org/imports'
+        ctx = Context('http://example.org/ctx1', conf=conf)
+        imported_ctx = Context('http://example.org/ctx2', conf=conf)
+        other_ctx = Context('http://example.org/other_ctx', conf=conf)
+        ctx.add_import(imported_ctx)
+        ctx.save_imports(other_ctx)
+
+        assert list(ctx.stored.imports) == []
+
+    def test_imports_with_imports_graph_in_stored(self):
+        # create a Data config so all contexts use the same rdflib.Graph
+        conf = Data()
+        conf.init()
+        conf[IMPORTS_CONTEXT_KEY] = 'http://example.org/imports'
+        ctx = Context('http://example.org/ctx1', conf=conf)
+        imported_ctx = Context('http://example.org/ctx2', conf=conf)
+        imports_ctx = Context('http://example.org/imports', conf=conf)
+        ctx.add_import(imported_ctx)
+        ctx.save_imports(imports_ctx)
+
+        assert [c.identifier for c in ctx.stored.imports] == [imported_ctx.identifier]
 
     def test_context_store(self):
         class A(DataObject):

@@ -85,7 +85,7 @@ def test_translator_list(owm_project):
             main_ctx.add_import(ctx)
             main_ctx.save_imports()
             ctx.save()
-            conn.mapper.save_class_registry()
+            conn.mapper.save()
 
     # List translators
     assertRegexpMatches(
@@ -128,7 +128,7 @@ def test_translate_data_source_loader(owm_project):
             main_ctx.add_import(LFDS.definition_context)
             main_ctx.save_imports()
             ctx.save()
-            conn.mapper.save_class_registry()
+            conn.mapper.save()
             print(conn.rdf.serialize(format='nquads').decode('utf-8'))
     owm_project.make_module('tests')
     modpath = owm_project.copy('tests/test_modules', 'tests/test_modules')

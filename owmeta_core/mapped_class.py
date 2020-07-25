@@ -30,6 +30,8 @@ class MappedClass(type):
         rdf_ns = dct.get('rdf_namespace', None)
         if rdf_ns is not None:
             L.debug("Setting rdf_namespace to {}".format(rdf_ns))
+            if not isinstance(rdf_ns, R.Namespace):
+                rdf_ns = R.Namespace(rdf_ns)
             self.__rdf_namespace = rdf_ns
 
         self.__schema_namespace = None

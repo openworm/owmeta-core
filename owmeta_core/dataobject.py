@@ -1,7 +1,6 @@
 from __future__ import print_function
 from functools import partial
 import hashlib
-from importlib import import_module
 import logging
 
 import rdflib as R

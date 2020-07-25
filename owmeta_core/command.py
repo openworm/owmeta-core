@@ -565,11 +565,11 @@ class OWMRegistry(object):
         '''
         List registered classes
         '''
-        from .dataobject import RegistryEntry, PythonClassDescription
-        ctx = self._parent._default_ctx
+        from .dataobject import PythonClassDescription
+        mapper = self._parent.connect().mapper
 
         def registry_entries():
-            for re in ctx.stored(RegistryEntry)().load():
+            for re in mapper.load_registry_entries():
                 ident = re.identifier
                 cd = re.class_description()
                 rdf_type = re.namespace_manager.normalizeUri(re.rdf_class())

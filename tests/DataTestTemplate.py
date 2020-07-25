@@ -44,9 +44,9 @@ class _DataTest(unittest.TestCase):
         if hasattr(typ, 'ctx_classes'):
             if isinstance(typ.ctx_classes, dict):
                 self.ctx = self.context(typ.ctx_classes)
-                self.connection.mapper.process_classes(typ.ctx_classes.values)
+                self.mapper.process_classes(typ.ctx_classes.values)
             else:
-                self.connection.mapper.process_classes(*typ.ctx_classes)
+                self.mapper.process_classes(*typ.ctx_classes)
                 self.ctx = self.context({x.__name__: x for x in typ.ctx_classes})
 
     def save(self):

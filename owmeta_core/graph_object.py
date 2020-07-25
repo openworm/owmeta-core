@@ -199,7 +199,6 @@ class GraphObjectQuerier(object):
         self.query_object = q
         L.debug('GOQ graph %s', graph)
         self.graph = _default_tq_layers(graph)
-
         if parallel:
             warnings.warn('Parallel execution is not supported')
         self.results = dict()

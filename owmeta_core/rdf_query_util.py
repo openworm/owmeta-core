@@ -1,5 +1,6 @@
 from __future__ import print_function
 import logging
+
 import rdflib
 
 from .graph_object import (GraphObjectQuerier,
@@ -57,6 +58,8 @@ def load_base(graph, idents, target_type, context, resolver):
     for ident, types in grouped_types.items():
         hit = True
         the_type = get_most_specific_rdf_type(types, context, base=target_type)
+        if the_type is None:
+            raise Exception(f'Could not recover a type for {ident}')
         yield resolver.id2ob(ident, the_type, context)
 
     if not hit:
@@ -127,7 +130,6 @@ def get_most_specific_rdf_type(types, context=None, base=None):
         base_class = context.resolve_class(base)
         if base_class:
             most_specific_types = (base_class,)
-
     for x in types:
         try:
             class_object = context.resolve_class(x)
