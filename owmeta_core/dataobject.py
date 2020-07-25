@@ -809,12 +809,6 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         if value_type is This:
             value_type = owner_class
 
-        if isinstance(value_type, six.text_type):
-            # XXX: Consider whether to continue doing this this way. only reason for it is
-            # to refer to a class defined later in the module....probably doesn't need to
-            # use the mapper.
-            value_type = owner_class.mapper.load_class(value_type)
-
         if value_type is None:
             value_type = BaseDataObject
 
@@ -1131,6 +1125,14 @@ class DataObjectSingleton(six.with_metaclass(DataObjectSingletonMeta, BaseDataOb
         return cls.instance
 
 
+class RDFSSubPropertyOfProperty(SP.ObjectProperty):
+    class_context = 'http://www.w3.org/2000/01/rdf-schema'
+    link = R.RDFS['subPropertyOf']
+    linkName = 'rdfs_subpropertyof'
+    multiple = True
+    lazy = True
+
+
 class PropertyDataObject(BaseDataObject):
     """ A PropertyDataObject represents the property-as-object.
 
@@ -1138,6 +1140,11 @@ class PropertyDataObject(BaseDataObject):
     """
     rdf_type = R.RDF['Property']
     class_context = 'http://www.w3.org/1999/02/22-rdf-syntax-ns'
+    rdfs_subpropertyof = CPThunk(RDFSSubPropertyOfProperty)
+
+
+RDFSSubPropertyOfProperty.value_type = PropertyDataObject
+RDFSSubPropertyOfProperty.owner_type = PropertyDataObject
 
 
 class RDFSCommentProperty(SP.DatatypeProperty):
