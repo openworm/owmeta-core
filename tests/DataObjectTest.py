@@ -15,6 +15,7 @@ from owmeta_core.data import DataUser
 from owmeta_core.dataobject import (DataObject,
                                     ObjectProperty,
                                     DatatypeProperty,
+                                    UnionProperty,
                                     _partial_property,
                                     PythonModule,
                                     PythonClassDescription,
@@ -207,6 +208,65 @@ class DataObjectTest(_DataTest):
         ctxd = ctx(A)
         qctxd = ctxd.query
         self.assertIs(ctxd.context, qctxd.context)
+
+    def test_adhoc_datatype_property_in_context(self):
+        class A(DataObject):
+            a = DatatypeProperty()
+
+        class B(DataObject):
+            pass
+
+        ctx = Context(ident='http://example.org/geogia')
+        b = ctx(B)(key='b')
+        A.a(b)('square')
+        self.assertIn((R.URIRef('http://schema.openworm.org/2020/07/B#b'),
+                       R.URIRef('http://schema.openworm.org/2020/07/A/a'),
+                       R.Literal('square')), list(ctx.contents_triples()))
+
+    def test_adhoc_object_property_in_context(self):
+        class A(DataObject):
+            a = ObjectProperty()
+
+        class B(DataObject):
+            pass
+
+        ctx = Context(ident='http://example.org/alabama')
+        b = ctx(B)(key='b')
+        A.a(b)(A(key='a'))
+        self.assertIn((R.URIRef('http://schema.openworm.org/2020/07/B#b'),
+                       R.URIRef('http://schema.openworm.org/2020/07/A/a'),
+                       R.URIRef('http://schema.openworm.org/2020/07/A#a')), list(ctx.contents_triples()))
+
+    def test_adhoc_union_property_in_context(self):
+        class A(DataObject):
+            a = UnionProperty()
+
+        class B(DataObject):
+            pass
+
+        ctx = Context(ident='http://example.org/wisconsin')
+        b = ctx(B)(key='b')
+        A.a(b)(A(key='a'))
+        self.assertIn((R.URIRef('http://schema.openworm.org/2020/07/B#b'),
+                       R.URIRef('http://schema.openworm.org/2020/07/A/a'),
+                       R.URIRef('http://schema.openworm.org/2020/07/A#a')), list(ctx.contents_triples()))
+
+    def test_adhoc_property_twice_same_instance(self):
+        '''
+        Technically, should still work if distinct Property instances are bound, esp.
+        since they aren't bound to a name on the DataObject, but we prefer to use the same
+        instance so some of the semantics as for pre-declared properties are the carried
+        through.
+        '''
+        class A(DataObject):
+            a = DatatypeProperty()
+
+        class B(DataObject):
+            pass
+
+        ctx = Context(ident='http://example.org/maine')
+        b = ctx(B)(key='b')
+        self.assertIs(A.a(b), A.a(b))
 
 
 class ClassRegistryTest(_DataTest):

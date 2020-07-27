@@ -69,10 +69,17 @@ class PropertyProperty(Contextualizable, property):
         return type(self)(self._cls.contextualize_class(context),
                           *self._super_init_args)
 
+    @property
     def property(self):
         if self._cls is None:
             self._cls = self._cls_thunk()
         return self._cls
+
+    def __call__(self, dataobject):
+        for p in dataobject.properties:
+            if isinstance(p, self.property):
+                return p
+        return dataobject.attach_property(self.property, ephemeral=True)
 
     def __getattr__(self, attr):
         # Provide a weak sort of proxying to the class we're holding
@@ -870,15 +877,29 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
             raise TypeError('No owner')
         return owner.attach_property(cls._create_property_class(*args, **kwargs), name=attr_name)
 
-    def attach_property(self, c, name=None):
+    def attach_property(self, c, name=None, ephemeral=False):
+        '''
+        Parameters
+        ----------
+        name : str
+            The name to use for attaching to this dataobject
+        ephemeral : bool
+            If `True`, the property will not be set as an attribute on the object
+        '''
         ctxd_pclass = c.contextualize_class(self.context)
         res = ctxd_pclass(owner=self,
                           conf=self.conf,
                           resolver=_Resolver.get_instance())
+
+        # Even for "ephemeral", we need to add to `properties` so that queries and stuff
+        # work.
         self.properties.append(res)
-        if name is None:
-            name = c.linkName
-        setattr(self, name, res)
+
+        if not ephemeral:
+            if name is None:
+                name = c.linkName
+
+            setattr(self, name, res)
 
         return res
 
