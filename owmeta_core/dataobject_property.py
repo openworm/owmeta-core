@@ -736,9 +736,17 @@ class UnionProperty(_ContextualizingPropertySetMixin,
         r = super(UnionProperty, self).get()
         s = set()
         for x in self.defined_values:
-            if isinstance(x, R.Literal):
+            if isinstance(x, PropertyValue):
                 s.add(self.resolver.deserializer(x.idl))
+            else:
+                s.add(x)
         return itertools.chain(r, s)
+
+    def onedef(self):
+        x = super(UnionProperty, self).onedef()
+        if isinstance(x, PropertyValue):
+            return self.resolver.deserializer(x.identifier) if x is not None else x
+        return x
 
 
 def _property_to_string(self):

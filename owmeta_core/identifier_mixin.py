@@ -1,9 +1,11 @@
 from __future__ import print_function
+import hashlib
+import logging
+
 from rdflib.term import URIRef
 from six.moves.urllib.parse import quote
 from six import string_types
-import hashlib
-import logging
+
 from .graph_object import IdentifierMissingException
 
 
@@ -14,6 +16,8 @@ _IdMixins = dict()
 L = logging.getLogger(__name__)
 
 
+# This was pulled out of DataObject when it was used by multiple classes. It may prove
+# useful for making custom GraphObjects, so it's retained here as a mixin
 def IdMixin(typ=object, hashfunc=None):
     """
     Mixin that provides common identifier logic
@@ -41,9 +45,6 @@ def IdMixin(typ=object, hashfunc=None):
                 if ident is not None:
                     self._id = URIRef(ident)
                 else:
-                    # Randomly generate an identifier if the derived class can't
-                    # come up with one from the start. Ensures we always have something
-                    # that functions as an identifier
                     self._id = None
 
                 self._key = None
@@ -103,6 +104,10 @@ def IdMixin(typ=object, hashfunc=None):
                     return self.identifier_augment()
                 else:
                     raise IdentifierMissingException(self)
+
+            @identifier.setter
+            def identifier(self, value):
+                self._id = value
 
             def identifier_augment(self):
                 """ Override this method to define an identifier in lieu of one explicity set.

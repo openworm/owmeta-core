@@ -393,8 +393,11 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             self.__query_form.__module__ = self.__module__
         return self.__query_form
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args, no_type_decl=False, **kwargs):
         o = super(ContextMappedClass, self).__call__(*args, **kwargs)
+
+        if no_type_decl:
+            return o
 
         if isinstance(o, TypeDataObject):
             o.rdf_type_property(RDFSClass())
@@ -923,7 +926,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
 
     def retract(self):
         """ Remove this object from the data store. """
-        self.retract_statements(self.graph_pattern(query=True))
+        self.retract_statements(self.graph_pattern(traverse_undefined=True))
 
     def save(self):
         """ Write in-memory data to the database.
