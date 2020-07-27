@@ -3,8 +3,10 @@ from __future__ import absolute_import
 from itertools import islice
 
 from rdflib.term import URIRef
+from rdflib.namespace import RDF
 
-from owmeta_core.collections import Bag, Seq, Alt, List
+from owmeta_core.collections import (Bag, Seq, Alt, List, ContainerMembershipProperty,
+                                     ContainerValueConflict)
 
 from .DataTestTemplate import _DataTest
 from .TestUtilities import captured_logging
@@ -29,6 +31,27 @@ class _ContainerTestBase(object):
         nums = self.container_type(ident="http://example.org/fav-numbers")
         assert nums[1] is None
 
+    def test_get_unset_membership_attribute(self):
+        nums = self.container_type(ident="http://example.org/fav-numbers")
+        nums._5(8)
+        assert nums._5() == 8
+
+    def test_iter(self):
+        nums = self.container_type(ident="http://example.org/fav-numbers")
+        nums._5(8)
+        assert list(islice(nums, 1, 6)) == [None, None, None, None, 8]
+
+    def test_container_value_conflict(self):
+        nums = self.context(self.container_type)(ident="http://example.org/fav-numbers")
+        nums._1(8)
+        self.context.save()
+        nums._1(4)
+        self.context.save()
+
+        nums0 = self.context(self.container_type)(ident="http://example.org/fav-numbers")
+        with self.assertRaises(ContainerValueConflict):
+            self.context.stored(nums0)[1]
+
 
 class AltTest(_ContainerTestBase, _DataTest):
     container_type = Alt
@@ -40,6 +63,23 @@ class BagTest(_ContainerTestBase, _DataTest):
 
 class SeqTest(_ContainerTestBase, _DataTest):
     container_type = Seq
+
+
+class ContainerMembershipPropertyTest(_DataTest):
+    def test_index(self):
+        assert ContainerMembershipProperty(index=3, owner=None, resolver=None).index == 3
+
+    def test_link(self):
+        cut = ContainerMembershipProperty(index=3, owner=None, resolver=None)
+        assert cut.link == RDF._3
+
+    def test_invalid_index(self):
+        with self.assertRaises(ValueError):
+            ContainerMembershipProperty(index=0, owner=None, resolver=None)
+
+    def test_invalid_non_int(self):
+        with self.assertRaises(ValueError):
+            ContainerMembershipProperty(index='not a number', owner=None, resolver=None)
 
 
 class ListTest(_DataTest):

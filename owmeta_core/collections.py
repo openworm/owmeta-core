@@ -1,6 +1,7 @@
 from collections import namedtuple
 from itertools import cycle, chain
 import logging
+import re
 
 from rdflib.term import URIRef
 from rdflib.namespace import RDF, RDFS
@@ -15,10 +16,37 @@ from .dataobject_property import UnionProperty as UnionPropertyType
 
 L = logging.getLogger(__name__)
 
+CONTAINER_MEMBERSHIP_PROPERTY_RE = re.compile(r'^_([1-9]+[0-9]*)$')
+
 
 class Container(BaseDataObject):
     '''
     Base class for rdfs:Containers
+
+    Example (`Bag`, `Alt`, and `Seq` have the same operations)::
+
+        >>> nums = Bag(ident="http://example.org/fav-numbers")
+        >>> nums[1] = 42
+        >>> nums.set_member(2, 415)
+        owmeta_core.statement.Statement(...)
+        >>> nums._3(15)
+        owmeta_core.statement.Statement(...)
+        >>> nums._2.index
+        2
+        >>> nums._1()
+        42
+        >>> nums[2]
+        415
+        >>> nums._2(6)
+        owmeta_core.statement.Statement(...)
+        >>> nums[2]
+        6
+
+    Note that because the set of entries in ``rdfs:Container`` is not bounded, iteration
+    over `Containers <Container>` is not bounded. To iterate over a `Container`, it is
+    recommended to add some external bound with `itertools.islice` or something like
+    ``zip(range(bound), container)``. Where values have not been set, `None` will be
+    returned.
     '''
     rdf_type = RDFS.Container
     class_context = RDFS_CONTEXT
@@ -27,7 +55,35 @@ class Container(BaseDataObject):
         prop = getattr(self, f'_{index}', None)
         if prop is None:
             return None
-        return prop()
+        item_to_return = None
+        extra_items = []
+        for item in prop.get():
+            if item_to_return is None:
+                item_to_return = item
+            else:
+                extra_items.append(item)
+        if extra_items:
+            # Unlike regular Property access, there's generally not a presumption that
+            # one of many values can be selected arbitrarily. Also, an iteration that
+            # sometimes does what you expect and sometimes doesn't is really frustrating.
+            raise ContainerValueConflict(
+                    f'More than one item is declared at index {index}. Suppressed items: {extra_items}')
+        return item_to_return
+
+    def __getattr__(self, name):
+        md = CONTAINER_MEMBERSHIP_PROPERTY_RE.match(name)
+        if md:
+            try:
+                prop = super().__getattribute__(name)
+            except AttributeError:
+                prop = None
+            if prop is None:
+                prop = self.attach_property(ContainerMembershipProperty, index=md.group(1))
+            return prop
+        raise AttributeError(name)
+
+    def __setitem__(self, index, item):
+        self.set_member(index, item)
 
     def set_member(self, index, item):
         '''
@@ -46,6 +102,10 @@ class Container(BaseDataObject):
         return self.attach_property(ContainerMembershipProperty, index=index)(item)
 
 
+class ContainerValueConflict(Exception):
+    pass
+
+
 class ContainerMembershipProperty(UnionPropertyType):
     rdf_type = RDFS.ContainerMembershipProperty
     class_context = RDFS_CONTEXT
@@ -55,7 +115,10 @@ class ContainerMembershipProperty(UnionPropertyType):
         super().__init__(**kwargs)
         self.__index = index
         name = f'_{index}'
-        self.link = RDF[name]
+        try:
+            self.link = RDF[name]
+        except KeyError as e:
+            raise ValueError('Expected an integer > 0') from e
         self.linkName = name
 
     @property
@@ -66,16 +129,6 @@ class ContainerMembershipProperty(UnionPropertyType):
 class Bag(Container):
     """
     A convenience class for working with a rdf:Bag
-
-    Example::
-
-        >>> nums = Bag(ident="http://example.org/fav-numbers")
-        >>> nums.set_member(1, 42)
-        owmeta_core.statement.Statement(...)
-        >>> nums.set_member(2, 415).index
-        owmeta_core.statement.Statement(...)
-        >>> nums._1()
-        415
     """
     rdf_type = RDF.Bag
     class_context = RDF_CONTEXT
