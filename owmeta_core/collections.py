@@ -3,67 +3,96 @@ from itertools import cycle, chain
 import logging
 
 from rdflib.term import URIRef
-from rdflib.namespace import RDF
+from rdflib.namespace import RDF, RDFS
 
-from . import BASE_SCHEMA_URL
+from . import RDF_CONTEXT, RDFS_CONTEXT
 from .dataobject import (BaseDataObject,
-                         DataObject,
                          This,
                          ObjectProperty,
-                         DatatypeProperty,
-                         UnionProperty,
-                         Alias)
+                         UnionProperty)
+from .dataobject_property import UnionProperty as UnionPropertyType
 
 
 L = logging.getLogger(__name__)
 
 
-class Bag(DataObject):
+class Container(BaseDataObject):
+    '''
+    Base class for rdfs:Containers
+    '''
+    rdf_type = RDFS.Container
+    class_context = RDFS_CONTEXT
 
+    def __getitem__(self, index):
+        prop = getattr(self, f'_{index}', None)
+        if prop is None:
+            return None
+        return prop()
+
+    def set_member(self, index, item):
+        '''
+        Set a member at the given index.
+
+        If an existing value is set at the given index, then it will be replaced. Note
+        that, as described in the `RDF Primer`_, there is no well-formedness guarantee: in
+        particular, some other instance of a container may declare a different value at
+        the same index.
+
+        .. _RDF Primer: https://www.w3.org/TR/rdf-primer/#collections
+        '''
+        prop = getattr(self, f'_{index}', None)
+        if isinstance(prop, ContainerMembershipProperty):
+            return prop(item)
+        return self.attach_property(ContainerMembershipProperty, index=index)(item)
+
+
+class ContainerMembershipProperty(UnionPropertyType):
+    rdf_type = RDFS.ContainerMembershipProperty
+    class_context = RDFS_CONTEXT
+    owner_type = BaseDataObject
+
+    def __init__(self, index, **kwargs):
+        super().__init__(**kwargs)
+        self.__index = index
+        name = f'_{index}'
+        self.link = RDF[name]
+        self.linkName = name
+
+    @property
+    def index(self):
+        return self.__index
+
+
+class Bag(Container):
     """
-    A convenience class for working with a collection of objects
+    A convenience class for working with a rdf:Bag
 
     Example::
 
-        v = Bag('unc-13 neurons and muscles')
-        n = P.Neuron()
-        m = P.Muscle()
-        n.receptor('UNC-13')
-        m.receptor('UNC-13')
-        for x in n.load():
-            v.value(x)
-        for x in m.load():
-            v.value(x)
-        # Save the group for later use
-        v.save()
-        ...
-        # get the list back
-        u = Bag('unc-13 neurons and muscles')
-        nm = list(u.value())
+        >>> nums = Bag(ident="http://example.org/fav-numbers")
+        >>> nums.set_member(1, 42)
+        owmeta_core.statement.Statement(...)
+        >>> nums.set_member(2, 415).index
+        owmeta_core.statement.Statement(...)
+        >>> nums._1()
+        415
     """
+    rdf_type = RDF.Bag
+    class_context = RDF_CONTEXT
 
-    class_context = BASE_SCHEMA_URL
 
-    value = UnionProperty()
-    '''An object in the group'''
+class Alt(Container):
+    rdf_type = RDF.Alt
+    class_context = RDF_CONTEXT
 
-    add = Alias(value)
-    '''An alias for `value`'''
 
-    name = DatatypeProperty()
-    '''The name of the group of objects'''
-
-    group_name = Alias(name)
-    '''Alias for `name`'''
-
-    def defined_augment(self):
-        return self.group_name.has_defined_value()
-
-    def identifier_augment(self):
-        return self.make_identifier_direct(self.group_name.onedef())
+class Seq(Container):
+    rdf_type = RDF.Seq
+    class_context = RDF_CONTEXT
 
 
 class List(BaseDataObject):
+    class_context = RDF_CONTEXT
     rdf_type = RDF.List
     first = UnionProperty(link=RDF.first)
     rest = ObjectProperty(link=RDF.rest, value_type=This)

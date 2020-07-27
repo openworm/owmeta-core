@@ -34,6 +34,11 @@ class READMETest(unittest.TestCase):
                                                          optionflags=(ALLOW_UNICODE | doctest.ELLIPSIS))
         self.assertEqual(failure_count, 0)
 
+    def test_collection(self):
+        from owmeta_core import collections
+        [failure_count, return_count] = doctest.testmod(collections, optionflags=(ALLOW_UNICODE | doctest.ELLIPSIS))
+        self.assertEqual(failure_count, 0)
+
 
 class SphinxTest(unittest.TestCase):
     ''' Executes doctests in Sphinx documentation '''

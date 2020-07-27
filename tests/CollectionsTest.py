@@ -4,20 +4,42 @@ from itertools import islice
 
 from rdflib.term import URIRef
 
-from owmeta_core.collections import Bag, List
+from owmeta_core.collections import Bag, Seq, Alt, List
 
 from .DataTestTemplate import _DataTest
 from .TestUtilities import captured_logging
 
 
-class BagTest(_DataTest):
+class _ContainerTestBase(object):
+    container_type = None
 
-    def test_bag_init(self):
-        b = Bag(name="bah", value=12)
-        b.value(55)
-        b.add(545)
-        b.value(Bag(name="humbug"))
-        self.assertEqual(Bag.rdf_namespace['bah'], b.identifier)
+    def test_set_member(self):
+        nums = self.container_type(ident="http://example.org/fav-numbers")
+        nums.set_member(1, 42)
+        nums.set_member(2, 5222)
+        nums.set_member(3, 415)
+        assert nums._3() == 415
+
+    def test_set_getitem(self):
+        nums = self.container_type(ident="http://example.org/fav-numbers")
+        nums.set_member(1, 42)
+        assert nums[1] == 42
+
+    def test_getitem_on_unset(self):
+        nums = self.container_type(ident="http://example.org/fav-numbers")
+        assert nums[1] is None
+
+
+class AltTest(_ContainerTestBase, _DataTest):
+    container_type = Alt
+
+
+class BagTest(_ContainerTestBase, _DataTest):
+    container_type = Bag
+
+
+class SeqTest(_ContainerTestBase, _DataTest):
+    container_type = Seq
 
 
 class ListTest(_DataTest):

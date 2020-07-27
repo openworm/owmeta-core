@@ -302,7 +302,7 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
 
     def __repr__(self):
         fcn = FCN(type(self))
-        return '{}(owner={})'.format(fcn, repr(self.owner))
+        return '{}(owner={})'.format(fcn, repr(getattr(self, 'owner', None)))
 
     def one(self):
         '''

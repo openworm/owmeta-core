@@ -880,7 +880,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
             raise TypeError('No owner')
         return owner.attach_property(cls._create_property_class(*args, **kwargs), name=attr_name)
 
-    def attach_property(self, c, name=None, ephemeral=False):
+    def attach_property(self, c, name=None, ephemeral=False, **kwargs):
         '''
         Parameters
         ----------
@@ -892,7 +892,8 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         ctxd_pclass = c.contextualize_class(self.context)
         res = ctxd_pclass(owner=self,
                           conf=self.conf,
-                          resolver=_Resolver.get_instance())
+                          resolver=_Resolver.get_instance(),
+                          **kwargs)
 
         # Even for "ephemeral", we need to add to `properties` so that queries and stuff
         # work.
@@ -900,7 +901,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
 
         if not ephemeral:
             if name is None:
-                name = c.linkName
+                name = res.linkName
 
             setattr(self, name, res)
 
