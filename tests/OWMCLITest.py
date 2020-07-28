@@ -42,6 +42,16 @@ def test_save_classes(owm_project):
     assertRegexpMatches(owm_project.sh('owm diff'), r'<[^>]+>')
 
 
+def test_diff_new_context_named(owm_project):
+    ''' Test that if we add a new context that its name appears in the diff '''
+    modpath = owm_project.make_module('test_module')
+
+    owm_project.writefile(p(modpath, 'monkey.py'),
+            'tests/test_modules/owmclitest03_monkey.py')
+    owm_project.sh('owm save test_module.monkey')
+    assertRegexpMatches(owm_project.sh('owm diff'), r'b http://example.org/primate/monkey')
+
+
 def test_save_imports(owm_project):
     modpath = owm_project.make_module('test_module')
     owm_project.writefile(p(modpath, 'monkey.py'),

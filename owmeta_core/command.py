@@ -1208,8 +1208,8 @@ class OWM(object):
         idx_fname = pth_join(self.owmdir, 'graphs', 'index')
         if exists(idx_fname):
             with open(idx_fname) as index_file:
-                for l in index_file:
-                    yield l.strip().split(' ')
+                for ent in self._graphs_index0(index_file):
+                    yield ent
 
     @property
     def _context_fnames(self):
@@ -1231,6 +1231,18 @@ class OWM(object):
             fname_index[fname] = ctx
         self._cfn = ctx_index
         self._fnc = fname_index
+
+    def _read_graphs_index0(self, index_file):
+        ctx_index = dict()
+        fname_index = dict()
+        for fname, ctx in self._graphs_index0(index_file):
+            ctx_index[ctx] = fname
+            fname_index[fname] = ctx
+        return ctx_index, fname_index
+
+    def _graphs_index0(self, index_file):
+        for l in index_file:
+            yield l.strip().split(' ')
 
     def translate(self, translator, output_key=None, output_identifier=None,
                   data_sources=(), named_data_sources=None):
@@ -1512,6 +1524,26 @@ class OWM(object):
             raise GenericUserError("Could not serialize graphs")
 
         head_commit = r.repo().head.commit
+
+        # TODO: Determine if this path should actually be platform-dependent
+        try:
+            old_index = head_commit.tree.join(pth_join('graphs', 'index'))
+        except KeyError:
+            old_index = None
+
+        if old_index:
+            old_index_file = old_index.data_stream
+            _, old_fnc = self._read_graphs_index0(old_index_file)
+        else:
+            old_fnc = dict()
+
+        new_index_filename = pth_join(self.owmdir, 'graphs', 'index')
+        try:
+            with open(new_index_filename, 'r') as new_index_file:
+                _, new_fnc = self._read_graphs_index0(new_index_file)
+        except FileNotFoundError:
+            new_fnc = dict()
+
         di = head_commit.diff(None)
 
         for d in di:
@@ -1542,12 +1574,12 @@ class OWM(object):
             if not adata:
                 fromfile = '/dev/null'
             else:
-                fromfile = self._fname_contexts.get(afname, afname)
+                fromfile = old_fnc.get(afname, afname)
 
             if not bdata:
                 tofile = '/dev/null'
             else:
-                tofile = self._fname_contexts.get(bfname, bfname)
+                tofile = new_fnc.get(bfname, bfname)
 
             try:
                 diff = unified_diff([x.decode('utf-8') + '\n' for x in adata],
