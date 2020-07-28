@@ -15,29 +15,33 @@ from .TestUtilities import captured_logging
 class _ContainerTestBase(object):
     container_type = None
 
+    def setUp(self):
+        super().setUp()
+        self.cut = self.container_type(ident="http://example.org/fav-numbers")
+
     def test_set_member(self):
-        nums = self.container_type(ident="http://example.org/fav-numbers")
+        nums = self.cut
         nums.set_member(1, 42)
         nums.set_member(2, 5222)
         nums.set_member(3, 415)
         assert nums._3() == 415
 
     def test_set_getitem(self):
-        nums = self.container_type(ident="http://example.org/fav-numbers")
+        nums = self.cut
         nums.set_member(1, 42)
         assert nums[1] == 42
 
     def test_getitem_on_unset(self):
-        nums = self.container_type(ident="http://example.org/fav-numbers")
+        nums = self.cut
         assert nums[1] is None
 
     def test_get_unset_membership_attribute(self):
-        nums = self.container_type(ident="http://example.org/fav-numbers")
+        nums = self.cut
         nums._5(8)
         assert nums._5() == 8
 
     def test_iter(self):
-        nums = self.container_type(ident="http://example.org/fav-numbers")
+        nums = self.cut
         nums._5(8)
         assert list(islice(nums, 1, 6)) == [None, None, None, None, 8]
 
@@ -47,10 +51,19 @@ class _ContainerTestBase(object):
         self.context.save()
         nums._1(4)
         self.context.save()
-
-        nums0 = self.context(self.container_type)(ident="http://example.org/fav-numbers")
+        nums0 = self.context.stored(self.container_type)(ident="http://example.org/fav-numbers")
         with self.assertRaises(ContainerValueConflict):
-            self.context.stored(nums0)[1]
+            nums0[1]
+
+    def test_auto_prop_sameas(self):
+        nums = self.cut
+        prop = nums.set_member(2, 12).property
+        self.assertIs(prop, nums._2)
+
+    def test_index(self):
+        nums = self.cut
+        nums.set_member(2, 12).property
+        self.assertEqual(2, nums._2.index)
 
 
 class AltTest(_ContainerTestBase, _DataTest):

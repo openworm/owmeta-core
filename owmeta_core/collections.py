@@ -67,7 +67,8 @@ class Container(BaseDataObject):
             # one of many values can be selected arbitrarily. Also, an iteration that
             # sometimes does what you expect and sometimes doesn't is really frustrating.
             raise ContainerValueConflict(
-                    f'More than one item is declared at index {index}. Suppressed items: {extra_items}')
+                    f'More than one item is declared at index {index}.'
+                    f' Suppressed items: {extra_items}')
         return item_to_return
 
     def __getattr__(self, name):
@@ -78,7 +79,7 @@ class Container(BaseDataObject):
             except AttributeError:
                 prop = None
             if prop is None:
-                prop = self.attach_property(ContainerMembershipProperty, index=md.group(1))
+                prop = self.attach_property(ContainerMembershipProperty, index=int(md.group(1)))
             return prop
         raise AttributeError(name)
 
@@ -99,7 +100,7 @@ class Container(BaseDataObject):
         prop = getattr(self, f'_{index}', None)
         if isinstance(prop, ContainerMembershipProperty):
             return prop(item)
-        return self.attach_property(ContainerMembershipProperty, index=index)(item)
+        raise Exception(f'Non-ContainerMembershipProperty set at _{index}')
 
 
 class ContainerValueConflict(Exception):
