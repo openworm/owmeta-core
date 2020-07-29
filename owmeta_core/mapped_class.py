@@ -50,6 +50,7 @@ class MappedClass(type):
             self.__schema_namespace = R.Namespace(
                 self.base_namespace[self.__name__] + "/")
 
+        self.__rdf_type_object_callback = dct.get('rdf_type_object_callback')
         self.__rdf_type_object = dct.get('rdf_type_object')
 
         if not getattr(self, 'unmapped', False) and not dct.get('unmapped'):
@@ -61,10 +62,17 @@ class MappedClass(type):
 
     @property
     def rdf_type_object(self):
+        if self.__rdf_type_object_callback is not None:
+            rdto = self.__rdf_type_object_callback()
+            if rdto is not None:
+                self.__rdf_type_object_callback = None
+                self.__rdf_type_object = rdto
         return self.__rdf_type_object
 
     @rdf_type_object.setter
     def rdf_type_object(self, value):
+        if value is not None:
+            self.__rdf_type_object_callback = None
         self.__rdf_type_object = value
 
     @property

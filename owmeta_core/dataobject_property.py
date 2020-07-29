@@ -4,6 +4,7 @@ import rdflib as R
 import logging
 from six import with_metaclass
 
+from . import RDF_CONTEXT
 from .utils import FCN
 from .data import DataUser
 from .context import Context
@@ -35,7 +36,9 @@ class ContextMappedPropertyClass(ContextualizableClass):
         super(ContextMappedPropertyClass, self).__init__(name, bases, dct)
         ctx = find_class_context(self, dct, bases)
 
-        if ctx is not None:
+        if 'definition_context' in dct:
+            self.__definition_context = dct['definition_context']
+        elif ctx is not None:
             self.__definition_context = ctx
         else:
             self.__definition_context = None
@@ -43,13 +46,81 @@ class ContextMappedPropertyClass(ContextualizableClass):
         if not hasattr(self, 'base_namespace') or self.base_namespace is None:
             self.base_namespace = find_base_namespace(dct, bases)
 
+        self.__rdf_type_object = dct.get('rdf_type_object')
+        self.__rdf_type_object_callback = dct.get('rdf_type_object_callback')
+        try:
+            from .dataobject import _DEFERRED_RDF_TYPE_OBJECT_INIT
+        except ImportError:
+            self.init_rdf_type_object()
+        else:
+            _DEFERRED_RDF_TYPE_OBJECT_INIT.append(self)
+
+    @property
+    def rdf_type_object(self):
+        if self.__rdf_type_object_callback is not None:
+            rdto = self.__rdf_type_object_callback()
+            if rdto is not None:
+                self.__rdf_type_object_callback = None
+                self.__rdf_type_object = rdto
+        return self.__rdf_type_object
+
+    @rdf_type_object.setter
+    def rdf_type_object(self, value):
+        if value is not None:
+            self.__rdf_type_object_callback = None
+        self.__rdf_type_object = value
+
+    def contextualize_class_augment(self, context):
+        '''
+        For MappedClass, rdf_type and rdf_namespace have special behavior where they can
+        be auto-generated based on the class name and base_namespace. We have to pass
+        through these values to our "proxy" to avoid this behavior
+        '''
+        args = dict()
+        if self.rdf_type_object is None:
+            args['rdf_type_object_callback'] = lambda: self.rdf_type_object
+        else:
+            args['rdf_type_object'] = self.rdf_type_object
+
+        res = super(ContextMappedPropertyClass, self).contextualize_class_augment(
+                context,
+                **args)
+        res.__module__ = self.__module__
+        return res
+
+    def init_rdf_type_object(self):
+        # Properties created in a DataObject sub-class definition will have their
+        # rdf_type_object created for them, obviating this procedure.
+        if self.rdf_type_object is None or self.rdf_type_object.identifier != self.link:
+            from .dataobject import (PropertyDataObject, RDFSSubClassOfProperty,
+                                     RDFProperty)
+            if self is Property:
+                self.rdf_type_object = RDFProperty()
+                pass
+            else:
+                if self.definition_context is None:
+                    L.info("The class {0} has no context for PropertyDataObject(ident={1})".format(
+                        self, self.link))
+                    return
+                L.debug('Creating rdf_type_object for {} in {}'.format(self, self.definition_context))
+                rdto = PropertyDataObject.contextualize(self.definition_context)(ident=self.link)
+                rdto.attach_property(RDFSSubClassOfProperty)
+                for par in self.__bases__:
+                    prdto = getattr(par, 'rdf_type_object', None)
+                    if prdto is not None:
+                        if rdto.identifier == prdto.identifier:
+                            L.warning('Subclass declared without a distinct link: %s', self)
+                            continue
+                        rdto.rdfs_subclassof_property.set(prdto)
+                self.rdf_type_object = rdto
+
     @property
     def definition_context(self):
         return self.__definition_context
 
     def declare_python_class_registry_entry(self):
-        #self._check_is_good_class_registry()
-        from owmeta_core.dataobject import (RegistryEntry, PythonClassDescription,
+        from owmeta_core.dataobject import (RegistryEntry,
+                                            PythonClassDescription,
                                             PythonModule)
         re = RegistryEntry.contextualize(self.context)()
         cd = PythonClassDescription.contextualize(self.context)()
@@ -116,7 +187,8 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
     A property attached to a `~owmeta_core.dataobject.DataObject`.
     '''
     multiple = False
-    link = R.URIRef("property")
+    class_context = RDF_CONTEXT
+    link = R.RDF.Property
     linkName = "property"
     base_namespace = R.Namespace("http://openworm.org/entities/")
 

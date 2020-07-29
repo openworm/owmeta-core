@@ -7,7 +7,7 @@ import rdflib as R
 from rdflib.term import URIRef
 import six
 
-from . import BASE_SCHEMA_URL, DEF_CTX
+from . import BASE_SCHEMA_URL, DEF_CTX, RDF_CONTEXT
 from .contextualize import (Contextualizable,
                             ContextualizableClass,
                             contextualize_helper,
@@ -31,6 +31,10 @@ from .rdf_query_util import (goq_hop_scorer,
                              load_terms)
 from .utils import FCN
 
+# This has to be defined before dataobject_property because they have an icky dependency
+# between them as far as rdf_type_object init.
+_DEFERRED_RDF_TYPE_OBJECT_INIT = []
+
 import owmeta_core.dataobject_property as SP
 
 __all__ = [
@@ -52,8 +56,6 @@ This = object()
         ...                             inverse_of=(This, 'child'))
         ...     child = ObjectProperty(value_type=This)
 """
-
-_DEFERRED_RDF_TYPE_OBJECT_INIT = []
 
 
 class PropertyProperty(Contextualizable, property):
@@ -355,11 +357,16 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
         be auto-generated based on the class name and base_namespace. We have to pass
         through these values to our "proxy" to avoid this behavior
         '''
+        args = dict()
+        if self.rdf_type_object is None:
+            args['rdf_type_object_callback'] = lambda: self.rdf_type_object
+        else:
+            args['rdf_type_object'] = self.rdf_type_object
+
         res = super(ContextMappedClass, self).contextualize_class_augment(context,
                 rdf_type=self.rdf_type,
                 rdf_namespace=self.rdf_namespace,
-                rdf_type_object=self.rdf_type_object,
-                schema_namespace=self.schema_namespace)
+                schema_namespace=self.schema_namespace, **args)
         res.__module__ = self.__module__
         return res
 
@@ -374,6 +381,9 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             for par in self.__bases__:
                 prdto = getattr(par, 'rdf_type_object', None)
                 if prdto is not None:
+                    if rdto.identifier == prdto.identifier:
+                        L.warning('Subclass declared without a distinct rdf_type: %s', self)
+                        continue
                     rdto.rdfs_subclassof_property.set(prdto)
             self.rdf_type_object = rdto
 
@@ -404,7 +414,7 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
         elif isinstance(o, RDFSClass):
             o.rdf_type_property(o)
         elif isinstance(o, PropertyDataObject):
-            o.rdf_type_property(RDFProperty.get_instance())
+            o.rdf_type_property(RDFProperty())
         elif isinstance(o, RDFProperty):
             o.rdf_type_property(RDFSClass())
         else:
@@ -846,6 +856,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
                          value_rdf_type=value_rdf_type,
                          value_type=value_type,
                          owner_type=owner_class,
+                         class_context=owner_class.definition_context,
                          rdf_object=PropertyDataObject.contextualize(owner_class.definition_context)(ident=link),
                          lazy=lazy,
                          multiple=multiple,
@@ -1072,6 +1083,7 @@ class _Resolver(RDFTypeResolver):
 class RDFTypeProperty(SP.ObjectProperty):
     # XXX: This class is special. It doesn't have its after_mapper_module_load called because that would mess up
     # evaluation order for this module...
+    class_context = RDF_CONTEXT
     link = R.RDF['type']
     linkName = "rdf_type_property"
     value_rdf_type = R.RDFS['Class']
@@ -1115,39 +1127,24 @@ class TypeDataObject(BaseDataObject):
 
 
 class DataObjectSingletonMeta(type(BaseDataObject)):
+    def __init__(self, name, bases, dct):
+        super().__init__(name, bases, dct)
+        self.__instance = None
+        self.__initalizing = False
+
     @property
     def context(self):
         return self.definition_context
 
-
-class DataObjectSingleton(six.with_metaclass(DataObjectSingletonMeta, BaseDataObject)):
-    '''
-    A superclass for singleton `DataObjects <DataObject>`
-    '''
-
-    instance = None
-    class_context = URIRef(BASE_SCHEMA_URL)
-
-    def __init__(self, *args, **kwargs):
-        if self._gettingInstance:
-            super(DataObjectSingleton, self).__init__(*args, **kwargs)
-        else:
-            raise Exception("You must call get_instance to get " + type(self).__name__)
-
-    @classmethod
-    def get_instance(cls, **kwargs):
-        '''
-        Get the instance for this class
-        '''
-        # Opting to have a `get_instance` method rather than doing some trickery with
-        # __new__ or __call__ so the fact that there's a single instance is more apparent.
-        # This is important since the instance can be mutated
-        if cls.instance is None:
-            cls._gettingInstance = True
-            cls.instance = cls(**kwargs)
-            cls._gettingInstance = False
-
-        return cls.instance
+    def __call__(self):
+        if self.__instance is None:
+            if self.__initalizing:
+                raise Exception('Unacceptable recursion in singleton initialization of'
+                                f' {self} instance')
+            self.__initalizing = True
+            self.__instance = super().__call__()
+            self.__initalizing = False
+        return self.__instance
 
 
 class RDFSSubPropertyOfProperty(SP.ObjectProperty):
@@ -1205,15 +1202,13 @@ class DataObject(BaseDataObject):
     rdfs_label = CPThunk(RDFSLabelProperty)
 
 
-class RDFProperty(DataObjectSingleton):
+class RDFProperty(BaseDataObject, metaclass=DataObjectSingletonMeta):
     """ The `DataObject` corresponding to rdf:Property """
     rdf_type = R.RDF['Property']
     class_context = URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns')
 
-    def __init__(self, *args, **kwargs):
-        super(RDFProperty, self).__init__(ident=R.RDF["Property"],
-                                          *args,
-                                          **kwargs)
+    def __init__(self):
+        super(RDFProperty, self).__init__(ident=R.RDF["Property"])
 
 
 def disconnect():
