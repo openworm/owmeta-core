@@ -325,11 +325,11 @@ class Bundle(object):
 
     Typical usage is something like this::
 
-        >>> from owmeta_core.dataobject import DataObject
         >>> with Bundle('example/bundleId', version=42) as bnd:
-        ...     for do in bnd(DataObject).load():
-        ...         # Do something with `do`
-        ...         pass
+        ...     for aDataObject in bnd(DataObject)().load():
+        ...         # Do something with `aDataObject`
+        ...         print(aDataObject)
+        DataObject(<http://example.org/entities#aDataObject>)
     '''
 
     def __init__(self, ident, bundles_directory=DEFAULT_BUNDLES_DIRECTORY, version=None,

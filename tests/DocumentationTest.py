@@ -34,10 +34,38 @@ class READMETest(unittest.TestCase):
                                                          optionflags=(ALLOW_UNICODE | doctest.ELLIPSIS))
         self.assertEqual(failure_count, 0)
 
-    def test_collection(self):
-        from owmeta_core import collections
-        [failure_count, return_count] = doctest.testmod(collections, optionflags=(ALLOW_UNICODE | doctest.ELLIPSIS))
-        self.assertEqual(failure_count, 0)
+
+def test_collection():
+    from owmeta_core import collections
+    [failure_count, return_count] = doctest.testmod(collections, optionflags=(ALLOW_UNICODE | doctest.ELLIPSIS))
+    assert failure_count == 0
+
+
+def test_bundle(custom_bundle):
+    from owmeta_core import bundle
+    from owmeta_core.context import Context
+    from owmeta_core.dataobject import DataObject
+    from owmeta_core.bundle import Descriptor, Bundle
+
+    desc = Descriptor.load('''
+    id: example/bundleId
+    version: 42
+    includes:
+        - http://example.org/test_bundle
+    ''')
+
+    ctx = Context('http://example.org/test_bundle')
+    ctx(DataObject)(ident='http://example.org/entities#aDataObject')
+
+    with custom_bundle(desc, graph=ctx.rdf_graph()) as bun:
+        class CustomBundle(Bundle):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, bundles_directory=bun.bundles_directory, **kwargs)
+
+        [failure_count, return_count] = doctest.testmod(bundle,
+                optionflags=(ALLOW_UNICODE | doctest.ELLIPSIS),
+                extraglobs=dict(Bundle=CustomBundle, DataObject=DataObject))
+    assert failure_count == 0
 
 
 class SphinxTest(unittest.TestCase):
