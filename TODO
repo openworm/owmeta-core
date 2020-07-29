@@ -1,3 +1,25 @@
+- Add support for specifying dependencies at the project level rather than the
+  bundle level so we can have a dependency on the core bundle in other projects.
+  (XXX: Can we allow Bundle descriptors to automatically include all project
+  dependencies?  Also, can we allow bundle descriptors to reference project
+  dependencies so they just specify the bundle ID and don't have to specify the
+  version, excludes, etc.?)
+  
+- Define a project module that can share code with Bundle for building an
+  aggregate store based on dependencies.
+
+- Add acc test for source list from a project with a core bundle dep.
+
+# Bundle commands
+- add version number param to OWMBundle::checkout 
+- add version number param to OWMBundle::deploy
+
+# Bundle query
+- Limit contexts returned from repeated stores with 'excludes' to only list
+  excluded (as appropriate. see below)
+- Test multiple dependencies excluding/including supersets subsets of each
+  others' contexts
+
 - Translate the below into Github issues
 
 - Describe in the documentation the repository, which verifies imported contexts
@@ -19,12 +41,3 @@ or accepts on the command line, the fields for the data source
 - Write documentation describing the notion of the (current) data context and
 (current) imports context
 
-# Bundle commands
-- add version number param to OWMBundle::checkout 
-- add version number param to OWMBundle::deploy
-
-# Bundle query
-- Limit contexts returned from repeated stores with 'excludes' to only list
-  excluded (as appropriate. see below)
-- Test multiple dependencies excluding/including supersets subsets of each
-  others' contexts
