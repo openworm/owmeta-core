@@ -1,3 +1,12 @@
+'''
+This module defines the root of a high-level interface for owmeta_core, refered to as
+"OWM" (for the `main class <OWM>` in the interface), "owm" (for the command line that
+wraps the interface), or "the command interface" in the documentation. Additional
+"sub-commands" may be defined which provide additional functionality.
+
+If there is a suitable method in the high-level interface, it should generally be
+preferred to the lower-level interfaces for stability.
+'''
 from __future__ import print_function, absolute_import
 import sys
 from contextlib import contextmanager
