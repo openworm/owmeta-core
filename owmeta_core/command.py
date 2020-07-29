@@ -143,6 +143,9 @@ class OWMSource(object):
         kind_uri = self._parent._den3(kind)
 
         dst = ctx.stored(ctx.stored.resolve_class(kind_uri))
+        if dst is None:
+            raise GenericUserError('Listing DataSources requires a dependency on the'
+                                   ' openworm/owmeta-core bundle')
         dt = dst.query(conf=conf)
         nm = conf['rdf.graph'].namespace_manager
 
