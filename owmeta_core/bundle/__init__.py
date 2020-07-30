@@ -377,6 +377,13 @@ class Bundle(object):
         if not remotes_directory:
             remotes_directory = DEFAULT_REMOTES_DIRECTORY
         self.remotes_directory = realpath(expandvars(expanduser(remotes_directory)))
+
+        self._store_config_builder = \
+            BundleDependentStoreConfigBuilder(
+                    bundles_directory=bundles_directory,
+                    remotes_directory=remotes_directory,
+                    remotes=remotes)
+
         self._given_conf = conf
         self.conf = None
         self._contexts = None
@@ -413,55 +420,13 @@ class Bundle(object):
                 self.conf[DEFAULT_CONTEXT_KEY] = manifest_data.get(DEFAULT_CONTEXT_KEY)
                 self.conf[IMPORTS_CONTEXT_KEY] = manifest_data.get(IMPORTS_CONTEXT_KEY)
                 self.conf[CLASS_REGISTRY_CONTEXT_KEY] = manifest_data.get(CLASS_REGISTRY_CONTEXT_KEY)
-            self.conf['rdf.store'] = 'agg'
-            self.conf['rdf.store_conf'] = self._construct_store_config(
-                    bundle_directory,
-                    manifest_data)
+            indexed_db_path = p(bundle_directory, BUNDLE_INDEXED_DB_NAME)
+            store_name, store_conf = self._store_config_builder.build(
+                    indexed_db_path,
+                    manifest_data.get('dependencies', ()))
+            self.conf['rdf.store'] = store_name
+            self.conf['rdf.store_conf'] = store_conf
             self.connection = connect(conf=self.conf)
-
-    def _construct_store_config(self, bundle_directory, manifest_data, current_path=None, paths=None):
-        if paths is None:
-            paths = set()
-        if current_path is None:
-            current_path = _BDTD()
-        dependency_configs = self._gather_dependency_configs(bundle_directory, manifest_data, current_path, paths)
-        indexed_db_path = p(bundle_directory, BUNDLE_INDEXED_DB_NAME)
-        fs_store_config = dict(url=indexed_db_path, read_only=True)
-        return [
-            ('FileStorageZODB', fs_store_config)
-        ] + dependency_configs
-
-    @aslist
-    def _gather_dependency_configs(self, bundle_directory, manifest_data, current_path, paths):
-        for dd in manifest_data.get('dependencies', ()):
-            dep_path = current_path.merge_excludes(dd.get('excludes', ()))
-            dep_ident = dd.get('id')
-            dep_version = dd.get('version')
-            if not dep_ident:
-                raise MalformedBundle(bundle_directory, 'bundle dependency descriptor is lacking an identifier')
-            if (dep_path, (dep_ident, dep_version)) in paths:
-                return
-            paths.add((dep_path, (dep_ident, dep_version)))
-            tries = 0
-            while tries < 2:
-                try:
-                    bundle_directory = find_bundle_directory(self.bundles_directory, dep_ident, dep_version)
-                    with open(p(bundle_directory, BUNDLE_MANIFEST_FILE_NAME)) as mf:
-                        manifest_data = json.load(mf)
-                    break
-                except (BundleNotFound, FileNotFoundError):
-                    bundle_directory = self._fetch_bundle(dep_ident, dep_version)
-                    tries += 1
-
-            # We don't want to include items in the configuration that aren't specified by
-            # the dependency descriptor. Also, all of the optionals have defaults that
-            # BundleDependencyStore handles itself, so we don't want to impose them here.
-            addl_dep_confs = {k: v for k, v in dd.items()
-                    if k in ('excludes',) and v}
-            yield ('owmeta_core_bds', dict(type='agg',
-                        conf=self._construct_store_config(bundle_directory, manifest_data,
-                            dep_path, paths),
-                        **addl_dep_confs))
 
     def _fetch_bundle(self, bundle_ident, version):
         remotes_list = list(retrieve_remotes(self.remotes_directory))
@@ -511,6 +476,109 @@ class Bundle(object):
             ctx = BundleContext(None, conf=self.conf)
             return target.contextualize(ctx.stored)
         return target
+
+
+class BundleDependentStoreConfigBuilder(object):
+    '''
+    Builds an RDFLib store configuration that depends on bundles.
+
+    The process of building the store configurationi requires traversing the graph of
+    dependencies so that duplicate dependencies in the graph can be omitted. To support
+    this process, this builder will fetch bundles as needed to resolve transitive
+    dependencies
+    '''
+    def __init__(self, bundles_directory=None, remotes_directory=None, remotes=None):
+        if not bundles_directory:
+            bundles_directory = DEFAULT_BUNDLES_DIRECTORY
+        self.bundles_directory = realpath(expandvars(expanduser(bundles_directory)))
+
+        if not remotes_directory:
+            remotes_directory = DEFAULT_REMOTES_DIRECTORY
+        self.remotes_directory = realpath(expandvars(expanduser(remotes_directory)))
+
+        self.remotes = remotes
+
+    def build(self, indexed_db_path, dependencies, bundle_directory=None):
+        '''
+        Builds the store configuration
+
+        Parameters
+        ----------
+        indexed_db_path : str
+            Path to the indexed database of the store that depends on the listed
+            dependenices
+        dependencies : list of dict
+            List of dependencies info at least including keys for 'id' and 'version'
+        bundle_directory : str, optional
+            Path to the bundle directory for the dependent store, if the dependent store
+            is a bundle. Used for information in an exceptional path, but not otherwise
+            used
+
+        Returns
+        -------
+        str
+            The type of the store. This is the name used to look up the RDFLib store plugin
+        object
+            The configuration for the store. This is the object that will be passed to
+            `rdflib.store.Store.open` to configure the store.
+        '''
+        return 'agg', self._construct_store_config(indexed_db_path, dependencies)
+
+    __call__ = build
+
+    def _construct_store_config(self, indexed_db_path, dependencies,
+                                current_path=None, paths=None, bundle_directory=None):
+        if paths is None:
+            paths = set()
+        if current_path is None:
+            current_path = _BDTD()
+        dependency_configs = self._gather_dependency_configs(dependencies, current_path, paths, bundle_directory)
+        fs_store_config = dict(url=indexed_db_path, read_only=True)
+        return [
+            ('FileStorageZODB', fs_store_config)
+        ] + dependency_configs
+
+    @aslist
+    def _gather_dependency_configs(self, dependencies, current_path, paths, bundle_directory=None):
+        for dd in dependencies:
+            dep_path = current_path.merge_excludes(dd.get('excludes', ()))
+            dep_ident = dd.get('id')
+            dep_version = dd.get('version')
+            if not dep_ident:
+                if bundle_directory:
+                    raise MalformedBundle(bundle_directory, 'bundle dependency descriptor is lacking an identifier')
+                else:
+                    raise ValueError('bundle dependency descriptor is lacking an identifier')
+            if (dep_path, (dep_ident, dep_version)) in paths:
+                return
+            paths.add((dep_path, (dep_ident, dep_version)))
+            tries = 0
+            while tries < 2:
+                try:
+                    bundle_directory = find_bundle_directory(self.bundles_directory, dep_ident, dep_version)
+                    with open(p(bundle_directory, BUNDLE_MANIFEST_FILE_NAME)) as mf:
+                        manifest_data = json.load(mf)
+                    break
+                except (BundleNotFound, FileNotFoundError):
+                    bundle_directory = self._fetch_bundle(dep_ident, dep_version)
+                    tries += 1
+
+            # We don't want to include items in the configuration that aren't specified by
+            # the dependency descriptor. Also, all of the optionals have defaults that
+            # BundleDependencyStore handles itself, so we don't want to impose them here.
+            addl_dep_confs = {k: v for k, v in dd.items()
+                    if k in ('excludes',) and v}
+            yield ('owmeta_core_bds', dict(type='agg',
+                        conf=self._construct_store_config(
+                            p(bundle_directory, BUNDLE_INDEXED_DB_NAME),
+                            manifest_data.get('dependencies', ()),
+                            dep_path, paths, bundle_directory),
+                        **addl_dep_confs))
+
+    def _fetch_bundle(self, bundle_ident, version):
+        remotes_list = list(retrieve_remotes(self.remotes_directory))
+        f = Fetcher(self.bundles_directory, remotes_list)
+        return f.fetch(bundle_ident, version, self.remotes)
 
 
 class _BDTD(namedtuple('_BDTD', ('excludes',))):
