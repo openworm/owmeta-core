@@ -30,6 +30,7 @@ import errno
 from collections import namedtuple
 from textwrap import dedent
 from tempfile import TemporaryDirectory
+import uuid
 
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
                            DEFAULT_OWM_DIR)
@@ -877,7 +878,7 @@ class OWM(object):
             return self._conf().get(IMPORTS_CONTEXT_KEY)
 
     def init(self, update_existing_config=False, default_context_id=None,
-            imports_context_id=None, class_registry_context_id=None):
+            imports_context_id=None):
         """
         Makes a new graph store.
 
@@ -899,16 +900,13 @@ class OWM(object):
             URI for the default context. Required
         imports_context_id : str
             URI for the imports context.
-        class_registry_context_id : str
-            URI for the class registry context. If not provided, it will be prompted for
         """
         try:
             reinit = exists(self.owmdir)
             self._ensure_owmdir()
             if not exists(self.config_file):
                 self._init_config_file(imports_context_id=imports_context_id,
-                        default_context_id=default_context_id,
-                        class_registry_context_id=class_registry_context_id)
+                        default_context_id=default_context_id)
             elif update_existing_config:
                 with open(self.config_file, 'r+') as f:
                     conf = json.load(f)
@@ -933,8 +931,7 @@ class OWM(object):
 
     def _init_config_file(self,
             default_context_id=None,
-            imports_context_id=None,
-            class_registry_context_id=None):
+            imports_context_id=None):
         with open(self._default_config_file_name(), 'r') as f:
             default = json.load(f)
             with open(self.config_file, 'w') as of:
@@ -963,35 +960,15 @@ class OWM(object):
                     Please provide the URI of the imports context: '''))
                 imports_context_id = imports_context_id and str(imports_context_id).strip()
                 if not imports_context_id:
-                    import uuid
                     imports_context_id = str(uuid.uuid4().urn).strip()
-
-                imports_context_id = imports_context_id
 
                 if not imports_context_id:
                     # XXX: Shouldn't actually happen...
                     raise GenericUserError('An import context ID is required')
                 default[IMPORTS_CONTEXT_KEY] = imports_context_id
 
-                if not class_registry_context_id and not self.non_interactive:
-                    class_registry_context_id = self.prompt(dedent('''\
-                    The class registry context contains mappings between Python classes
-                    (known as "mapped classes") and RDF types.
+                class_registry_context_id = str(uuid.uuid4().urn).strip()
 
-                    If a URI is not provided for this context, one will be generated at random.
-
-                    Please provide the URI of the class registry context: '''))
-
-                class_registry_context_id = class_registry_context_id and str(class_registry_context_id).strip()
-                if not class_registry_context_id:
-                    import uuid
-                    class_registry_context_id = str(uuid.uuid4().urn).strip()
-
-                class_registry_context_id = class_registry_context_id
-
-                if not class_registry_context_id:
-                    # XXX: Shouldn't actually happen...
-                    raise GenericUserError('A class registry context ID is required')
                 default[CLASS_REGISTRY_CONTEXT_KEY] = class_registry_context_id
 
                 write_config(default, of)
