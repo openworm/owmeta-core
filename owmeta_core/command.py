@@ -34,6 +34,7 @@ from tempfile import TemporaryDirectory
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
                            DEFAULT_OWM_DIR)
 from . import connect, OWMETA_PROFILE_DIR
+from .bundle import BundleDependentStoreConfigBuilder
 from .commands.bundle import OWMBundle
 from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
                       CLASS_REGISTRY_CONTEXT_KEY)
@@ -1098,6 +1099,15 @@ class OWM(object):
                     not store_conf.startswith(abspath(self.owmdir))):
                 raise GenericUserError('rdf.store_conf must specify a path inside of ' +
                         self.owmdir + ' but instead it is ' + store_conf)
+
+            deps = dat.get('dependencies', None)
+            if deps:
+                cfg_builder = BundleDependentStoreConfigBuilder()
+                store_name, store_conf = cfg_builder.build(store_conf, deps)
+                dat['rdf.source'] = 'default'
+                dat['rdf.store'] = store_name
+                dat['rdf.store_conf'] = store_conf
+
             self._owm_connection = connect(conf=dat)
 
             self._dat = dat
@@ -1964,7 +1974,7 @@ class OWMSaveNamespace(object):
 
 class NullContextRecord(namedtuple('_NullContextRecord', ['node_index', 'statement'])):
     '''
-    Stored when the identifier for the context of an object we'er saving is `None`
+    Stored when the identifier for the context of an object we're saving is `None`
     '''
 
     def __str__(self):
