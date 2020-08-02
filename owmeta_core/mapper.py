@@ -90,12 +90,6 @@ class Mapper(Configurable):
         self.process_classes(BaseDataObject, DataObject, PythonClassDescription, Module,
                 ClassDescription, PythonModule, RegistryEntry)
 
-    def decorate_class(self, cls):
-        '''
-        Extension point for subclasses of Mapper to apply an operation to all mapped classes
-        '''
-        return cls
-
     def add_class(self, cls):
         cname = FCN(cls)
         maybe_cls = self._lookup_class(cname)
@@ -107,7 +101,6 @@ class Mapper(Configurable):
         L.debug("Adding class %s@0x%x", cls, id(cls))
 
         self.MappedClasses[cname] = cls
-        self.DecoratedMappedClasses[cls] = self.decorate_class(cls)
         L.debug('parents %s', parents_str(cls))
 
         if hasattr(cls, 'on_mapper_add_class'):
