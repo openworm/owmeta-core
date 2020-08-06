@@ -13,7 +13,7 @@ import transaction
 
 from owmeta_core.context import Context
 from owmeta_core.command import DEFAULT_OWM_DIR as OD, OWM
-from owmeta_core.bundle import Descriptor, Bundle, make_include_func
+from owmeta_core.bundle import DependencyDescriptor, Descriptor, Bundle, make_include_func
 
 
 from .TestUtilities import assertRegexpMatches, assertNotRegexpMatches
@@ -408,12 +408,6 @@ def test_load_from_class_registry_from_conjunctive(custom_bundle):
     # Add some triples so the contexts aren't empty -- we can't save an empty context
     g = rdflib.ConjunctiveGraph()
 
-    cr_ctx = Context(class_registry_ctxid)
-    cr_ctx.save(g)
-
-    data_ctx = Context(data_ctxid)
-    data_ctx.save(g)
-
     with open(p('tests', 'test_data', 'owmbundletest01_data.n3'), 'rb') as f:
         g.get_context(data_ctxid).parse(f, format='n3')
 
@@ -444,6 +438,49 @@ def test_load_from_class_registry_from_conjunctive(custom_bundle):
         bctx = bnd(Context)().stored
         for m in bctx(DataObject)().load():
             assert type(m).__name__ != 'Person'
+            break
+        else: # no break
+            pytest.fail('Expected an object')
+
+
+def test_class_registry_list(custom_bundle):
+    '''
+    Test that we can load from the class registry for un-imported classes
+    '''
+    from owmeta_core.dataobject import DataObject
+
+    class_registry_ctxid = 'http://example.org/class_registry'
+    data_ctxid = 'http://example.org/data_context'
+    defctxid = 'http://example.org/Person'
+
+    # Add some triples so the contexts aren't empty -- we can't save an empty context
+    g = rdflib.ConjunctiveGraph()
+
+    with open(p('tests', 'test_data', 'owmbundletest01_data.n3'), 'rb') as f:
+        g.get_context(data_ctxid).parse(f, format='n3')
+
+    with open(p('tests', 'test_data', 'owmbundletest01_class_registry.n3'), 'rb') as f:
+        g.get_context(class_registry_ctxid).parse(f, format='n3')
+
+    with open(p('tests', 'test_data', 'owmbundletest01_defctx.n3'), 'rb') as f:
+        g.get_context(defctxid).parse(f, format='n3')
+
+    # Make a descriptor that includes ctx1 and the imports, but not ctx2
+    d = Descriptor('test')
+    d.includes.add(make_include_func(data_ctxid))
+    d.includes.add(make_include_func(defctxid))
+    d.dependencies.add(DependencyDescriptor('dep'))
+
+    # Make a dependency that holds the class registry
+    dep_d = Descriptor('dep')
+
+    with custom_bundle(dep_d, graph=g, class_registry_ctx=class_registry_ctxid) as depbun, \
+            custom_bundle(d, graph=g, bundles_directory=depbun.bundles_directory) as testbun, \
+            Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
+
+        bctx = bnd(Context)().stored
+        for m in bctx(DataObject)(ident='http://schema.openworm.org/2020/07/Person#bwithers').load():
+            assert type(m).__name__ == 'Person'
             break
         else: # no break
             pytest.fail('Expected an object')

@@ -186,14 +186,14 @@ class List(BaseDataObject):
             yield []
             return
 
-        if self.identifier in seen:
-            # Maybe a loop was made on purpose, so no warning, but still worth noting.
-            L.info('Loop detected: %s in %s', self, seen)
-            yield _Loop((), self)
-            return
-
         for m in self.load():
             rests = m.rest.get()
+
+            if m.identifier in seen:
+                # Maybe a loop was made on purpose, so no warning, but still worth noting.
+                L.info('Loop detected: %s in %s', self, seen)
+                yield _Loop((), m)
+                return
 
             seen.append(m.identifier)
 

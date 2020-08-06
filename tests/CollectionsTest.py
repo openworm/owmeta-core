@@ -283,6 +283,63 @@ class ListLoadDataObjectSequencesTest(_DataTest):
             assert list(islice(seq, 6)) == ['a', 'b', 'c', 'b', 'c', 'b']
         self.assertTrue(hit, 'Expected a sequence')
 
+    def test_loop_split(self):
+        '''
+        ```
+        a->b->c->b[loop]
+            ->d->b[loop]
+        ```
+        '''
+        a = self.ctx.List(key='a', first='a')
+        b = self.ctx.List(key='b', first='b')
+        c = self.ctx.List(key='c', first='c')
+        d = self.ctx.List(key='d', first='d')
+
+        a.rest(b)
+        b.rest(c)
+        c.rest(b)
+        self.context.save()
+
+        b.rest(d)
+        d.rest(b)
+        self.context.save()
+
+        query = self.context.stored(List)(key='a')
+        seqs = set([tuple(islice(seq, 6)) for seq in query.load_sequences()])
+        assert seqs == set([('a', 'b', 'c', 'b', 'c', 'b'),
+                            ('a', 'b', 'd', 'b', 'd', 'b')])
+
+    def test_loop_split_long(self):
+        '''
+        ```
+        a->b->c->d->c[loop]
+            ->c->b[loop]
+            ->d->c->d[loop]
+            ->d->c->b[loop]
+        ```
+        '''
+        a = self.ctx.List(key='a', first='a')
+        b = self.ctx.List(key='b', first='b')
+        c = self.ctx.List(key='c', first='c')
+        d = self.ctx.List(key='d', first='d')
+
+        a.rest(b)
+        b.rest(c)
+        c.rest(d)
+        d.rest(c)
+        self.context.save()
+
+        c.rest(b)
+        b.rest(d)
+        self.context.save()
+
+        query = self.context.stored(List)(key='a')
+        seqs = set([tuple(islice(seq, 7)) for seq in query.load_sequences()])
+        assert seqs == set([('a', 'b', 'c', 'b', 'c', 'b', 'c'),
+                            ('a', 'b', 'c', 'd', 'c', 'd', 'c'),
+                            ('a', 'b', 'd', 'c', 'd', 'c', 'd'),
+                            ('a', 'b', 'd', 'c', 'b', 'd', 'c')])
+
 
 class ListLoadDataObjectSequencesImproperTerminationTest(_DataTest):
     ctx_classes = (List,)

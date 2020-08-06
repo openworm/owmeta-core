@@ -194,8 +194,7 @@ def connect(configFile=None,
 
     # Base class names is empty because we won't be adding any objects to the
     # context automatically
-    mapper = Mapper(conf=conf)
-    conf['mapper'] = mapper
+    conf['mapper'] = Mapper(conf=conf)
     # An "empty" context, that serves as the default when no context is defined
 
     return Connection(conf)

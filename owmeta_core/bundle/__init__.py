@@ -10,10 +10,12 @@ import json
 import logging
 import re
 import shutil
+import uuid
 
 from rdflib import plugin
 from rdflib.parser import Parser, create_input_source
 from rdflib.term import URIRef
+from rdflib.graph import ConjunctiveGraph
 import six
 from textwrap import dedent
 import transaction
@@ -23,6 +25,7 @@ from .. import OWMETA_PROFILE_DIR, connect
 from ..context import (DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
                        CLASS_REGISTRY_CONTEXT_KEY, Context)
 from ..context_common import CONTEXT_IMPORTS
+from ..collections import List
 from ..data import Data
 from ..file_match import match_files
 from ..file_lock import lock_file
@@ -400,6 +403,12 @@ class Bundle(object):
         except BundleNotFound:
             bundle_directory = self._fetch_bundle(self.ident, self.version)
         return bundle_directory
+
+    @property
+    def manifest_data(self):
+        bundle_directory = self.resolve()
+        with open(p(bundle_directory, BUNDLE_MANIFEST_FILE_NAME)) as mf:
+            return json.load(mf)
 
     def _get_bundle_directory(self):
         # - look up the bundle in the bundle cache
@@ -1028,6 +1037,8 @@ class Installer(object):
         self.class_registry_ctx = class_registry_ctx
         self.remotes = list(remotes)
         self.remotes_directory = remotes_directory
+        self._force_include_class_registry = False
+        self._force_include_imports = False
 
     def install(self, descriptor, progress_reporter=None):
         '''
@@ -1083,9 +1094,9 @@ class Installer(object):
         graphs_directory, files_directory = self._set_up_directories(staging_directory)
         self._write_file_hashes(descriptor, files_directory)
         self._write_context_data(descriptor, graphs_directory)
-        self._write_manifest(descriptor, staging_directory)
         self._generate_bundle_class_registry_ctx(descriptor, graphs_directory)
         self._generate_bundle_imports_ctx(descriptor, graphs_directory)
+        self._write_manifest(descriptor, staging_directory)
         self._initdb(staging_directory)
         self._build_indexed_database(staging_directory, progress_reporter)
 
@@ -1141,7 +1152,7 @@ class Installer(object):
         if self.default_ctx:
             manifest_data[DEFAULT_CONTEXT_KEY] = self.default_ctx
 
-        if self.imports_ctx:
+        if self.imports_ctx or self._force_include_imports:
             # If an imports context was specified, then we'll need to generate an
             # imports context with the appropriate imports. We don't use the source
             # imports context ID for the bundle's imports context because the bundle
@@ -1149,7 +1160,7 @@ class Installer(object):
             manifest_data[IMPORTS_CONTEXT_KEY] = fmt_bundle_imports_ctx_id(descriptor.id,
                     descriptor.version)
 
-        if self.class_registry_ctx:
+        if self.class_registry_ctx or self._force_include_class_registry:
             manifest_data[CLASS_REGISTRY_CONTEXT_KEY] = fmt_bundle_class_registry_ctx_id(descriptor.id,
                     descriptor.version)
 
@@ -1162,40 +1173,6 @@ class Installer(object):
         with open(p(staging_directory, BUNDLE_MANIFEST_FILE_NAME), 'w') as mf:
             json.dump(manifest_data, mf, separators=(',', ':'))
 
-    def _generate_bundle_imports_ctx(self, descriptor, graphs_directory):
-        if not self.imports_ctx:
-            return
-        imports_ctxg = self.graph.get_context(self.imports_ctx)
-        # select all of the imports for all of the contexts in the bundle and serialize
-        contexts = []
-        idx_fname = p(graphs_directory, 'index')
-        with open(idx_fname) as index_file:
-            for l in index_file:
-                ctx, _ = l.strip().split('\x00')
-                contexts.append(URIRef(ctx))
-        for c in descriptor.empties:
-            contexts.append(URIRef(c))
-        if self.class_registry_ctx:
-            cr_ctxid = URIRef(fmt_bundle_class_registry_ctx_id(descriptor.id, descriptor.version))
-            contexts.append(cr_ctxid)
-        ctxid = fmt_bundle_imports_ctx_id(descriptor.id, descriptor.version)
-        ctxgraph = imports_ctxg.triples_choices((contexts, CONTEXT_IMPORTS, None))
-        if self.class_registry_ctx:
-            old_ctxgraph = ctxgraph
-
-            def replace_cr_ctxid():
-                src_cr_ctxid = URIRef(self.class_registry_ctx)
-                for t in old_ctxgraph:
-                    if t[0] == src_cr_ctxid:
-                        yield (cr_ctxid, t[1], t[2])
-                    elif t[2] == src_cr_ctxid:
-                        yield (t[0], t[1], cr_ctxid)
-                    else:
-                        yield t
-            ctxgraph = replace_cr_ctxid()
-
-        self._write_graph(graphs_directory, ctxid, ctxgraph)
-
     def _generate_bundle_class_registry_ctx(self, descriptor, graphs_directory):
         if not self.class_registry_ctx:
             return
@@ -1203,6 +1180,75 @@ class Installer(object):
         class_registry_ctxg = self.graph.get_context(self.class_registry_ctx)
 
         self._write_graph(graphs_directory, ctx_id, class_registry_ctxg)
+
+    def _declare_class_registry_list(self, descriptor):
+        if self.imports_ctx is None:
+            self.imports_ctx = uuid.uuid4().urn
+        imports_ctx = Context(self.imports_ctx)
+        ctx_id = fmt_bundle_class_registry_ctx_id(descriptor.id, descriptor.version)
+        list_id = fmt_bundle_class_registry_ctx_list_id(descriptor.id, descriptor.version)
+
+        crctxs = [imports_ctx(Context)(ctx_id).rdf_object]
+        for d in descriptor.dependencies:
+            bnd = Bundle(d.id, self.bundles_directory, d.version, remotes=self.remotes,
+                    remotes_directory=self.remotes_directory)
+            bnd_manifest_data = bnd.manifest_data
+            bnd_crctx_id = bnd_manifest_data.get(CLASS_REGISTRY_CONTEXT_KEY)
+
+            if bnd_crctx_id:
+                crctxs.append(imports_ctx(Context)(bnd_crctx_id).rdf_object)
+        graph = None
+        if len(crctxs) > 1:
+            graph = ConjunctiveGraph()
+            self._force_include_class_registry = True
+            self._force_include_imports = True
+            imports_ctx(List).from_sequence(crctxs, URIRef(list_id))
+
+            imports_ctx.save(graph)
+
+        return graph
+
+    def _generate_bundle_imports_ctx(self, descriptor, graphs_directory):
+        if self.imports_ctx:
+            imports_ctxg = self.graph.get_context(self.imports_ctx)
+            # select all of the imports for all of the contexts in the bundle and serialize
+            contexts = []
+            idx_fname = p(graphs_directory, 'index')
+            with open(idx_fname) as index_file:
+                for l in index_file:
+                    ctx, _ = l.strip().split('\x00')
+                    contexts.append(URIRef(ctx))
+            for c in descriptor.empties:
+                contexts.append(URIRef(c))
+            if self.class_registry_ctx:
+                cr_ctxid = URIRef(fmt_bundle_class_registry_ctx_id(descriptor.id, descriptor.version))
+                contexts.append(cr_ctxid)
+            ctxgraph = imports_ctxg.triples_choices((contexts, CONTEXT_IMPORTS, None))
+            if self.class_registry_ctx or self._force_include_class_registry:
+                old_ctxgraph = ctxgraph
+
+                def replace_cr_ctxid():
+                    src_cr_ctxid = URIRef(self.class_registry_ctx)
+                    for t in old_ctxgraph:
+                        if t[0] == src_cr_ctxid:
+                            yield (cr_ctxid, t[1], t[2])
+                        elif t[2] == src_cr_ctxid:
+                            yield (t[0], t[1], cr_ctxid)
+                        else:
+                            yield t
+                ctxgraph = replace_cr_ctxid()
+        else:
+            ctxgraph = None
+
+        crctx = self._declare_class_registry_list(descriptor)
+        if crctx is not None:
+            if ctxgraph is not None:
+                ctxgraph = chain(ctxgraph, crctx)
+            else:
+                ctxgraph = crctx
+        if ctxgraph is not None:
+            ctxid = fmt_bundle_imports_ctx_id(descriptor.id, descriptor.version)
+            self._write_graph(graphs_directory, ctxid, ctxgraph)
 
     def _write_graph(self, graphs_directory, ctxid, ctxgraph):
         for _ in self._write_graphs(graphs_directory, (ctxid, ctxgraph)):
@@ -1280,8 +1326,12 @@ def fmt_bundle_class_registry_ctx_id(id, version):
     return fmt_bundle_ctx_id('generated_class_registry_ctx', id, version)
 
 
+def fmt_bundle_class_registry_ctx_list_id(id, version):
+    return fmt_bundle_ctx_id('generated_class_registry_ctx_list', id, version)
+
+
 def fmt_bundle_ctx_id(kind, id, version):
-    return f'http://openworm.org/data/{kind}?bundle_id={urlquote(id)}&bundle_version={version}'
+    return f'http://data.openworm.org/bundle/{kind}?bundle_id={urlquote(id)}&bundle_version={version}'
 
 
 class FilesDescriptor(object):
