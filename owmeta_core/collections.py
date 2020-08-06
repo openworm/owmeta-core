@@ -171,7 +171,7 @@ class List(BaseDataObject):
 
         return first
 
-    def load_dataobject_sequences(self, seen=None):
+    def load_dataobject_sequences(self):
         '''
         Loads the sequences of `rest` values starting from this node.
 
@@ -179,6 +179,9 @@ class List(BaseDataObject):
         sub-lists, in the configured RDF graph. Also, there is no guarantee that there is
         just *one* list starting from this node.
         '''
+        return self._load_dataobject_sequences()
+
+    def _load_dataobject_sequences(self, seen=None):
         if seen is None:
             seen = list()
 
@@ -193,13 +196,19 @@ class List(BaseDataObject):
                 # Maybe a loop was made on purpose, so no warning, but still worth noting.
                 L.info('Loop detected: %s in %s', self, seen)
                 yield _Loop((), m)
+
+                # We can drop here since there's only going to be one result except for
+                # when we initially loaded from something without an identifier, but if
+                # there's something in `seen`, then we've already passed that case. You
+                # *could* pass something in to `seen` on the initial call, but that isn't
+                # a part of the *public* interface
                 return
 
             seen.append(m.identifier)
 
             hit = False
             for rest in rests:
-                for rest_lst in rest.load_dataobject_sequences(seen):
+                for rest_lst in rest._load_dataobject_sequences(seen):
                     hit = True
                     if isinstance(rest_lst, _Loop):
                         if rest_lst.loop.identifier == m.identifier:
