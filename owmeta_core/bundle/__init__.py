@@ -1171,7 +1171,7 @@ class Installer(object):
 
         Raises
         ------
-        TargetIsNotEmpty
+        .TargetIsNotEmpty
             Thrown when the target directory for installation is not empty.
         '''
         # Create the staging directory in the base directory to reduce the chance of

@@ -304,7 +304,9 @@ class Data(object):
         if not command:
             return None
         env = dict(os.environ)
-        env['PYTHONPATH'] = self.testdir + os.pathsep + env['PYTHONPATH']
+        env['PYTHONPATH'] = self.testdir + ((os.pathsep + env['PYTHONPATH'])
+                                            if 'PYTHONPATH' in env
+                                            else '')
         env['HOME'] = self.test_homedir
         env.update(kwargs.pop('env', {}))
         outputs = []
