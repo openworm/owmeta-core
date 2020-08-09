@@ -1,14 +1,11 @@
-- Add support for specifying dependencies at the project level rather than the
-  bundle level so we can have a dependency on the core bundle in other projects.
-  (XXX: Can we allow Bundle descriptors to automatically include all project
-  dependencies?  Also, can we allow bundle descriptors to reference project
-  dependencies so they just specify the bundle ID and don't have to specify the
-  version, excludes, etc.?)
-  
 - Define a project module that can share code with Bundle for building an
   aggregate store based on dependencies.
 
 - Add acc test for source list from a project with a core bundle dep.
+
+- Remove the prompt for imports context ID: like with class registry context
+  ID, it's not supposed to be shared in the bundle anyway, so why make it
+  easier to do so?
 
 # Bundle commands
 - add version number param to OWMBundle::checkout 
