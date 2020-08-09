@@ -214,49 +214,50 @@ class Mapper(Configurable):
 
         # look up the class in the registryCache
         c = self.RDFTypeTable.get(uri)
-        if c is None:
-            # otherwise, attempt to load into the cache by
-            # reading the RDF graph.
+        if c is not None:
+            return c
+        # otherwise, attempt to load into the cache by
+        # reading the RDF graph.
 
-            cr_ctx = self.class_registry_context.stored
-            re = cr_ctx(RegistryEntry)()
-            re.rdf_class(uri)
-            cd = cr_ctx(PythonClassDescription)()
-            re.class_description(cd)
+        cr_ctx = self.class_registry_context.stored
+        re = cr_ctx(RegistryEntry)()
+        re.rdf_class(uri)
+        cd = cr_ctx(PythonClassDescription)()
+        re.class_description(cd)
 
-            for cd_l in cd.load():
-                class_name = cd_l.name()
-                moddo = cd_l.module()
-                try:
-                    mod = self.load_module(moddo.name())
-                except ModuleNotFoundError:
-                    L.warn('Did not find module %s', moddo.name())
-                    continue
-                c = getattr(mod, class_name, None)
-                if c is not None:
-                    break
-                L.warning('Did not find class %s in %s', class_name, mod.__name__)
-
-                ymc = getattr(mod, '__yarom_mapped_classes__', None)
-                if not ymc:
-                    L.warning('No __yarom_mapped_classes__ in %s, so cannot look up %s',
-                            mod.__name__, class_name)
-                    continue
-
-                matching_classes = tuple(mc for mc in ymc
-                                         if mc.__name__ == class_name)
-                if not matching_classes:
-                    L.warning('Did not find class %s in %s.__yarom_mapped_classes__',
-                            class_name, mod.__name__)
-                    continue
-
-                c = matching_classes[0]
-                if len(matching_classes) > 1:
-                    L.warning('More than one class has the same name in'
-                            ' __yarom_mapped_classes__ for %s, so we are picking'
-                            ' the first one as the resolved class among %s',
-                            mod, matching_classes)
+        for cd_l in cd.load():
+            class_name = cd_l.name()
+            moddo = cd_l.module()
+            try:
+                mod = self.load_module(moddo.name())
+            except ModuleNotFoundError:
+                L.warn('Did not find module %s', moddo.name())
+                continue
+            c = getattr(mod, class_name, None)
+            if c is not None:
                 break
+            L.warning('Did not find class %s in %s', class_name, mod.__name__)
+
+            ymc = getattr(mod, '__yarom_mapped_classes__', None)
+            if not ymc:
+                L.warning('No __yarom_mapped_classes__ in %s, so cannot look up %s',
+                        mod.__name__, class_name)
+                continue
+
+            matching_classes = tuple(mc for mc in ymc
+                                     if mc.__name__ == class_name)
+            if not matching_classes:
+                L.warning('Did not find class %s in %s.__yarom_mapped_classes__',
+                        class_name, mod.__name__)
+                continue
+
+            c = matching_classes[0]
+            if len(matching_classes) > 1:
+                L.warning('More than one class has the same name in'
+                        ' __yarom_mapped_classes__ for %s, so we are picking'
+                        ' the first one as the resolved class among %s',
+                        mod, matching_classes)
+            break
         return c
 
     def load_class(self, cname_or_mname, cnames=None):
@@ -312,7 +313,7 @@ class Mapper(Configurable):
 
     def __str__(self):
         if self.name is not None:
-            return 'Mapper(name="'+str(self.name)+'")'
+            return f'{type(self).__name__}(name="{str(self.name)}")'
         else:
             return super(Mapper, self).__str__()
 

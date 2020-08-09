@@ -391,6 +391,9 @@ class Bundle(object):
         self.connection = None
         ''' The owmeta_core connection to the bundle's indexed database '''
 
+        self._bundle_context = None
+        self._loaded_dependencies = dict()
+
     @property
     def identifier(self):
         return self.ident
@@ -547,20 +550,26 @@ class Bundle(object):
             raise MalformedBundle(bundle_directory, f'Dependency entry for {id} is'
                     ' missing a version number')
 
-        return Bundle(d_id,
-                version=d_version,
-                bundles_directory=self.bundles_directory,
-                remotes=self.remotes,
-                remotes_directory=self.remotes_directory)
+        bundle = self._loaded_dependencies.get((d_id, d_version))
+        if not bundle:
+            bundle = Bundle(d_id,
+                    version=d_version,
+                    bundles_directory=self.bundles_directory,
+                    remotes=self.remotes,
+                    remotes_directory=self.remotes_directory)
+            self._loaded_dependencies[(d_id, d_version)] = bundle
+        return bundle
 
     def __call__(self, target):
         if not target or not hasattr(target, 'contextualize'):
             return target
 
         self.initdb()
-        ctx = _BundleContext(None, conf=self.conf, bundle=self)
+        if self._bundle_context is None:
+            self._bundle_context = _BundleContext(
+                    None, conf=self.conf, bundle=self).stored
 
-        return target.contextualize(ctx.stored)
+        return target.contextualize(self._bundle_context)
 
 
 class BundleDependentStoreConfigBuilder(object):
@@ -690,10 +699,13 @@ class _BundleContext(Context):
     def __init__(self, *args, bundle, **kwargs):
         super().__init__(*args, **kwargs)
         self.bundle = bundle
+        self._mapper = None
 
     @property
     def mapper(self):
-        return _BundleMapper(bundle=self.bundle)
+        if self._mapper is None:
+            self._mapper = _BundleMapper(bundle=self.bundle)
+        return self._mapper
 
 
 class _BundleMapper(Mapper):
@@ -707,14 +719,20 @@ class _BundleMapper(Mapper):
                 (f'@{bundle.version}' if bundle.version else ''),
                 conf=bundle_conf)
         self.bundle = bundle
+        self._resolved_classes = dict()
 
     def resolve_class(self, rdf_type, context):
-        target_id = context.identifier
+        prev_resolved_class = self._resolved_classes.get((rdf_type, context.identifier))
+        if prev_resolved_class:
+            return prev_resolved_class
+
         own_resolved_class = super().resolve_class(rdf_type, context)
 
         if own_resolved_class:
+            self._resolved_classes[(rdf_type, context.identifier)] = own_resolved_class
             return own_resolved_class
 
+        target_id = context.identifier
         target_bundle = self.bundle._lookup_context_bundle(target_id)
         deps = target_bundle.load_dependencies_transitive()
         for bnd in deps:
@@ -724,6 +742,7 @@ class _BundleMapper(Mapper):
             with bnd:
                 resolved_class = bnd.connection.mapper.resolve_class(rdf_type, context)
                 if resolved_class:
+                    self._resolved_classes[(rdf_type, context.identifier)] = resolved_class
                     return resolved_class
         return None
 
@@ -1314,11 +1333,10 @@ class Installer(object):
                 contexts.append(URIRef(ctx))
         for c in descriptor.empties:
             contexts.append(URIRef(c))
+        ctxgraph = imports_ctxg.triples_choices((contexts, CONTEXT_IMPORTS, None))
         if self.class_registry_ctx:
             cr_ctxid = URIRef(fmt_bundle_class_registry_ctx_id(descriptor.id, descriptor.version))
             contexts.append(cr_ctxid)
-        ctxgraph = imports_ctxg.triples_choices((contexts, CONTEXT_IMPORTS, None))
-        if self.class_registry_ctx:
             old_ctxgraph = ctxgraph
 
             def replace_cr_ctxid():
