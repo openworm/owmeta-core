@@ -134,7 +134,10 @@ def test_install_class_registry_load(owm_project, core_bundle):
     owm_project.make_module(modpath)
     owm_project.writefile(p(modpath, 'owmbundletest02_defs.py'))
     owm_project.copy(p(modpath, 'owmbundletest02_query.py'), 'query.py')
-    owm_project.sh('owm save tests.test_modules.owmbundletest02_defs')
+    save_output = owm_project.sh('owm save tests.test_modules.owmbundletest02_defs')
+    print("---------vSAVE OUTPUTv----------")
+    print(save_output)
+    print("---------^SAVE OUTPUT^----------")
     descriptor = f'''\
     ---
     id: person_bundle
@@ -146,7 +149,6 @@ def test_install_class_registry_load(owm_project, core_bundle):
     '''
     print(descriptor)
     add_bundle(owm_project, descriptor)
-    # Install once
     owm_project.sh('owm bundle install person_bundle')
     owm_project.sh('python query.py')
 
@@ -443,7 +445,7 @@ def test_load_from_class_registry_from_conjunctive(custom_bundle):
             pytest.fail('Expected an object')
 
 
-def test_class_registry_list(custom_bundle):
+def test_dependency_class_registry(custom_bundle):
     '''
     Test that we can load from the class registry for un-imported classes
     '''
@@ -477,7 +479,6 @@ def test_class_registry_list(custom_bundle):
     with custom_bundle(dep_d, graph=g, class_registry_ctx=class_registry_ctxid) as depbun, \
             custom_bundle(d, graph=g, bundles_directory=depbun.bundles_directory) as testbun, \
             Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
-
         bctx = bnd(Context)().stored
         for m in bctx(DataObject)(ident='http://schema.openworm.org/2020/07/Person#bwithers').load():
             assert type(m).__name__ == 'Person'

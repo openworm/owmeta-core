@@ -38,8 +38,8 @@ class _DataTest(unittest.TestCase):
         self.connection = owmeta_core.connect(conf=self.TestConfig)
         self.mapper = self.connection.mapper
         self.process_class = self.connection.mapper.process_class
-        self.context = Context(ident='http://example.org/test-context',
-                               conf=self.TestConfig)
+        self.context = self.connection(Context)(ident='http://example.org/test-context',
+                                                conf=self.TestConfig)
         typ = type(self)
         if hasattr(typ, 'ctx_classes'):
             if isinstance(typ.ctx_classes, dict):

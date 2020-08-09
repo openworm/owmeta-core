@@ -124,15 +124,14 @@ def get_most_specific_rdf_type(types, context=None, base=None):
                 " constrained to be subclasses of {}".format(base) if base else '')
         L.warning(msg)
         return None
-
     most_specific_types = ()
     if base:
         base_class = context.resolve_class(base)
         if base_class:
             most_specific_types = (base_class,)
-    for x in types:
+    for typ in types:
         try:
-            class_object = context.resolve_class(x)
+            class_object = context.resolve_class(typ)
             if class_object is None:
                 raise KeyError()
             if issubclass(class_object, most_specific_types):
@@ -142,13 +141,13 @@ def get_most_specific_rdf_type(types, context=None, base=None):
                 """A Python class corresponding to the type URI <{}> couldn't be found.
             You may want to import the module containing the class as well as add
             additional RDF type triples to the RDF graph in order to resolve your objects
-            to a more precise type.""".format(x))
+            to a more precise type.""".format(typ))
 
     if len(most_specific_types) == 1:
         return most_specific_types[0].rdf_type
     else:
         L.warning(('No most-specific type could be determined among {}'
-                   ' constrained to subclasses of {}').format(types, base))
+                   ' constrained to subclasses of {}').format(types, repr(base)))
         return None
 
 

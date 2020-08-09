@@ -21,7 +21,7 @@ from owmeta_core.dataobject import (DataObject,
                                     PythonClassDescription,
                                     RegistryEntry,
                                     Module)
-from owmeta_core.context import Context
+from owmeta_core.context import Context, CLASS_REGISTRY_CONTEXT_KEY
 from owmeta_core.rdf_query_util import get_most_specific_rdf_type
 from owmeta_core.utils import FCN
 
@@ -297,6 +297,7 @@ class ClassRegistryTest(_DataTest):
         crctx = g.get_context(self.mapper.class_registry_context.identifier)
         ctx = g.get_context(self.context.identifier)
         self.TestConfig['rdf.graph'] = g
+        self.TestConfig[CLASS_REGISTRY_CONTEXT_KEY] = crctx
         trips = [(ident, rdftype, tdo),
                  (tdo, sc, DataObject.rdf_type)]
         for tr in trips:
@@ -374,7 +375,7 @@ class ClassRegistryTest(_DataTest):
         # when
         try:
             del self.mapper.RDFTypeTable[A.rdf_type]
-            res = self.mapper.resolve_class(A.rdf_type)
+            res = self.mapper.resolve_class(A.rdf_type, A.context)
             # then
             self.assertIsNotNone(res)
         finally:
@@ -414,7 +415,7 @@ class ClassRegistryTest(_DataTest):
             # when
             try:
                 del self.mapper.RDFTypeTable[A.rdf_type]
-                self.mapper.resolve_class(A.rdf_type)
+                self.mapper.resolve_class(A.rdf_type, A.context)
                 # then
                 self.assertRegexpMatches(logs.getvalue(), r'More than one.*__yarom_mapped_classes__')
             finally:
@@ -441,6 +442,7 @@ class ClassRegistryMissingModuleTest(_DataTest):
         crctx = g.get_context(self.mapper.class_registry_context.identifier)
         ctx = g.get_context(self.context.identifier)
         self.TestConfig['rdf.graph'] = g
+        self.TestConfig[CLASS_REGISTRY_CONTEXT_KEY] = crctx.identifier
         trips = [(ident, rdftype, tdo),
                  (tdo, sc, DataObject.rdf_type)]
         for tr in trips:
@@ -490,6 +492,7 @@ class ClassRegistryMissingClassTest(_DataTest):
         self.crctx = g.get_context(self.mapper.class_registry_context.identifier)
         ctx = g.get_context(self.context.identifier)
         self.TestConfig['rdf.graph'] = g
+        self.TestConfig[CLASS_REGISTRY_CONTEXT_KEY] = self.crctx.identifier
         trips = [(ident, rdftype, tdo),
                  (tdo, sc, DataObject.rdf_type)]
         for tr in trips:

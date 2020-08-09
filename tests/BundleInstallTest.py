@@ -468,5 +468,37 @@ def test_fail_on_non_empty_target(dirs):
         bi.install(d)
 
 
+def test_dependency_version_in_manifest_without_spec(dirs):
+    '''
+    It is permitted to not specify the version of a bundle dependency in the descriptor,
+    but we must pin a specific version of the bundle in the manifest.
+    '''
+    ctxid_1 = 'http://example.org/ctx1'
+    ctxid_2 = 'http://example.org/ctx2'
+
+    # Make a descriptor that includes ctx1 and the imports, but not ctx2
+    d = Descriptor('test')
+    d.includes.add(make_include_func(ctxid_1))
+    d.dependencies.add(DependencyDescriptor('dep'))
+
+    dep_d = Descriptor('dep')
+    dep_d.includes.add(make_include_func(ctxid_2))
+
+    # Add some triples so the contexts aren't empty -- we can't save an empty context
+    g = rdflib.ConjunctiveGraph()
+
+    cg_1 = g.get_context(ctxid_1)
+    cg_2 = g.get_context(ctxid_2)
+
+    cg_1.add((aURI('a'), aURI('b'), aURI('c')))
+    cg_2.add((aURI('d'), aURI('e'), aURI('f')))
+
+    bi = Installer(*dirs, graph=g)
+    bi.install(dep_d)
+    bi.install(d)
+    test_bnd = Bundle('test', bundles_directory=dirs.bundles_directory)
+    assert test_bnd.manifest_data['dependencies'][0]['version'] == 1
+
+
 def aURI(c):
     return URIRef(f'http://example.org/uri#{c}')

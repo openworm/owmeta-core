@@ -10,7 +10,7 @@ from owmeta_core.command import OWM
 from owmeta_core.context import Context, IMPORTS_CONTEXT_KEY, DEFAULT_CONTEXT_KEY
 from owmeta_core.context_common import CONTEXT_IMPORTS
 from owmeta_core.data_trans.local_file_ds import LocalFileDataSource as LFDS
-from owmeta_core.datasource import DataTranslator
+from owmeta_core.datasource import DataTranslator, DataSource
 
 from .test_modules.owmclitest01 import DT2
 from .TestUtilities import assertRegexpMatches
@@ -109,7 +109,7 @@ def test_translate_data_source_loader(owm_project):
     with owm.connect() as conn:
         with transaction.manager:
             # Create data sources
-            ctx = Context(ident='http://example.org/context', conf=conn.conf)
+            ctx = conn(Context)(ident='http://example.org/context')
             ctx(LFDS)(
                 ident='http://example.org/lfds',
                 file_name='DSFile',
@@ -123,17 +123,14 @@ def test_translate_data_source_loader(owm_project):
             print("DT2.definition_context",
                   DT2.definition_context, id(DT2.definition_context))
 
-            conn.mapper.declare_python_class_registry_entry(DT1,
-                                                            DataTranslator,
-                                                            LFDS)
-
             DT2.definition_context.save(conn.rdf)
             print(conn.rdf.serialize(format='nquads').decode('utf-8'))
             print("-------------------------")
+            owm.save(DataSource.__module__)
             owm.save(LFDS.__module__)
             owm.save(DT2.__module__)
             LFDS.definition_context.save(conn.rdf)
-            main_ctx = Context(ident=ctx_id, conf=conn.conf)
+            main_ctx = conn(Context)(ident=ctx_id)
             main_ctx.add_import(ctx)
             main_ctx.add_import(LFDS.definition_context)
             main_ctx.save_imports()

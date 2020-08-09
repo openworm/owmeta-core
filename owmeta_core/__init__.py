@@ -77,10 +77,10 @@ class Connection(object):
     object.
     '''
 
-    def __init__(self, conf):
+    def __init__(self, conf, mapper):
         self.conf = conf
 
-        self._context = Context(conf=self.conf)
+        self._context = Context(conf=self.conf, mapper=mapper)
 
         self.identifier = str(uuid.uuid4())
         '''
@@ -89,6 +89,8 @@ class Connection(object):
         Primarily, so that this Connection can be passed to contextualize for a Context
         '''
 
+        self.mapper = mapper
+
     @property
     def transaction_manager(self):
         return self.__transaction_manager
@@ -96,10 +98,6 @@ class Connection(object):
     @transaction_manager.setter
     def transaction_manager(self, transaction_manager):
         self.__transaction_manager = transaction_manager
-
-    @property
-    def mapper(self):
-        return self.conf['mapper']
 
     @property
     def rdf(self):
@@ -192,9 +190,4 @@ def connect(configFile=None,
 
     logging.getLogger('owmeta_core').info("Connected to database")
 
-    # Base class names is empty because we won't be adding any objects to the
-    # context automatically
-    conf['mapper'] = Mapper(conf=conf)
-    # An "empty" context, that serves as the default when no context is defined
-
-    return Connection(conf)
+    return Connection(conf, Mapper(conf=conf))

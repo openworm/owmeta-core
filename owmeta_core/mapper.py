@@ -36,14 +36,12 @@ class Mapper(Configurable):
     '''
     Keeps track of relationships between classes, between modules, and between classes and modules
     '''
-    def __init__(self, base_namespace=None, imported=(), name=None, **kwargs):
+    def __init__(self, base_namespace=None, imported=(), name=None,
+            class_registry_context=None, **kwargs):
         super(Mapper, self).__init__(**kwargs)
 
         """ Maps class names to classes """
         self.MappedClasses = dict()
-
-        """ Maps classes to decorated versions of the class """
-        self.DecoratedMappedClasses = dict()
 
         """ Maps RDF types to properties of the related class """
         self.RDFTypeTable = dict()
@@ -64,42 +62,23 @@ class Mapper(Configurable):
         if name is None:
             name = hex(id(self))
         self.name = name
+        self.__class_registry_context_id = class_registry_context
         self.__class_registry_context = None
-        self.__class_registry_context_list = None
         self._bootstrap_mappings()
 
     @property
     def class_registry_context(self):
         if self.__class_registry_context is None:
-            crctx = self.conf.get('mapper.class_registry_context', None)
-            if not crctx:
-                from . import BASE_CONTEXT
-                from .context import Context, CLASS_REGISTRY_CONTEXT_KEY
-                crctxid = self.conf.get(CLASS_REGISTRY_CONTEXT_KEY, None)
-                if not crctxid:
-                    crctxid = uuid.uuid4().urn
-                crctx = Context(crctxid, conf=self.conf)
-                crctx.add_import(BASE_CONTEXT)
+            from . import BASE_CONTEXT
+            from .context import Context, CLASS_REGISTRY_CONTEXT_KEY
+            crctx_id = (self.__class_registry_context_id or
+                        self.conf.get(CLASS_REGISTRY_CONTEXT_KEY, None) or
+                        uuid.uuid4().urn)
+
+            crctx = Context(crctx_id, conf=self.conf, mapper=self)
+            crctx.add_import(BASE_CONTEXT)
             self.__class_registry_context = crctx
         return self.__class_registry_context
-
-    @property
-    def class_registry_context_list(self):
-        from .collections import List
-        from .context import Context
-        if self.__class_registry_context_list is None:
-            res = []
-            ctx = Context(conf=self.conf).stored
-            crctx_do = self.class_registry_context.rdf_object
-            crctx_list = ctx(List)(first=crctx_do)
-            for seq in crctx_list.load_sequences():
-                for crctx_do0 in seq:
-                    res.append(Context(crctx_do0.identifier, conf=self.conf))
-                break
-            else:  # no break
-                res.append(self.class_registry_context)
-            self.__class_registry_context_list = res
-        return self.__class_registry_context_list
 
     def _bootstrap_mappings(self):
         from .dataobject import Module
@@ -111,6 +90,20 @@ class Mapper(Configurable):
                              ClassDescription, PythonModule, RegistryEntry, List)
 
     def add_class(self, cls):
+        '''
+        Add a class to the mapper
+
+        Parameters
+        ----------
+        cls : type
+            The class to add to the mapper
+
+        Raises
+        ------
+        ClassRedefinitionAttempt
+            Thrown when `add_class` is called on a class when a class with the same name
+            has already been added to the mapper
+        '''
         cname = FCN(cls)
         maybe_cls = self._lookup_class(cname)
         if maybe_cls is not None:
@@ -207,57 +200,63 @@ class Mapper(Configurable):
         cr_ctx = self.class_registry_context.stored
         return cr_ctx(RegistryEntry)().load()
 
-    def resolve_class(self, uri):
+    def resolve_class(self, uri, context):
+        '''
+        Look up the Python class for the given URI recovered from the given `~.Context`
+
+        Parameters
+        ----------
+        uri : rdflib.term.URIRef
+            The URI to look up
+        context : .Context
+            The context the URI was found in. May affect which Python class is returned.
+        '''
+
         # look up the class in the registryCache
         c = self.RDFTypeTable.get(uri)
         if c is None:
             # otherwise, attempt to load into the cache by
             # reading the RDF graph.
-            for unstored_cr_ctx in self.class_registry_context_list:
-                cr_ctx = unstored_cr_ctx.stored
-                print("OP", cr_ctx.rdf)
-                for m in cr_ctx.rdf:
-                    print(' '.join(x.n3() for x in m))
-                re = cr_ctx(RegistryEntry)()
-                re.rdf_class(uri)
-                cd = cr_ctx(PythonClassDescription)()
-                re.class_description(cd)
 
-                for cd_l in cd.load():
-                    class_name = cd_l.name()
-                    moddo = cd_l.module()
-                    try:
-                        mod = self.load_module(moddo.name())
-                    except ModuleNotFoundError:
-                        L.warn('Did not find module %s', moddo.name())
-                        continue
-                    c = getattr(mod, class_name, None)
-                    if c is not None:
-                        break
-                    L.warning('Did not find class %s in %s', class_name, mod.__name__)
+            cr_ctx = self.class_registry_context.stored
+            re = cr_ctx(RegistryEntry)()
+            re.rdf_class(uri)
+            cd = cr_ctx(PythonClassDescription)()
+            re.class_description(cd)
 
-                    ymc = getattr(mod, '__yarom_mapped_classes__', None)
-                    if not ymc:
-                        L.warning('No __yarom_mapped_classes__ in %s, so cannot look up %s',
-                                mod.__name__, class_name)
-                        continue
-
-                    matching_classes = tuple(mc for mc in ymc
-                                             if mc.__name__ == class_name)
-                    if not matching_classes:
-                        L.warning('Did not find class %s in %s.__yarom_mapped_classes__',
-                                class_name, mod.__name__)
-                        continue
-
-                    c = matching_classes[0]
-                    if len(matching_classes) > 1:
-                        L.warning('More than one class has the same name in'
-                                ' __yarom_mapped_classes__ for %s, so we are picking'
-                                ' the first one as the resolved class among %s',
-                                mod, matching_classes)
-                    break
+            for cd_l in cd.load():
+                class_name = cd_l.name()
+                moddo = cd_l.module()
+                try:
+                    mod = self.load_module(moddo.name())
+                except ModuleNotFoundError:
+                    L.warn('Did not find module %s', moddo.name())
+                    continue
+                c = getattr(mod, class_name, None)
                 if c is not None:
                     break
+                L.warning('Did not find class %s in %s', class_name, mod.__name__)
+
+                ymc = getattr(mod, '__yarom_mapped_classes__', None)
+                if not ymc:
+                    L.warning('No __yarom_mapped_classes__ in %s, so cannot look up %s',
+                            mod.__name__, class_name)
+                    continue
+
+                matching_classes = tuple(mc for mc in ymc
+                                         if mc.__name__ == class_name)
+                if not matching_classes:
+                    L.warning('Did not find class %s in %s.__yarom_mapped_classes__',
+                            class_name, mod.__name__)
+                    continue
+
+                c = matching_classes[0]
+                if len(matching_classes) > 1:
+                    L.warning('More than one class has the same name in'
+                            ' __yarom_mapped_classes__ for %s, so we are picking'
+                            ' the first one as the resolved class among %s',
+                            mod, matching_classes)
+                break
         return c
 
     def load_class(self, cname_or_mname, cnames=None):
@@ -268,11 +267,7 @@ class Mapper(Configurable):
             cnames = (cpart,)
         m = self.load_module(mpart)
         try:
-            res = tuple(self.DecoratedMappedClasses[c]
-                        if c in self.DecoratedMappedClasses
-                        else c
-                        for c in
-                        (getattr(m, cname) for cname in cnames))
+            res = tuple(getattr(m, cname) for cname in cnames)
 
             return res[0] if len(res) == 1 else res
         except AttributeError:

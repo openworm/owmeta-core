@@ -144,7 +144,9 @@ class Context(six.with_metaclass(ContextMeta,
         self._graph = None
 
         if mapper is None:
-            mapper = self.conf.get('mapper', None)
+            my_context = getattr(self, 'context')
+            if my_context:
+                mapper = my_context.mapper
 
         self.__mapper = mapper
         self.base_namespace = base_namespace
@@ -639,7 +641,7 @@ class Context(six.with_metaclass(ContextMeta,
         # look up the class in the registryCache
         if self.mapper is None:
             return None
-        return self.mapper.resolve_class(uri)
+        return self.mapper.resolve_class(uri, self)
 
 
 class QueryContext(Context):

@@ -10,12 +10,10 @@ import json
 import logging
 import re
 import shutil
-import uuid
 
 from rdflib import plugin
 from rdflib.parser import Parser, create_input_source
 from rdflib.term import URIRef
-from rdflib.graph import ConjunctiveGraph
 import six
 from textwrap import dedent
 import transaction
@@ -24,8 +22,8 @@ import yaml
 from .. import OWMETA_PROFILE_DIR, connect
 from ..context import (DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
                        CLASS_REGISTRY_CONTEXT_KEY, Context)
+from ..mapper import Mapper
 from ..context_common import CONTEXT_IMPORTS
-from ..collections import List
 from ..data import Data
 from ..file_match import match_files
 from ..file_lock import lock_file
@@ -272,7 +270,7 @@ class Descriptor(object):
 
         Raises
         ------
-        NotADescriptor
+        .NotADescriptor
             Thrown when the object loaded from `descriptor_source` isn't a `dict`
         '''
         dat = yaml.safe_load(descriptor_source)
@@ -444,12 +442,14 @@ class Bundle(object):
 
     @property
     def contexts(self):
-        ''' Return contexts in a bundle '''
+        '''
+        `List <list>` of `str`. Context IDs in this bundle
+        '''
         # Since bundles are meant to be immutable, we won't need to add
         if self._contexts is not None:
             return self._contexts
         bundle_directory = self.resolve()
-        contexts = set()
+        contexts = list()
         graphs_directory = p(bundle_directory, 'graphs')
         idx_fname = p(graphs_directory, 'index')
         if not exists(idx_fname):
@@ -460,14 +460,17 @@ class Bundle(object):
                 if not l:
                     continue
                 ctx, _ = l.split(b'\x00')
-                contexts.add(ctx.decode('UTF-8'))
-        self._contexts = contexts
+                contexts.append(ctx.decode('UTF-8'))
+        self._contexts = frozenset(contexts)
         return self._contexts
 
     @property
     def rdf(self):
         self.initdb()
         return self.conf['rdf.graph']
+
+    def __str__(self):
+        return f'Bundle({self.ident}' + (')' if self.version is None else f', {self.version})')
 
     def __enter__(self):
         self.initdb()
@@ -479,12 +482,85 @@ class Bundle(object):
         self.connection = None
         self.conf = None
 
+    def load_dependencies_transitive(self):
+        '''
+        Load dependencies from this bundle transitively
+
+        Yields
+        ------
+        Bundle
+            A direct or indirect dependency of this bundle
+        '''
+        border = {(self.ident, self.version): self}
+        seen = set()
+        while border:
+            new_border = {}
+            for bnd in border:
+                for d_bnd in self._load_dependencies():
+                    key = (d_bnd.ident, d_bnd.version)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    new_border[key] = d_bnd
+                    yield d_bnd
+            border = new_border
+
+    def _load_dependencies(self):
+        dependencies = self.manifest_data.get('dependencies', ())
+        for d in dependencies:
+            yield self._load_dependency(d)
+
+    load_dependencies = _load_dependencies
+    '''
+    Load direct dependencies of this bundle
+
+    Yields
+    ------
+    Bundle
+        A direct dependency of this bundle
+    '''
+
+    def _lookup_context_bundle(self, context_id):
+        if context_id is None or str(context_id) in self.contexts:
+            return self
+        dependencies = self.manifest_data.get('dependencies', ())
+        for d in dependencies:
+            d_excludes = frozenset(d.get('excludes', ()))
+            if context_id in d_excludes:
+                continue
+
+            d_bnd = self._load_dependency(d)
+            match = d_bnd._lookup_context_bundle(context_id)
+            if match:
+                return match
+        return None
+
+    def _load_dependency(self, dependencies_item):
+        d_id = dependencies_item.get('id')
+        if not d_id:
+            bundle_directory = self.resolve()
+            raise MalformedBundle(bundle_directory, 'Dependency entry is missing an'
+                    ' identifier')
+        d_version = dependencies_item.get('version')
+        if not d_version:
+            bundle_directory = self.resolve()
+            raise MalformedBundle(bundle_directory, f'Dependency entry for {id} is'
+                    ' missing a version number')
+
+        return Bundle(d_id,
+                version=d_version,
+                bundles_directory=self.bundles_directory,
+                remotes=self.remotes,
+                remotes_directory=self.remotes_directory)
+
     def __call__(self, target):
-        if target and hasattr(target, 'contextualize'):
-            self.initdb()
-            ctx = BundleContext(None, conf=self.conf)
-            return target.contextualize(ctx.stored)
-        return target
+        if not target or not hasattr(target, 'contextualize'):
+            return target
+
+        self.initdb()
+        ctx = _BundleContext(None, conf=self.conf, bundle=self)
+
+        return target.contextualize(ctx.stored)
 
 
 class BundleDependentStoreConfigBuilder(object):
@@ -607,10 +683,49 @@ class _BDTD(namedtuple('_BDTD', ('excludes',))):
                 tuple(e for e in excludes if e not in self.excludes))
 
 
-class BundleContext(Context):
+class _BundleContext(Context):
     '''
     `Context` for a bundle.
     '''
+    def __init__(self, *args, bundle, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.bundle = bundle
+
+    @property
+    def mapper(self):
+        return _BundleMapper(bundle=self.bundle)
+
+
+class _BundleMapper(Mapper):
+    def __init__(self, bundle):
+        try:
+            bundle_conf = bundle.conf
+        except AttributeError:
+            raise Exception('Bundle connection has not been established.'
+                    ' Call `initdb` or use the bundle in a context manager')
+        super().__init__(name=f'{bundle.ident}' +
+                (f'@{bundle.version}' if bundle.version else ''),
+                conf=bundle_conf)
+        self.bundle = bundle
+
+    def resolve_class(self, rdf_type, context):
+        target_id = context.identifier
+        own_resolved_class = super().resolve_class(rdf_type, context)
+
+        if own_resolved_class:
+            return own_resolved_class
+
+        target_bundle = self.bundle._lookup_context_bundle(target_id)
+        deps = target_bundle.load_dependencies_transitive()
+        for bnd in deps:
+            crctx_id = bnd.manifest_data.get(CLASS_REGISTRY_CONTEXT_KEY, None)
+            if not crctx_id:
+                continue
+            with bnd:
+                resolved_class = bnd.connection.mapper.resolve_class(rdf_type, context)
+                if resolved_class:
+                    return resolved_class
+        return None
 
 
 class _RemoteHandlerMixin(object):
@@ -719,9 +834,9 @@ class Fetcher(_RemoteHandlerMixin):
 
         Raises
         ------
-        NoBundleLoader
+        .exceptions.NoBundleLoader
             Thrown when none of the loaders are able to download the bundle
-        BundleAlreadyExists
+        .FetchTargetIsNotEmpty
             Thrown when the requested bundle is already in the cache
         '''
         if remotes:
@@ -832,7 +947,7 @@ class Deployer(_RemoteHandlerMixin):
 
         Raises
         ------
-        NoAcceptableUploaders
+        .NoAcceptableUploaders
             Thrown when none of the selected uploaders could upload the bundle
         '''
         if not exists(bundle_path):
@@ -1037,8 +1152,6 @@ class Installer(object):
         self.class_registry_ctx = class_registry_ctx
         self.remotes = list(remotes)
         self.remotes_directory = remotes_directory
-        self._force_include_class_registry = False
-        self._force_include_imports = False
 
     def install(self, descriptor, progress_reporter=None):
         '''
@@ -1152,7 +1265,7 @@ class Installer(object):
         if self.default_ctx:
             manifest_data[DEFAULT_CONTEXT_KEY] = self.default_ctx
 
-        if self.imports_ctx or self._force_include_imports:
+        if self.imports_ctx:
             # If an imports context was specified, then we'll need to generate an
             # imports context with the appropriate imports. We don't use the source
             # imports context ID for the bundle's imports context because the bundle
@@ -1160,18 +1273,67 @@ class Installer(object):
             manifest_data[IMPORTS_CONTEXT_KEY] = fmt_bundle_imports_ctx_id(descriptor.id,
                     descriptor.version)
 
-        if self.class_registry_ctx or self._force_include_class_registry:
+        if self.class_registry_ctx:
             manifest_data[CLASS_REGISTRY_CONTEXT_KEY] = fmt_bundle_class_registry_ctx_id(descriptor.id,
                     descriptor.version)
 
         manifest_data['id'] = descriptor.id
         manifest_data['version'] = descriptor.version
         manifest_data['manifest_version'] = BUNDLE_MANIFEST_VERSION
-        manifest_data['dependencies'] = [{'version': x.version, 'id': x.id, 'excludes': x.excludes}
-                for x in descriptor.dependencies]
+        mf_deps = []
+        for dd in descriptor.dependencies:
+            bnd = self._dd_to_bundle(dd)
+            # Fetch the dependency if necessary and get the version of the latest from the
+            # bundle manifest. Usually, the bundle will already be on the system since it
+            # *should have* been used for testing.
+            #
+            # (It's probably possible to do something like just grabbing the bundle
+            # manifest data in the case there is not a local copy of the bundle, but that
+            # should be unusual enough that it's probably not justified considering the
+            # overhead of having an alternative to fetching that bundle loaders might be
+            # expected to support.)
+            dd_version = bnd.manifest_data['version']
+            mf_deps.append({'version': dd_version,
+                'id': dd.id,
+                'excludes': dd.excludes})
+        manifest_data['dependencies'] = mf_deps
         self.manifest_data = manifest_data
         with open(p(staging_directory, BUNDLE_MANIFEST_FILE_NAME), 'w') as mf:
             json.dump(manifest_data, mf, separators=(',', ':'))
+
+    def _generate_bundle_imports_ctx(self, descriptor, graphs_directory):
+        if not self.imports_ctx:
+            return
+        imports_ctxg = self.graph.get_context(self.imports_ctx)
+        # select all of the imports for all of the contexts in the bundle and serialize
+        contexts = []
+        idx_fname = p(graphs_directory, 'index')
+        with open(idx_fname) as index_file:
+            for l in index_file:
+                ctx, _ = l.strip().split('\x00')
+                contexts.append(URIRef(ctx))
+        for c in descriptor.empties:
+            contexts.append(URIRef(c))
+        if self.class_registry_ctx:
+            cr_ctxid = URIRef(fmt_bundle_class_registry_ctx_id(descriptor.id, descriptor.version))
+            contexts.append(cr_ctxid)
+        ctxgraph = imports_ctxg.triples_choices((contexts, CONTEXT_IMPORTS, None))
+        if self.class_registry_ctx:
+            old_ctxgraph = ctxgraph
+
+            def replace_cr_ctxid():
+                src_cr_ctxid = URIRef(self.class_registry_ctx)
+                for t in old_ctxgraph:
+                    if t[0] == src_cr_ctxid:
+                        yield (cr_ctxid, t[1], t[2])
+                    elif t[2] == src_cr_ctxid:
+                        yield (t[0], t[1], cr_ctxid)
+                    else:
+                        yield t
+            ctxgraph = replace_cr_ctxid()
+
+        ctxid = fmt_bundle_imports_ctx_id(descriptor.id, descriptor.version)
+        self._write_graph(graphs_directory, ctxid, ctxgraph)
 
     def _generate_bundle_class_registry_ctx(self, descriptor, graphs_directory):
         if not self.class_registry_ctx:
@@ -1180,75 +1342,6 @@ class Installer(object):
         class_registry_ctxg = self.graph.get_context(self.class_registry_ctx)
 
         self._write_graph(graphs_directory, ctx_id, class_registry_ctxg)
-
-    def _declare_class_registry_list(self, descriptor):
-        if self.imports_ctx is None:
-            self.imports_ctx = uuid.uuid4().urn
-        imports_ctx = Context(self.imports_ctx)
-        ctx_id = fmt_bundle_class_registry_ctx_id(descriptor.id, descriptor.version)
-        list_id = fmt_bundle_class_registry_ctx_list_id(descriptor.id, descriptor.version)
-
-        crctxs = [imports_ctx(Context)(ctx_id).rdf_object]
-        for d in descriptor.dependencies:
-            bnd = Bundle(d.id, self.bundles_directory, d.version, remotes=self.remotes,
-                    remotes_directory=self.remotes_directory)
-            bnd_manifest_data = bnd.manifest_data
-            bnd_crctx_id = bnd_manifest_data.get(CLASS_REGISTRY_CONTEXT_KEY)
-
-            if bnd_crctx_id:
-                crctxs.append(imports_ctx(Context)(bnd_crctx_id).rdf_object)
-        graph = None
-        if len(crctxs) > 1:
-            graph = ConjunctiveGraph()
-            self._force_include_class_registry = True
-            self._force_include_imports = True
-            imports_ctx(List).from_sequence(crctxs, URIRef(list_id))
-
-            imports_ctx.save(graph)
-
-        return graph
-
-    def _generate_bundle_imports_ctx(self, descriptor, graphs_directory):
-        if self.imports_ctx:
-            imports_ctxg = self.graph.get_context(self.imports_ctx)
-            # select all of the imports for all of the contexts in the bundle and serialize
-            contexts = []
-            idx_fname = p(graphs_directory, 'index')
-            with open(idx_fname) as index_file:
-                for l in index_file:
-                    ctx, _ = l.strip().split('\x00')
-                    contexts.append(URIRef(ctx))
-            for c in descriptor.empties:
-                contexts.append(URIRef(c))
-            if self.class_registry_ctx:
-                cr_ctxid = URIRef(fmt_bundle_class_registry_ctx_id(descriptor.id, descriptor.version))
-                contexts.append(cr_ctxid)
-            ctxgraph = imports_ctxg.triples_choices((contexts, CONTEXT_IMPORTS, None))
-            if self.class_registry_ctx or self._force_include_class_registry:
-                old_ctxgraph = ctxgraph
-
-                def replace_cr_ctxid():
-                    src_cr_ctxid = URIRef(self.class_registry_ctx)
-                    for t in old_ctxgraph:
-                        if t[0] == src_cr_ctxid:
-                            yield (cr_ctxid, t[1], t[2])
-                        elif t[2] == src_cr_ctxid:
-                            yield (t[0], t[1], cr_ctxid)
-                        else:
-                            yield t
-                ctxgraph = replace_cr_ctxid()
-        else:
-            ctxgraph = None
-
-        crctx = self._declare_class_registry_list(descriptor)
-        if crctx is not None:
-            if ctxgraph is not None:
-                ctxgraph = chain(ctxgraph, crctx)
-            else:
-                ctxgraph = crctx
-        if ctxgraph is not None:
-            ctxid = fmt_bundle_imports_ctx_id(descriptor.id, descriptor.version)
-            self._write_graph(graphs_directory, ctxid, ctxgraph)
 
     def _write_graph(self, graphs_directory, ctxid, ctxgraph):
         for _ in self._write_graphs(graphs_directory, (ctxid, ctxgraph)):
@@ -1300,13 +1393,19 @@ class Installer(object):
         finally:
             self.conf.close()
 
+    def _dd_to_bundle(self, dependency_descriptor):
+        return Bundle(dependency_descriptor.id,
+                version=dependency_descriptor.version,
+                bundles_directory=self.bundles_directory,
+                remotes=self.remotes,
+                remotes_directory=self.remotes_directory)
+
     def _cover_with_dependencies(self, uncovered_contexts, descriptor):
         # XXX: Will also need to check for the contexts having a given ID being consistent
         # with each other across dependencies
         dependencies = descriptor.dependencies
         for d in dependencies:
-            bnd = Bundle(d.id, self.bundles_directory, d.version, remotes=self.remotes,
-                    remotes_directory=self.remotes_directory)
+            bnd = self._dd_to_bundle(d)
             for c in bnd.contexts:
                 uncovered_contexts.discard(URIRef(c))
                 if not uncovered_contexts:

@@ -797,10 +797,10 @@ class OWM(object):
                 # It's a module with class definitions -- take each of the mapped
                 # classes and add their contexts so they're saved properly...
                 orig_prov = prov
+                mapper = self._owm_connection.mapper
 
                 @wraps(prov)
                 def save_classes(ns):
-                    mapper = conf['mapper']
                     ns.include_context(mapper.class_registry_context)
                     mapper.process_module(module, mod)
                     mapper.declare_python_class_registry_entry(*mapped_classes)
