@@ -11,3 +11,4 @@ fi
 TARGET="$TARGET .[sftp]"
 
 pip install ${TARGET:-"."}
+pip install -r test-requirements.txt
