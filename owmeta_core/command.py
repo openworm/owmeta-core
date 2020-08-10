@@ -951,25 +951,9 @@ class OWM(object):
 
                 default[DEFAULT_CONTEXT_KEY] = str(default_context_id).strip()
 
-                if not imports_context_id and not self.non_interactive:
-                    imports_context_id = self.prompt(dedent('''\
-                    The imports context contains import statements between contexts.
+                default[IMPORTS_CONTEXT_KEY] = str(uuid.uuid4().urn).strip()
 
-                    If a URI is not provided for this context, one will be generated at random.
-
-                    Please provide the URI of the imports context: '''))
-                imports_context_id = imports_context_id and str(imports_context_id).strip()
-                if not imports_context_id:
-                    imports_context_id = str(uuid.uuid4().urn).strip()
-
-                if not imports_context_id:
-                    # XXX: Shouldn't actually happen...
-                    raise GenericUserError('An import context ID is required')
-                default[IMPORTS_CONTEXT_KEY] = imports_context_id
-
-                class_registry_context_id = str(uuid.uuid4().urn).strip()
-
-                default[CLASS_REGISTRY_CONTEXT_KEY] = class_registry_context_id
+                default[CLASS_REGISTRY_CONTEXT_KEY] = str(uuid.uuid4().urn).strip()
 
                 write_config(default, of)
 
@@ -1241,7 +1225,12 @@ class OWM(object):
 
     def _graphs_index0(self, index_file):
         for l in index_file:
-            yield l.strip().split(' ')
+            l = l.strip()
+            if not isinstance(l, str):
+                l_str = l.decode('UTF-8')
+            else:
+                l_str = l
+            yield l_str.split(' ')
 
     def translate(self, translator, output_key=None, output_identifier=None,
                   data_sources=(), named_data_sources=None):
