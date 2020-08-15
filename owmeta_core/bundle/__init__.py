@@ -385,6 +385,10 @@ class Bundle(object):
                     remotes_directory=remotes_directory,
                     remotes=remotes)
 
+        self._context_bundle_finder = ContextBundleFinder(
+                bundles_directory=self.bundles_directory,
+                remotes=self.remotes,
+                remotes_directory=self.remotes_directory)
         self._given_conf = conf
         self.conf = None
         self._contexts = None
@@ -524,41 +528,19 @@ class Bundle(object):
     '''
 
     def _lookup_context_bundle(self, context_id):
-        if context_id is None or str(context_id) in self.contexts:
+        owner = self._context_bundle_finder.lookup_context_bundle(
+                self.contexts,
+                self.manifest_data.get('dependencies', ()),
+                context_id)
+        if owner is self._context_bundle_finder:
             return self
-        dependencies = self.manifest_data.get('dependencies', ())
-        for d in dependencies:
-            d_excludes = frozenset(d.get('excludes', ()))
-            if context_id in d_excludes:
-                continue
-
-            d_bnd = self._load_dependency(d)
-            match = d_bnd._lookup_context_bundle(context_id)
-            if match:
-                return match
-        return None
 
     def _load_dependency(self, dependencies_item):
-        d_id = dependencies_item.get('id')
-        if not d_id:
+        try:
+            return self._context_bundle_finder._load_dependency(dependencies_item)
+        except BundleDependencyConfigIsMalformed as e:
             bundle_directory = self.resolve()
-            raise MalformedBundle(bundle_directory, 'Dependency entry is missing an'
-                    ' identifier')
-        d_version = dependencies_item.get('version')
-        if not d_version:
-            bundle_directory = self.resolve()
-            raise MalformedBundle(bundle_directory, f'Dependency entry for {id} is'
-                    ' missing a version number')
-
-        bundle = self._loaded_dependencies.get((d_id, d_version))
-        if not bundle:
-            bundle = Bundle(d_id,
-                    version=d_version,
-                    bundles_directory=self.bundles_directory,
-                    remotes=self.remotes,
-                    remotes_directory=self.remotes_directory)
-            self._loaded_dependencies[(d_id, d_version)] = bundle
-        return bundle
+            raise MalformedBundle(bundle_directory, str(e)) from e
 
     def __call__(self, target):
         if not target or not hasattr(target, 'contextualize'):
@@ -570,6 +552,56 @@ class Bundle(object):
                     None, conf=self.conf, bundle=self).stored
 
         return target.contextualize(self._bundle_context)
+
+
+class ContextBundleFinder(object):
+    '''
+    Finds the bundle in which a context is defined.
+
+    For a given bundle graph, that there is *one* Bundle that "owns" a given context.
+    Although multiple bundles may provide that context, the one closest to the root of the
+    graph which provides some statements in that context is called the owner. Note that
+    this does not mean that bundles on which the owner depends do not also be queried;
+    however, the exact behavior is up to the component that uses this component.
+    '''
+
+    def __init__(self, **common_bundle_arguments):
+        self._loaded_dependencies = dict()
+        self._common_bundle_arguments = common_bundle_arguments
+
+    def _load_dependency(self, dependencies_item):
+        d_id = dependencies_item.get('id')
+        if not d_id:
+            raise BundleDependencyConfigIsMalformed('Dependency entry is missing an identifier')
+        d_version = dependencies_item.get('version')
+        if not d_version:
+            raise BundleDependencyConfigIsMalformed(f'Dependency entry for {d_id} is'
+                    ' missing a version number')
+
+        bundle = self._loaded_dependencies.get((d_id, d_version))
+        if not bundle:
+            bundle = Bundle(d_id, version=d_version,
+                    **self._common_bundle_arguments)
+            self._loaded_dependencies[(d_id, d_version)] = bundle
+        return bundle
+
+    def lookup_context_bundle(self, contexts, dependencies, context_id):
+        if context_id is None or str(context_id) in self.contexts:
+            return self
+        for d in dependencies:
+            d_excludes = frozenset(d.get('excludes', ()))
+            if context_id in d_excludes:
+                continue
+
+            d_bnd = self._load_dependency(d)
+            match = d_bnd._lookup_context_bundle(context_id)
+            if match:
+                return match
+        return None
+
+
+class BundleDependencyConfigIsMalformed(Exception):
+    pass
 
 
 class BundleDependentStoreConfigBuilder(object):

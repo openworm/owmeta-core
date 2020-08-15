@@ -35,7 +35,7 @@ import uuid
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
                            DEFAULT_OWM_DIR)
 from . import connect, OWMETA_PROFILE_DIR
-from .bundle import BundleDependentStoreConfigBuilder
+from .bundle import BundleDependentStoreConfigBuilder, ContextBundleFinder
 from .commands.bundle import OWMBundle
 from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
                       CLASS_REGISTRY_CONTEXT_KEY)
@@ -140,11 +140,14 @@ class OWMSource(object):
             ctx = self._parent._make_ctx(context)
         else:
             ctx = self._parent._default_ctx
+
         if kind is None:
             kind = DataSource.rdf_type
         kind_uri = self._parent._den3(kind)
 
+        print("----------")
         dst = ctx.stored(ctx.stored.resolve_class(kind_uri))
+        print("----------")
         if dst is None:
             raise GenericUserError('Listing DataSources requires a dependency on the'
                                    ' openworm/owmeta-core bundle')
@@ -669,6 +672,7 @@ class OWM(object):
         self._changed_contexts = None
         self._owm_connection = None
         self._context_change_tracker = None
+        self._context_bundle_finder = ContextBundleFinder()
 
         if owmdir:
             self.owmdir = owmdir
