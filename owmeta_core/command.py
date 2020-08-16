@@ -35,7 +35,7 @@ import uuid
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
                            DEFAULT_OWM_DIR)
 from . import connect, OWMETA_PROFILE_DIR
-from .bundle import BundleDependentStoreConfigBuilder, ContextBundleFinder
+from .bundle import BundleDependentStoreConfigBuilder, BundleDependencyManager
 from .commands.bundle import OWMBundle
 from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
                       CLASS_REGISTRY_CONTEXT_KEY)
@@ -43,6 +43,7 @@ from .capability import provide
 from .capabilities import FilePathProvider
 from .datasource_loader import DataSourceDirLoader, LoadFailed
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
+from .mapper import Mapper
 from .rdf_utils import BatchAddGraph
 from .utils import FCN
 
@@ -672,13 +673,16 @@ class OWM(object):
         self._changed_contexts = None
         self._owm_connection = None
         self._context_change_tracker = None
-        self._context_bundle_finder = ContextBundleFinder()
+        self._bundle_dep_mgr = None
 
         if owmdir:
             self.owmdir = owmdir
 
         if non_interactive:
             self.non_interactive = non_interactive
+
+        self._bundle_dep_mgr = None
+        self._context = _ProjectContext(owm=self)
 
     @IVar.property(OWMETA_PROFILE_DIR)
     def userdir(self):
@@ -779,10 +783,11 @@ class OWM(object):
             if not provider:
                 provider = DEFAULT_SAVE_CALLABLE_NAME
 
+            conn = self.connect()
             if not context:
-                ctx = _OWMSaveContext(self._default_ctx, mod)
+                ctx = conn(_OWMSaveContext)(self._default_ctx, mod)
             else:
-                ctx = _OWMSaveContext(Context(ident=context, conf=conf), mod)
+                ctx = conn(_OWMSaveContext)(Context(ident=context, conf=conf), mod)
             attr_chain = provider.split('.')
             prov = mod
             for x in attr_chain:
@@ -1073,6 +1078,8 @@ class OWM(object):
                 dat['rdf.store'] = store_name
                 dat['rdf.store_conf'] = store_conf
 
+                self._bundle_dep_mgr = BundleDependencyManager(dependencies=lambda: deps)
+
             self._owm_connection = connect(conf=dat)
 
             self._dat = dat
@@ -1346,12 +1353,12 @@ class OWM(object):
     def _default_ctx(self):
         conf = self._conf()
         try:
-            return Context(ident=conf[DEFAULT_CONTEXT_KEY], conf=conf)
+            return Context.contextualize(self._context)(ident=conf[DEFAULT_CONTEXT_KEY])
         except KeyError:
             raise ConfigMissingException(DEFAULT_CONTEXT_KEY)
 
     def _make_ctx(self, ctxid):
-        return Context(ident=ctxid, conf=self._conf())
+        return Context.contextualize(self._context)(ident=ctxid)
 
     def serialize(self, context=None, destination=None, format='nquads', include_imports=False, whole_graph=False):
         '''
@@ -1620,6 +1627,60 @@ class OWM(object):
                 l = colored(l, 'red')
             l += os.linesep
             yield l
+
+
+class _ProjectContext(Context):
+    '''
+    `Context` for a project.
+    '''
+    def __init__(self, *args, owm, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.owm = owm
+        self._mapper = None
+
+    @property
+    def conf(self):
+        return self.owm._conf()
+
+    @property
+    def mapper(self):
+        if self._mapper is None:
+            self._mapper = _ProjectMapper(owm=self.owm)
+        return self._mapper
+
+
+class _ProjectMapper(Mapper):
+    def __init__(self, owm):
+        owm_conf = owm._conf()
+        super().__init__(name=f'{owm.owmdir}', conf=owm_conf)
+        self.owm = owm
+        self._resolved_classes = dict()
+
+    def resolve_class(self, rdf_type, context):
+        prev_resolved_class = self._resolved_classes.get((rdf_type, context.identifier))
+        if prev_resolved_class:
+            return prev_resolved_class
+
+        own_resolved_class = super().resolve_class(rdf_type, context)
+
+        if own_resolved_class:
+            self._resolved_classes[(rdf_type, context.identifier)] = own_resolved_class
+            return own_resolved_class
+
+        target_id = context.identifier
+        dep_mgr = self.owm._bundle_dep_mgr
+        target_bundle = dep_mgr.lookup_context_bundle(target_id)
+        deps = target_bundle.load_dependencies_transitive()
+        for bnd in deps:
+            crctx_id = bnd.manifest_data.get(CLASS_REGISTRY_CONTEXT_KEY, None)
+            if not crctx_id:
+                continue
+            with bnd:
+                resolved_class = bnd.connection.mapper.resolve_class(rdf_type, context)
+                if resolved_class:
+                    self._resolved_classes[(rdf_type, context.identifier)] = resolved_class
+                    return resolved_class
+        return None
 
 
 class WorkingDirectoryProvider(FilePathProvider):

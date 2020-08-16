@@ -237,8 +237,8 @@ class OWMTest(BaseTest):
         with patch('importlib.import_module'):
             with patch('owmeta_core.command.Context') as ctxc:
                 self.cut.save('tests.command_test_module')
-                ctxc.assert_called_with(ident=a, conf=ANY)
-                ctxc().save_context.assert_called()
+                ctxc.contextualize().assert_called_with(ident=a)
+                ctxc.contextualize()().save_context.assert_called()
 
     def test_save_validates_imports_fail(self):
         # add a statement with an object in another context
@@ -445,11 +445,12 @@ class OWMTest(BaseTest):
         b = 'http://example.org/smoo'
         self._init_conf({DEFAULT_CONTEXT_KEY: a})
         with patch('importlib.import_module') as im:
-            def f(ctx):
-                ctx.new_context(b)
+            def f(ns):
+                ns.new_context(b)
 
             im().test.side_effect = f
-            self.assertEqual(set(x.identifier for x in self.cut.save('tests', 'test')), {URIRef(a), URIRef(b)})
+            self.assertEqual(set(x.identifier for x in self.cut.save('tests', 'test')),
+                    {URIRef(a), URIRef(b)})
 
     def test_save_saves_new_context(self):
         a = 'http://example.org/mdc'
@@ -458,8 +459,8 @@ class OWMTest(BaseTest):
         self._init_conf({DEFAULT_CONTEXT_KEY: a})
         with patch('importlib.import_module') as im, \
                 patch('owmeta_core.command.Context'):
-            def f(ctx):
-                c.append(ctx.new_context(b))
+            def f(ns):
+                c.append(ns.new_context(b))
 
             im().test.side_effect = f
             self.cut.save('tests', 'test')

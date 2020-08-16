@@ -119,7 +119,7 @@ class Connection(object):
         '''
         Contextualize the given `Context`
         '''
-        if target is not None and issubclass(target, Context):
+        if target is not None:
             return target.contextualize(self._context)
         else:
             raise TypeError('Connections can only contextualize owmeta_core.context.Context'

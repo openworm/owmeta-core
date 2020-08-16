@@ -385,10 +385,11 @@ class Bundle(object):
                     remotes_directory=remotes_directory,
                     remotes=remotes)
 
-        self._context_bundle_finder = ContextBundleFinder(
+        self._bundle_dep_mgr = BundleDependencyManager(
                 bundles_directory=self.bundles_directory,
                 remotes=self.remotes,
-                remotes_directory=self.remotes_directory)
+                remotes_directory=self.remotes_directory,
+                dependencies=self.dependencies)
         self._given_conf = conf
         self.conf = None
         self._contexts = None
@@ -489,6 +490,9 @@ class Bundle(object):
         self.connection = None
         self.conf = None
 
+    def dependencies(self):
+        return self.manifest_data.get('dependencies', ())
+
     def load_dependencies_transitive(self):
         '''
         Load dependencies from this bundle transitively
@@ -498,46 +502,29 @@ class Bundle(object):
         Bundle
             A direct or indirect dependency of this bundle
         '''
-        border = {(self.ident, self.version): self}
-        seen = set()
-        while border:
-            new_border = {}
-            for bnd in border:
-                for d_bnd in self._load_dependencies():
-                    key = (d_bnd.ident, d_bnd.version)
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    new_border[key] = d_bnd
-                    yield d_bnd
-            border = new_border
+        return self._bundle_dep_mgr.load_dependencies_transitive()
 
-    def _load_dependencies(self):
-        dependencies = self.manifest_data.get('dependencies', ())
-        for d in dependencies:
-            yield self._load_dependency(d)
+    def load_dependencies(self):
+        '''
+        Load direct dependencies of this bundle
 
-    load_dependencies = _load_dependencies
-    '''
-    Load direct dependencies of this bundle
-
-    Yields
-    ------
-    Bundle
-        A direct dependency of this bundle
-    '''
+        Yields
+        ------
+        Bundle
+            A direct dependency of this bundle
+        '''
+        return self._bundle_dep_mgr._load_dependencies()
 
     def _lookup_context_bundle(self, context_id):
-        owner = self._context_bundle_finder.lookup_context_bundle(
+        owner = self._bundle_dep_mgr.lookup_context_bundle(
                 self.contexts,
-                self.manifest_data.get('dependencies', ()),
                 context_id)
-        if owner is self._context_bundle_finder:
+        if owner is self._bundle_dep_mgr:
             return self
 
     def _load_dependency(self, dependencies_item):
         try:
-            return self._context_bundle_finder._load_dependency(dependencies_item)
+            return self._bundle_dep_mgr._load_dependency(dependencies_item)
         except BundleDependencyConfigIsMalformed as e:
             bundle_directory = self.resolve()
             raise MalformedBundle(bundle_directory, str(e)) from e
@@ -554,7 +541,7 @@ class Bundle(object):
         return target.contextualize(self._bundle_context)
 
 
-class ContextBundleFinder(object):
+class BundleDependencyManager(object):
     '''
     Finds the bundle in which a context is defined.
 
@@ -565,9 +552,53 @@ class ContextBundleFinder(object):
     however, the exact behavior is up to the component that uses this component.
     '''
 
-    def __init__(self, **common_bundle_arguments):
+    def __init__(self, dependencies, **common_bundle_arguments):
         self._loaded_dependencies = dict()
         self._common_bundle_arguments = common_bundle_arguments
+        self.dependencies = dependencies
+
+    def load_dependencies_transitive(self):
+        '''
+        Load dependencies from this bundle transitively
+
+        Yields
+        ------
+        Bundle
+            A direct or indirect dependency of this bundle
+        '''
+        border = {None: self}
+        seen = set()
+        while border:
+            new_border = {}
+            for bnd in border.values():
+                for d_bnd in bnd.load_dependencies():
+                    key = (d_bnd.ident, d_bnd.version)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    new_border[key] = d_bnd
+                    yield d_bnd
+            border = new_border
+
+    def lookup_context_bundle(self, contexts, context_id):
+        if context_id is None or str(context_id) in self.contexts:
+            return self
+        for d in self.dependencies():
+            d_excludes = frozenset(d.get('excludes', ()))
+            if context_id in d_excludes:
+                continue
+
+            d_bnd = self._load_dependency(d)
+            match = d_bnd._lookup_context_bundle(context_id)
+            if match:
+                return match
+        return None
+
+    def _load_dependencies(self):
+        for d in self.dependencies():
+            yield self._load_dependency(d)
+
+    load_dependencies = _load_dependencies
 
     def _load_dependency(self, dependencies_item):
         d_id = dependencies_item.get('id')
@@ -584,20 +615,6 @@ class ContextBundleFinder(object):
                     **self._common_bundle_arguments)
             self._loaded_dependencies[(d_id, d_version)] = bundle
         return bundle
-
-    def lookup_context_bundle(self, contexts, dependencies, context_id):
-        if context_id is None or str(context_id) in self.contexts:
-            return self
-        for d in dependencies:
-            d_excludes = frozenset(d.get('excludes', ()))
-            if context_id in d_excludes:
-                continue
-
-            d_bnd = self._load_dependency(d)
-            match = d_bnd._lookup_context_bundle(context_id)
-            if match:
-                return match
-        return None
 
 
 class BundleDependencyConfigIsMalformed(Exception):
