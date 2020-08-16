@@ -105,14 +105,19 @@ class AggregateStore(Store):
             store.gc()
 
     def add(self, *args, **kwargs): raise UnsupportedAggregateOperation
-    def addN(self, *args, **kwargs): raise UnsupportedAggregateOperation
+
+    def addN(self, *args, **kwargs):
+        return self.__stores[0].addN(*args, **kwargs)
+
     def remove(self, *args, **kwargs): raise UnsupportedAggregateOperation
     def add_graph(self, *args, **kwargs): raise UnsupportedAggregateOperation
     def remove_graph(self, *args, **kwargs): raise UnsupportedAggregateOperation
     def create(self, *args, **kwargs): raise UnsupportedAggregateOperation
     def destroy(self, *args, **kwargs): raise UnsupportedAggregateOperation
-    def commit(self, *args, **kwargs): raise UnsupportedAggregateOperation
     def rollback(self, *args, **kwargs): raise UnsupportedAggregateOperation
+
+    def commit(self, *args, **kwargs):
+        return self.__stores[0].commit(*args, **kwargs)
 
     def __repr__(self):
         return '%s(%s)' % (FCN(type(self)), ', '.join(repr(s) for s in self.__stores))
