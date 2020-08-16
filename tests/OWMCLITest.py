@@ -1,4 +1,5 @@
 from __future__ import print_function
+import json
 from rdflib.term import URIRef
 from os.path import join as p
 import os
@@ -148,3 +149,32 @@ def test_translate_data_source_loader(owm_project):
         owm_project.sh('owm translate http://example.org/trans1 http://example.org/lfds'),
         re.escape(dsfile)
     )
+
+
+@mark.core_bundle_version(1)
+@mark.core_bundle
+def test_source_list(owm_project, core_bundle):
+    owm = OWM(owmdir=p(owm_project.testdir, '.owm'))
+    deps = [{'id': 'openworm/owmeta-core', 'version': 1}]
+    owm.config.set('dependencies', json.dumps(deps))
+
+    with owm.connect() as conn:
+        with transaction.manager:
+            # Create data sources
+            ctx = conn(Context)(ident='http://example.org/context')
+            ctx(LFDS)(
+                ident='http://example.org/lfds',
+                file_name='DSFile',
+            )
+
+            ctx.add_import(LFDS.definition_context)
+            ctx.save_imports()
+            defctx = conn(Context)(ident=owm_project.default_context_id)
+            defctx.add_import(ctx)
+            defctx.save_imports()
+
+            ctx.save()
+            conn.mapper.save()
+
+    assertRegexpMatches(owm_project.sh('owm source list'),
+            '<http://example.org/lfds>')

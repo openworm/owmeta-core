@@ -146,9 +146,7 @@ class OWMSource(object):
             kind = DataSource.rdf_type
         kind_uri = self._parent._den3(kind)
 
-        print("----------")
         dst = ctx.stored(ctx.stored.resolve_class(kind_uri))
-        print("----------")
         if dst is None:
             raise GenericUserError('Listing DataSources requires a dependency on the'
                                    ' openworm/owmeta-core bundle')
@@ -1072,7 +1070,7 @@ class OWM(object):
 
             deps = dat.get('dependencies', None)
             if deps:
-                cfg_builder = BundleDependentStoreConfigBuilder()
+                cfg_builder = BundleDependentStoreConfigBuilder(read_only=False)
                 store_name, store_conf = cfg_builder.build(store_conf, deps)
                 dat['rdf.source'] = 'default'
                 dat['rdf.store'] = store_name
@@ -1669,7 +1667,10 @@ class _ProjectMapper(Mapper):
 
         target_id = context.identifier
         dep_mgr = self.owm._bundle_dep_mgr
-        target_bundle = dep_mgr.lookup_context_bundle(target_id)
+        contexts = set(str(getattr(c, 'identifier', c)) for c in self.owm.rdf.contexts())
+        target_bundle = dep_mgr.lookup_context_bundle(contexts, target_id)
+        if target_bundle is None:
+            target_bundle = dep_mgr
         deps = target_bundle.load_dependencies_transitive()
         for bnd in deps:
             crctx_id = bnd.manifest_data.get(CLASS_REGISTRY_CONTEXT_KEY, None)

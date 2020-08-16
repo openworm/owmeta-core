@@ -581,7 +581,7 @@ class BundleDependencyManager(object):
             border = new_border
 
     def lookup_context_bundle(self, contexts, context_id):
-        if context_id is None or str(context_id) in self.contexts:
+        if context_id is None or str(context_id) in contexts:
             return self
         for d in self.dependencies():
             d_excludes = frozenset(d.get('excludes', ()))
@@ -630,7 +630,8 @@ class BundleDependentStoreConfigBuilder(object):
     this process, this builder will fetch bundles as needed to resolve transitive
     dependencies
     '''
-    def __init__(self, bundles_directory=None, remotes_directory=None, remotes=None):
+    def __init__(self, bundles_directory=None, remotes_directory=None, remotes=None,
+            read_only=True):
         if not bundles_directory:
             bundles_directory = DEFAULT_BUNDLES_DIRECTORY
         self.bundles_directory = realpath(expandvars(expanduser(bundles_directory)))
@@ -640,6 +641,7 @@ class BundleDependentStoreConfigBuilder(object):
         self.remotes_directory = realpath(expandvars(expanduser(remotes_directory)))
 
         self.remotes = remotes
+        self.read_only = read_only
 
     def build(self, indexed_db_path, dependencies, bundle_directory=None):
         '''
@@ -665,18 +667,20 @@ class BundleDependentStoreConfigBuilder(object):
             The configuration for the store. This is the object that will be passed to
             `rdflib.store.Store.open` to configure the store.
         '''
-        return 'agg', self._construct_store_config(indexed_db_path, dependencies)
+        return 'agg', self._construct_store_config(indexed_db_path, dependencies,
+                read_only=self.read_only)
 
     __call__ = build
 
     def _construct_store_config(self, indexed_db_path, dependencies,
-                                current_path=None, paths=None, bundle_directory=None):
+                                current_path=None, paths=None, bundle_directory=None,
+                                read_only=True):
         if paths is None:
             paths = set()
         if current_path is None:
             current_path = _BDTD()
         dependency_configs = self._gather_dependency_configs(dependencies, current_path, paths, bundle_directory)
-        fs_store_config = dict(url=indexed_db_path, read_only=True)
+        fs_store_config = dict(url=indexed_db_path, read_only=read_only)
         return [
             ('FileStorageZODB', fs_store_config)
         ] + dependency_configs
