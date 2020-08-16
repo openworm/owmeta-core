@@ -1,5 +1,6 @@
 from __future__ import print_function
 import json
+import rdflib
 from rdflib.term import URIRef
 from os.path import join as p
 import os
@@ -12,6 +13,7 @@ from owmeta_core.context import Context, IMPORTS_CONTEXT_KEY, DEFAULT_CONTEXT_KE
 from owmeta_core.context_common import CONTEXT_IMPORTS
 from owmeta_core.data_trans.local_file_ds import LocalFileDataSource as LFDS
 from owmeta_core.datasource import DataTranslator, DataSource
+from owmeta_core.bundle import Descriptor
 
 from .test_modules.owmclitest01 import DT2
 from .TestUtilities import assertRegexpMatches
@@ -31,6 +33,33 @@ def test_save_diff(owm_project):
             'tests/test_modules/owmclitest03_monkey.py')
     print(owm_project.sh('owm save test_module.command_test_save'))
     assertRegexpMatches(owm_project.sh('owm diff'), r'<[^>]+>')
+
+
+def test_no_write_dependency_on_commit(custom_bundle, owm_project):
+    '''
+    Make sure we don't have duplicates in the graphs index when we have a dependency
+
+    (This is one of *many* ways in which we're making sure we don't persist data from
+     dependencies in the project's store)
+    '''
+
+    graph = rdflib.ConjunctiveGraph()
+    depctx = 'http://example.org/dep'
+    ctxgraph = graph.get_context(URIRef(depctx))
+    ctxgraph.add((URIRef('http://ex.org/s'), URIRef('http://ex.org/p'), URIRef('http://ex.org/o'),))
+    dep_desc = Descriptor('dep', version=1, includes=(depctx,))
+
+    with custom_bundle(dep_desc, graph=graph, homedir=owm_project.test_homedir):
+        owm = owm_project.owm()
+        deps = [{'id': 'dep', 'version': 1}]
+        owm.config.set('dependencies', json.dumps(deps))
+
+        commit_output = owm_project.sh("owm commit -m 'Commit message'")
+        print('COMMIT OUTPUT')
+        print(commit_output)
+
+        with open(p(owm_project.testdir, '.owm', 'graphs', 'index')) as f:
+            assert list(f.readlines()) == []
 
 
 def test_save_classes(owm_project):

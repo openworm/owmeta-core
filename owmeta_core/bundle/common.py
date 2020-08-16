@@ -128,7 +128,9 @@ def find_bundle_directory(bundles_directory, ident, version=None):
     res = fmt_bundle_directory(bundles_directory, ident, version)
     if not exists(res):
         if version is None:
-            raise BundleNotFound(ident, 'Bundle directory does not exist')
+            raise BundleNotFound(ident,
+                    f'Bundle directory, "{res}", does not exist')
         else:
-            raise BundleNotFound(ident, 'Bundle directory does not exist for the specified version', version)
+            raise BundleNotFound(ident,
+                    f'Bundle directory, "{res}", does not exist for the specified version', version)
     return res

@@ -25,6 +25,10 @@ class AggregateStore(Store):
         self.__stores = []
         self.__bound_ns = dict()
 
+    @property
+    def stores(self):
+        return list(self.__stores)
+
     # -- Store methods -- #
 
     def open(self, configuration, create=True):

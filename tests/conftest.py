@@ -16,7 +16,7 @@ from owmeta_core.bundle import (Descriptor, Installer, find_bundle_directory,
                                 AccessorConfig, Remote, Fetcher)
 from owmeta_core.bundle.loaders import Loader
 from owmeta_core.bundle.archive import Archiver
-from owmeta_core.command import DEFAULT_OWM_DIR
+from owmeta_core.command import DEFAULT_OWM_DIR, OWM
 from pytest import fixture
 from rdflib.term import URIRef
 from rdflib.graph import ConjunctiveGraph
@@ -199,6 +199,8 @@ def _owm_project_helper(request):
 
             res.owmdir = p(res.testdir, DEFAULT_OWM_DIR)
             res.default_context_id = default_context_id
+            res.owm = lambda **kwargs: OWM(owmdir=p(res.testdir, '.owm'), **kwargs)
+
             yield res
         finally:
             shutil.rmtree(res.testdir)
@@ -357,7 +359,7 @@ def custom_bundle():
 
 
 @contextmanager
-def bundle_helper(descriptor, graph=None, bundles_directory=None, **kwargs):
+def bundle_helper(descriptor, graph=None, bundles_directory=None, homedir=None, **kwargs):
     '''
     Helper for creating bundles for testing.
 
@@ -374,17 +376,20 @@ def bundle_helper(descriptor, graph=None, bundles_directory=None, **kwargs):
     bundles_directory : str, optional
         The directory where the bundles should be installed. If not provided, creates a
         temporary directory to house the bundles and cleans them up afterwards
+    homedir : str, optional
+        Test home directory. If not provided, one will be created based on test directory
     '''
     res = BundleData()
     with tempfile.TemporaryDirectory(prefix=__name__ + '.') as testdir:
         res.testdir = testdir
-        res.test_homedir = p(res.testdir, 'homedir')
+        res.test_homedir = homedir or p(res.testdir, 'homedir')
         res.bundle_source_directory = p(res.testdir, 'bundle_source')
-        res.bundles_directory = bundles_directory or p(res.testdir, 'homedir', 'bundles')
-        os.mkdir(res.test_homedir)
+        res.bundles_directory = bundles_directory or p(res.test_homedir, '.owmeta', 'bundles')
+        if not homedir:
+            os.mkdir(res.test_homedir)
         os.mkdir(res.bundle_source_directory)
         if not bundles_directory:
-            os.mkdir(res.bundles_directory)
+            os.makedirs(res.bundles_directory)
 
         # This is a bit of an integration test since it would be a PITA to maintain the bundle
         # format separately from the installer

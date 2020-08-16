@@ -32,6 +32,8 @@ from textwrap import dedent
 from tempfile import TemporaryDirectory
 import uuid
 
+import rdflib
+
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
                            DEFAULT_OWM_DIR)
 from . import connect, OWMETA_PROFILE_DIR
@@ -1420,6 +1422,14 @@ class OWM(object):
     def rdf(self):
         return self._conf('rdf.graph')
 
+    @property
+    def own_rdf(self):
+        has_dependencies = self._conf('dependencies', None)
+        if has_dependencies:
+            return rdflib.ConjunctiveGraph(self._conf('rdf.graph').store.stores[0])
+        else:
+            return self._conf('rdf.graph')
+
     def commit(self, message):
         '''
         Write the graph to the local repository
@@ -1441,7 +1451,7 @@ class OWM(object):
 
     def _serialize_graphs(self, ignore_change_cache=False):
         import transaction
-        g = self.rdf
+        g = self.own_rdf
         repo = self.repository_provider
 
         repo.base = self.owmdir
