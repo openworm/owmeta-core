@@ -1233,7 +1233,7 @@ class OWM(object):
         return ctx_index, fname_index
 
     def _graphs_index0(self, index_file):
-        for l in index_file:
+        for l in index_file.readlines():
             l = l.strip()
             if not isinstance(l, str):
                 l_str = l.decode('UTF-8')
@@ -1529,7 +1529,9 @@ class OWM(object):
             old_index = None
 
         if old_index:
-            old_index_file = old_index.data_stream
+            # OStream.stream isn't documented (most things in GitDB aren't), but it is,
+            # technically, public interface.
+            old_index_file = old_index.data_stream.stream
             _, old_fnc = self._read_graphs_index0(old_index_file)
         else:
             old_fnc = dict()
