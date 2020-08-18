@@ -175,6 +175,7 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
                                 description='Free-text describing the data source')
 
     rdf_namespace = Namespace("http://openworm.org/entities/data_sources/DataSource#")
+    schema_namespace = Namespace("http://schema.openworm.org/2020/07/data_sources/DataSource#")
 
     def __init__(self, **kwargs):
         self.info_fields = OrderedDict((i.name, i) for i in self.__class__.info_fields)
