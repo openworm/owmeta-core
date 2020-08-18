@@ -579,9 +579,15 @@ class OWMRegistry(object):
     def __init__(self, parent):
         self._parent = parent
 
-    def list(self):
+    def list(self, module=None):
         '''
         List registered classes
+
+        Parameters
+        ----------
+        module : str
+            If provided, limits the registry entries returned to those that have the given
+            module name. Optional.
         '''
         from .dataobject import PythonClassDescription
         mapper = self._parent.connect().mapper
@@ -593,14 +599,18 @@ class OWMRegistry(object):
                 rdf_type = re.namespace_manager.normalizeUri(re.rdf_class())
                 if not isinstance(cd, PythonClassDescription):
                     continue
-                module = cd.module()
+                module_do = cd.module()
                 if re.namespace_manager:
                     ident = re.namespace_manager.normalizeUri(ident)
-                if hasattr(module, 'name'):
-                    module_name = module.name()
+                if hasattr(module_do, 'name'):
+                    module_name = module_do.name()
+
+                if module is not None and module != module_name:
+                    continue
+
                 package = None
-                if hasattr(module, 'package'):
-                    package = module.package()
+                if hasattr(module_do, 'package'):
+                    package = module_do.package()
                     package_name = None
                     package_version = None
                     if package:
