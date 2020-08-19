@@ -94,7 +94,7 @@ class AggregateStore(Store):
         for store in self.__stores:
             for ns in store.namespaces():
                 yield ns
-        for ns in self.__bound_ns.values():
+        for ns in self.__bound_ns.items():
             yield ns
 
     def bind(self, prefix, namespace):
