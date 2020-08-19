@@ -83,7 +83,9 @@ class ContextMeta(ContextualizableClass):
         if context is None:
             return self
         ctxd_meta = contextualize_metaclass(context, self)
-        return ctxd_meta(self.__name__, (self,), dict(class_context=context.identifier))
+        res = ctxd_meta(self.__name__, (self,), dict(class_context=context.identifier))
+        res.__module__ = self.__module__
+        return res
 
 
 class ContextualizableDataUserMixin(Contextualizable, DataUser):
