@@ -130,18 +130,12 @@ def get_most_specific_rdf_type(types, context=None, base=None):
         if base_class:
             most_specific_types = (base_class,)
     for typ in types:
-        try:
-            class_object = context.resolve_class(typ)
-            if class_object is None:
-                raise KeyError()
-            if issubclass(class_object, most_specific_types):
-                most_specific_types = (class_object,)
-        except KeyError:
+        class_object = context.resolve_class(typ)
+        if class_object is None:
             L.warning(
-                """A Python class corresponding to the type URI <{}> couldn't be found.
-            You may want to import the module containing the class as well as add
-            additional RDF type triples to the RDF graph in order to resolve your objects
-            to a more precise type.""".format(typ))
+                    f"A Python class corresponding to the type URI {repr(typ)} couldn't be found.")
+        elif issubclass(class_object, most_specific_types):
+            most_specific_types = (class_object,)
 
     if len(most_specific_types) == 1:
         return most_specific_types[0].rdf_type
