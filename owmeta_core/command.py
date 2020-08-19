@@ -1847,10 +1847,10 @@ class SaveValidationFailureRecord(namedtuple('_SaveValidationFailureRecord', ['u
 
 
 class _DSD(object):
-    def __init__(self, ds_dict, base_directory, loader_classes):
+    def __init__(self, ds_dict, base_directory, loaders):
         self._dsdict = ds_dict
         self.base_directory = base_directory
-        self._loader_classes = self._init_loaders(loader_classes)
+        self._loaders = self._init_loaders(loaders)
 
     def __str__(self):
         return '{}({})'.format(FCN(type(self)), self._dsdict)
@@ -1869,20 +1869,20 @@ class _DSD(object):
     def put(self, data_source_ident, directory):
         self._dsdict[str(data_source_ident)] = directory
 
-    def _init_loaders(self, loader_classes):
+    def _init_loaders(self, loaders):
         res = []
-        for loader_class in loader_classes:
-            nd = pth_join(self.base_directory, loader_class.directory_key)
+        for loader in loaders:
+            nd = pth_join(self.base_directory, loader.directory_key)
             if not exists(nd):
                 makedirs(nd)
-            loader_class.base_directory = nd
-            res.append(loader_class)
+            loader.base_directory = nd
+            res.append(loader)
         return res
 
     def _load_data_source(self, data_source):
-        for loader_class in self._loader_classes:
-            if loader_class.can_load(data_source):
-                return loader_class(data_source)
+        for loader in self._loaders:
+            if loader.can_load(data_source):
+                return loader(data_source)
 
 
 class DataSourceDirectoryProvider(FilePathProvider):
