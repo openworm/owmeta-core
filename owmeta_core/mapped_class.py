@@ -21,7 +21,7 @@ class MappedClass(type):
         self.__rdf_type = None
         # Set the rdf_type early
         if 'rdf_type' in dct:
-            self.__rdf_type = dct['rdf_type']
+            self.__rdf_type = R.URIRef(dct['rdf_type'])
 
         if self.__rdf_type is None:
             self.__rdf_type = self.base_namespace[self.__name__]
