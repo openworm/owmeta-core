@@ -21,6 +21,8 @@ class CSVDataSource(LocalFileDataSource):
 
     rdf_namespace = Namespace(DS_NS['CSVDataSource#'])
 
+    schema_namespace = Namespace(DS_NS['CSVDataSource#'])
+
     csv_file_name = Informational(display_name='CSV file name',
                                   also=LocalFileDataSource.file_name)
 
