@@ -5,6 +5,12 @@ python:
 - 3.7
 - 3.6
 
+matrix:
+  include:
+  - python: '3.8'
+    env:
+    - DEPLOY=1
+
 services:
 - postgresql
 - mysql
@@ -19,17 +25,18 @@ install:
 - ./ci-install.sh
 
 script:
-- ./ci-test.sh
+- if [ ! "$DEPLOY" ] ; then ./ci-test.sh ; fi
 
 after_script:
 - coveralls
 
 after_success:
-- ./codespeed-submit.sh
+- ./.travis.success.sh
 
 env:
   global:
   - SQLITE_TEST=1 POSTGRES_TEST=1 MYSQL_TEST=1
   - COVERALLS_PARALLEL=true
+  - secure: "RhcUYxzwQckmv98xT0XxS1V8Y/uKXe2uu61Bau93JbeQ18wVq/Ya6xtyYt2TUyiJ1j/6mRvqakh4MqEyqy3Mz6iRsLXfv21Ql7Bf21EpRhLVIjaQlipcCoLWVOwOYiSnNa/K7yezHpwmH5aqBeY45XwTvytUsaLW5oiSQhMD7e5ymRg8WfFeuxWutpViHP7/30U0DaiiyPa0BXM2D3Osi2WjQLvBIjb5W5162m4GM/ul93kFyssjn+rolAQsoFCNzbfSskDuudZtO6mHKgxtiTQZYUagHZqf1b0zU03nCgQOBg2wfrRaTB/Lr/VDGuNfJgimjEshUvjaqH6zz8jz/UEWTHyDqmwMJTziK9TBS32IP0X0BtPbCqqQiQZDJWi3yMn4sIg9lWTIOAl6c+Tz3wHKNb0PRN6YxGG9j3V/7mK1ciAiftaGUFB71TGc5i9dOFhaNUXSVGr+yk39vbVCHsqbV9vZUerQedZ1yp5TnGnAhFbdb2sCIfcf8WXmqXxtBbemDAsrRuc26DJxUchZ1GY2DweWi68CdQdL/CvVHYn/v7YAXPNcuViCs3ftPTIUGXYz0psA9n0N+OYLERsaIefiP23Wy0tFcXwiJc2gDF2R8mPBOffom2y1Fu7vYhM1X7UuYfZgmxrX4rQqJX6+39Ge6nHVGGAZTaz73mIUnLk="
 notifications:
   webhooks: https://coveralls.io/webhook
