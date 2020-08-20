@@ -140,7 +140,6 @@ def owm_project_with_customizations(request):
 
 @fixture
 def core_bundle(request):
-    print('core_bundle')
     CoreBundle = namedtuple('CoreBundle', ('id', 'version', 'source_directory', 'remote'))
     version_mark = request.node.get_closest_marker('core_bundle_version')
     if not version_mark:
@@ -199,7 +198,13 @@ def _owm_project_helper(request):
 
             res.owmdir = p(res.testdir, DEFAULT_OWM_DIR)
             res.default_context_id = default_context_id
-            res.owm = lambda **kwargs: OWM(owmdir=p(res.testdir, '.owm'), **kwargs)
+
+            def owm(**kwargs):
+                r = OWM(owmdir=p(res.testdir, '.owm'), **kwargs)
+                r.userdir = p(res.test_homedir, '.owmeta')
+                return r
+
+            res.owm = owm
 
             yield res
         finally:

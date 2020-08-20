@@ -135,7 +135,7 @@ def test_translator_list(owm_project):
 
 
 def test_translate_data_source_loader(owm_project):
-    owm = OWM(owmdir=p(owm_project.testdir, '.owm'))
+    owm = owm_project.owm()
     with owm.connect() as conn:
         with transaction.manager:
             # Create data sources
@@ -183,7 +183,7 @@ def test_translate_data_source_loader(owm_project):
 @mark.core_bundle_version(1)
 @mark.core_bundle
 def test_source_list(owm_project, core_bundle):
-    owm = OWM(owmdir=p(owm_project.testdir, '.owm'))
+    owm = owm_project.owm()
     deps = [{'id': 'openworm/owmeta-core', 'version': 1}]
     owm.config.set('dependencies', json.dumps(deps))
 

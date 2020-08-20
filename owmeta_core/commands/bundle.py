@@ -304,6 +304,12 @@ class OWMBundle(object):
     def _bundles_directory(self):
         return p(self._parent.userdir, 'bundles')
 
+    def _user_remotes_directory(self):
+        return p(self._parent.userdir, 'remotes')
+
+    def _project_remotes_directory(self):
+        return p(self._parent.owmdir, 'remotes')
+
     def load(self, input_file_name):
         '''
         Load a bundle from a file and register it into the project

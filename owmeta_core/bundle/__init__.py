@@ -375,6 +375,7 @@ class Bundle(object):
         conf.update({'rdf.source': 'default'})
         self.version = version
         self.remotes = remotes
+        # XXX: Look at how we bring in projects remotes directory
         if not remotes_directory:
             remotes_directory = DEFAULT_REMOTES_DIRECTORY
         self.remotes_directory = realpath(expandvars(expanduser(remotes_directory)))

@@ -1081,13 +1081,20 @@ class OWM(object):
 
             deps = dat.get('dependencies', None)
             if deps:
-                cfg_builder = BundleDependentStoreConfigBuilder(read_only=read_only)
+                bundles_directory = self.bundle._bundles_directory()
+                remotes_directory = self.bundle._user_remotes_directory()
+                # XXX: Look at how we bring in projects remotes directory
+                cfg_builder = BundleDependentStoreConfigBuilder(bundles_directory=bundles_directory,
+                                                                remotes_directory=remotes_directory,
+                                                                read_only=read_only)
                 store_name, store_conf = cfg_builder.build(store_conf, deps)
                 dat['rdf.source'] = 'default'
                 dat['rdf.store'] = store_name
                 dat['rdf.store_conf'] = store_conf
 
-                self._bundle_dep_mgr = BundleDependencyManager(dependencies=lambda: deps)
+                self._bundle_dep_mgr = BundleDependencyManager(bundles_directory=bundles_directory,
+                                                               remotes_directory=remotes_directory,
+                                                               dependencies=lambda: deps)
 
             self._owm_connection = connect(conf=dat)
 
