@@ -382,7 +382,7 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
                 prdto = getattr(par, 'rdf_type_object', None)
                 if prdto is not None:
                     if rdto.identifier == prdto.identifier:
-                        L.warning('Subclass declared without a distinct rdf_type: %s', self)
+                        L.warning('Subclass %s of %s declared without a distinct rdf_type', self, par)
                         continue
                     rdto.rdfs_subclassof_property.set(prdto)
             self.rdf_type_object = rdto

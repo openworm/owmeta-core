@@ -1,13 +1,14 @@
-from unittest.mock import patch, Mock
-from contextlib import contextmanager
+from os.path import join as p
+from unittest.mock import patch, Mock, MagicMock
 
-from pytest import fixture, raises
+from pytest import raises
+from rdflib.store import Store
 from rdflib.term import URIRef
-from rdflib.plugin import PluginException
+from rdflib.plugin import PluginException, get as plugin_get
 from rdflib.plugins.memory import IOMemory
 
 from owmeta_core.bundle_dependency_store import (BundleDependencyStore, _is_cacheable,
-                                                 _cache_key, RDFLIB_PLUGIN_KEY)
+                                                 _cache_key, RDFLIB_PLUGIN_KEY, StoreCache)
 
 
 def test_excludes_no_triples():
@@ -330,7 +331,7 @@ def test_open_dict_missing_conf():
 
 
 def test_open_plugin_missing():
-    with patch('owmeta_core.bundle_dependency_store._is_cacheable') as is_cacheable, \
+    with patch('owmeta_core.bundle_dependency_store._is_cacheable'), \
           patch('owmeta_core.bundle_dependency_store.plugin') as plugin:
         plugin.get.side_effect = PluginException
         cut = BundleDependencyStore()
@@ -359,13 +360,13 @@ def test_not_cacheable():
 def test_cached_used_when_cacheable():
     with patch('owmeta_core.bundle_dependency_store._is_cacheable') as is_cacheable, \
           patch('owmeta_core.bundle_dependency_store._cache_key') as cache_key, \
-          patch('owmeta_core.bundle_dependency_store._store_cache') as store_cache, \
           patch('owmeta_core.bundle_dependency_store.plugin') as plugin:
         is_cacheable.return_value = True
         cache_key.return_value = 'cache_key'
         cut = BundleDependencyStore()
+        store_cache = MagicMock()
         store_cache.get.return_value = Mock(name='CachedStore')
-        cut.open(('StoreKey', 'StoreConf'))
+        cut.open(dict(type='StoreKey', conf='StoreConf', cache=store_cache))
 
         # test_use_cached_store_no_plugin
         plugin.get.assert_not_called()
@@ -380,13 +381,13 @@ def test_cached_used_when_cacheable():
 def test_cached_store_created_when_cacheable():
     with patch('owmeta_core.bundle_dependency_store._is_cacheable') as is_cacheable, \
           patch('owmeta_core.bundle_dependency_store._cache_key') as cache_key, \
-          patch('owmeta_core.bundle_dependency_store._store_cache') as store_cache, \
           patch('owmeta_core.bundle_dependency_store.plugin') as plugin:
         is_cacheable.return_value = True
         cache_key.return_value = 'cache_key'
         cut = BundleDependencyStore()
+        store_cache = MagicMock()
         store_cache.get.return_value = None
-        cut.open(('StoreKey', 'StoreConf'))
+        cut.open(dict(type='StoreKey', conf='StoreConf', cache=store_cache))
 
         # test_use_cached_store_no_plugin
         plugin.get.assert_called()
@@ -394,7 +395,7 @@ def test_cached_store_created_when_cacheable():
         # test_cached_sought
         store_cache.get.assert_called()
 
-        # test_cached_used
+        # test_cached_not_used
         assert cut.wrapped == plugin.get()()
 
 
@@ -428,28 +429,121 @@ def test_bds_is_cacheable_for_readonly_FileStorageZODB_dict_config():
         conf={'read_only': True}))
 
 
+def test_bds_is_not_cacheable_for_writeable_FileStorageZODB_dict_config():
+    assert not _is_cacheable(RDFLIB_PLUGIN_KEY, dict(
+        type='FileStorageZODB',
+        conf={'read_only': False}))
+
+
+def test_bds_is_cacheable_for_readonly_FileStorageZODB_dict_config_with_cache():
+    assert _is_cacheable(RDFLIB_PLUGIN_KEY, dict(
+        type='FileStorageZODB',
+        conf={'read_only': True},
+        cache=MagicMock()))
+
+
 def test_bds_is_not_cacheable_for_unknown_config_type():
     assert not _is_cacheable(RDFLIB_PLUGIN_KEY, object())
 
 
 def test_bds_reuse():
     with patch('owmeta_core.bundle_dependency_store._is_cacheable') as is_cacheable, \
-          patch('owmeta_core.bundle_dependency_store._cache_key') as cache_key, \
-          patch('owmeta_core.bundle_dependency_store._store_cache') as store_cache, \
-          patch('owmeta_core.bundle_dependency_store.plugin') as plugin:
+          patch('owmeta_core.bundle_dependency_store._cache_key'), \
+          patch('owmeta_core.bundle_dependency_store.plugin'):
         cut = BundleDependencyStore()
-        cut.open(('StoreKey', 'StoreConf'))
-        is_cacheable.assert_called_with(RDFLIB_PLUGIN_KEY, ('StoreKey', 'StoreConf'))
+        store_cache = MagicMock()
+        conf = dict(type='StoreKey', conf='StoreConf', cache=store_cache)
+        cut.open(conf)
+        is_cacheable.assert_called_with(RDFLIB_PLUGIN_KEY, conf)
         assert cut.wrapped == store_cache.get()
 
 
-def test_cached_store_not_closed():
+def test_open_open_close_close_1(tempdir):
     '''
     A cached store, once opened, cannot be closed unilaterally by a BDS holdidng a
-    reference to that store. Consequently, we musts prevent closing of the store. However,
+    reference to that store. Consequently, we must prevent closing of the store. However,
     calling 'close' on the store must remain an allowed operation (i.e., it must not raise
     an exception) so that the sharing of the store remains transparent to the BDS user.
     '''
+    bds1 = BundleDependencyStore()
+    bds2 = BundleDependencyStore()
+    store_cache = StoreCache()
+    store = plugin_get('FileStorageZODB', Store)()
+    store.open(p(tempdir, 'db.fs'))
+    store.close()
+
+    conf = dict(
+        type='FileStorageZODB',
+        conf={'read_only': True, 'url': p(tempdir, 'db.fs')},
+        cache=store_cache)
+
+    print("OPEN BDS 1")
+    bds1.open(conf)
+    print("OPEN BDS 2")
+    bds2.open(conf)
+
+    print("CLOSE BDS 1")
+    bds1.close()
+    print("CLOSE BDS 2")
+    bds2.close()
+
+
+def test_open_open_close_close_2(tempdir):
+    '''
+    A cached store, once opened, cannot be closed unilaterally by a BDS holdidng a
+    reference to that store. Consequently, we must prevent closing of the store. However,
+    calling 'close' on the store must remain an allowed operation (i.e., it must not raise
+    an exception) so that the sharing of the store remains transparent to the BDS user.
+    '''
+    bds1 = BundleDependencyStore()
+    bds2 = BundleDependencyStore()
+    store_cache = StoreCache()
+    store = plugin_get('FileStorageZODB', Store)()
+    store.open(p(tempdir, 'db.fs'))
+    store.close()
+
+    conf = dict(
+        type='FileStorageZODB',
+        conf={'read_only': True, 'url': p(tempdir, 'db.fs')},
+        cache=store_cache)
+
+    print("OPEN BDS 1")
+    bds1.open(conf)
+    print("OPEN BDS 2")
+    bds2.open(conf)
+
+    print("CLOSE BDS 2")
+    bds2.close()
+    print("CLOSE BDS 1")
+    bds1.close()
+
+
+def test_open_open_close_query(tempdir):
+    bds1 = BundleDependencyStore()
+    bds2 = BundleDependencyStore()
+    store_cache = StoreCache()
+    store = plugin_get('FileStorageZODB', Store)()
+    store.open(p(tempdir, 'db.fs'))
+    trip = (URIRef('http://example.org/a'),
+            URIRef('http://example.org/b'),
+            URIRef('http://example.org/c'))
+    store.add(trip, context=None)
+    store.close()
+
+    conf = dict(
+        type='FileStorageZODB',
+        conf={'read_only': True, 'url': p(tempdir, 'db.fs')},
+        cache=store_cache)
+
+    print("OPEN BDS 1")
+    bds1.open(conf)
+    print("OPEN BDS 2")
+    bds2.open(conf)
+
+    print("CLOSE BDS 1")
+    bds1.close()
+
+    assert list(bds2.triples((None, None, None)))[0][0] == trip
 
 
 def test_unimplemented():

@@ -1039,11 +1039,11 @@ class OWM(object):
 
         return self.graph_accessor_finder(url)
 
-    def connect(self):
-        self._init_store()
+    def connect(self, read_only=False):
+        self._init_store(read_only=read_only)
         return self._owm_connection
 
-    def _conf(self, *args):
+    def _conf(self, *args, read_only=False):
         from owmeta_core.data import Data
         import six
         dat = getattr(self, '_dat', None)
@@ -1082,7 +1082,7 @@ class OWM(object):
 
             deps = dat.get('dependencies', None)
             if deps:
-                cfg_builder = BundleDependentStoreConfigBuilder(read_only=False)
+                cfg_builder = BundleDependentStoreConfigBuilder(read_only=read_only)
                 store_name, store_conf = cfg_builder.build(store_conf, deps)
                 dat['rdf.source'] = 'default'
                 dat['rdf.store'] = store_name

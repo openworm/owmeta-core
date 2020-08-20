@@ -29,6 +29,9 @@ class BundleDependencyStore(Store):
     def __init__(self, wrapped=None, excludes=()):
         self.wrapped = wrapped
         self.excludes = set(excludes)
+        self._store_cache = None
+        self._store_cache_key = None
+        self._store_cache_wrapped_key = None
 
     def open(self, configuration):
         '''
@@ -36,6 +39,7 @@ class BundleDependencyStore(Store):
 
         Also verifies that the provided store is context-aware
         '''
+        store_cache = None
         if isinstance(configuration, (list, tuple)):
             try:
                 store_key, store_conf = configuration
@@ -49,26 +53,36 @@ class BundleDependencyStore(Store):
             except KeyError:
                 raise ValueError('Missing type and conf entries')
             self.excludes = configuration.get('excludes', ())
+            store_cache = configuration.get('cache', None)
+            self._store_cache = store_cache
         else:
             raise ValueError('Invalid configuration for ' + RDFLIB_PLUGIN_KEY)
 
-        if _is_cacheable(RDFLIB_PLUGIN_KEY, configuration):
+        # Check for a cached BDS -- we can use that as our wrapped store, possibly
+        # ourselves if an attempt is made to re-open this store.
+        if store_cache and _is_cacheable(RDFLIB_PLUGIN_KEY, configuration):
             bds_ck = _cache_key(RDFLIB_PLUGIN_KEY, configuration)
-            bds_cached_store = _store_cache.get(bds_ck, None)
+            self._store_cache_key = bds_ck
+            bds_cached_store = store_cache.get(bds_ck, None)
             if bds_cached_store is not None:
+                store_cache.check_out(bds_ck)
                 if bds_cached_store is not self:
                     self.wrapped = bds_cached_store
+                    self._store_cache_wrapped_key = bds_ck
+                    store_cache.check_out(bds_ck)
                 # We've already opened the primary store for this config and put it in the
                 # cache, so nothing left to do...
                 return VALID_STORE
 
-        if _is_cacheable(store_key, store_conf):
+        if store_cache and _is_cacheable(store_key, store_conf):
             ck = _cache_key(store_key, store_conf)
-            cached_store = _store_cache.get(ck, None)
+            self._store_cache_wrapped_key = ck
+            cached_store = store_cache.get(ck, None)
             if cached_store is None:
                 cached_store = plugin.get(store_key, Store)()
                 cached_store.open(store_conf)
-                _store_cache[ck] = cached_store
+                store_cache[ck] = cached_store
+            store_cache.check_out(ck)
             self.wrapped = cached_store
         else:
             self.wrapped = plugin.get(store_key, Store)()
@@ -77,16 +91,47 @@ class BundleDependencyStore(Store):
         assert self.wrapped.context_aware, 'Wrapped store must be context-aware.'
         self.supports_range_queries = getattr(self.wrapped, 'supports_range_queries',
                 False)
-        if _is_cacheable(RDFLIB_PLUGIN_KEY, configuration):
+        if store_cache and _is_cacheable(RDFLIB_PLUGIN_KEY, configuration):
             # If there were a stored cacheable configuration with the same cache key as
             # ours, we would have already set it as our wrapped (or found we are the
             # primary for that configuration) and returned, so we can safely set ourselves
             # in the cache
-            _store_cache[bds_ck] = self
+            store_cache[bds_ck] = self
+            store_cache.check_out(bds_ck)
+
         return VALID_STORE
 
     def close(self, commit_pending_transaction=False):
-        self.wrapped.close(commit_pending_transaction=commit_pending_transaction)
+        if self._store_cache is not None:
+            if self._store_cache_key is not None:
+                refcount = self._store_cache.check_in(self._store_cache_key)
+                if refcount == 0:
+                    if self._store_cache_wrapped_key is None:
+                        msg = ('A wrapped store key is not available for a cacheable'
+                               ' BDS: this should never happen')
+                        L.error(msg)
+                        raise Exception(msg)
+                    self._close_cached_wrapped(commit_pending_transaction=commit_pending_transaction)
+                else:
+                    L.debug("BDS store is still referenced %d times in the cache as %s. Cannot close it yet",
+                            refcount, self._store_cache_key)
+            elif self._store_cache_wrapped_key is not None:
+                self._close_cached_wrapped(commit_pending_transaction=commit_pending_transaction)
+            else:
+                # We didn't get the wrapped store from the cache/put it into a cache, so
+                # we can just close it
+                self.wrapped.close(commit_pending_transaction=commit_pending_transaction)
+        else:
+            L.debug("Closing wrapped store %s", self.wrapped)
+            self.wrapped.close(commit_pending_transaction=commit_pending_transaction)
+
+    def _close_cached_wrapped(self, commit_pending_transaction=False):
+        wrapped_refcount = self._store_cache.check_in(self._store_cache_wrapped_key)
+        if wrapped_refcount == 0:
+            self.wrapped.close(commit_pending_transaction=commit_pending_transaction)
+        else:
+            L.debug("Wrapped store is still referenced %d times in the cache as %s. Cannot close it yet",
+                    wrapped_refcount, self._store_cache_wrapped_key)
 
     def triples(self, pattern, context=None):
         ctxid = getattr(context, 'identifier', context)
@@ -233,15 +278,51 @@ def _cache_key(store_key, store_conf):
     store_conf : object
         The configuration parameters for the store which would be cached
     '''
+    if store_key == RDFLIB_PLUGIN_KEY and isinstance(store_conf, dict):
+        store_conf = dict(**store_conf)
+        del store_conf['cache']
+
     return dumps([store_key, store_conf],
             separators=(',', ':'),
             sort_keys=True)
 
 
-_store_cache = WeakValueDictionary()
-'''
-Cache of stores previously cached by a `BDS <BundleDependencyStore>`.
+class StoreCache(object):
+    '''
+    Cache of stores previously cached by a `BDS <BundleDependencyStore>`.
 
-We don't want to keep hold of the store if there's no BDS using it, so we only reference
-the store weakly.
-'''
+    We don't want to keep hold of a store if there's no BDS using it, so we only reference
+    the stores weakly.
+    '''
+    def __init__(self):
+        self._cache = WeakValueDictionary()
+
+        self._refcounts = dict()
+        '''
+        Counts for references to cached BDS stores. Needed so we know when we can do clean-up.
+        '''
+
+    def check_out(self, key):
+        self._refcounts[key] = self._refcounts.get(key, 0) + 1
+
+    def check_in(self, key):
+        rc = self._refcounts[key]
+        if rc == 1:
+            del self._refcounts[key]
+        else:
+            self._refcounts[key] = rc - 1
+        return rc - 1
+
+    def refcount(self, key):
+        return self._refcounts.get(key, 0)
+
+    def get(self, key, default=None):
+        return self._cache.get(key, default)
+
+    def __getitem__(self, key):
+        return self._cache[key]
+
+    def __setitem__(self, key, val):
+        if key in self._cache:
+            raise Exception(f"There's already an entry for {key}")
+        self._cache[key] = val
