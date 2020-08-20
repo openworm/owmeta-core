@@ -683,7 +683,6 @@ class OWM(object):
         self._changed_contexts = None
         self._owm_connection = None
         self._context_change_tracker = None
-        self._bundle_dep_mgr = None
 
         if owmdir:
             self.owmdir = owmdir
@@ -1689,20 +1688,21 @@ class _ProjectMapper(Mapper):
 
         target_id = context.identifier
         dep_mgr = self.owm._bundle_dep_mgr
-        contexts = set(str(getattr(c, 'identifier', c)) for c in self.owm.rdf.contexts())
-        target_bundle = dep_mgr.lookup_context_bundle(contexts, target_id)
-        if target_bundle is None:
-            target_bundle = dep_mgr
-        deps = target_bundle.load_dependencies_transitive()
-        for bnd in deps:
-            crctx_id = bnd.manifest_data.get(CLASS_REGISTRY_CONTEXT_KEY, None)
-            if not crctx_id:
-                continue
-            with bnd:
-                resolved_class = bnd.connection.mapper.resolve_class(rdf_type, context)
-                if resolved_class:
-                    self._resolved_classes[(rdf_type, context.identifier)] = resolved_class
-                    return resolved_class
+        if dep_mgr:
+            contexts = set(str(getattr(c, 'identifier', c)) for c in self.owm.rdf.contexts())
+            target_bundle = dep_mgr.lookup_context_bundle(contexts, target_id)
+            if target_bundle is None:
+                target_bundle = dep_mgr
+            deps = target_bundle.load_dependencies_transitive()
+            for bnd in deps:
+                crctx_id = bnd.manifest_data.get(CLASS_REGISTRY_CONTEXT_KEY, None)
+                if not crctx_id:
+                    continue
+                with bnd:
+                    resolved_class = bnd.connection.mapper.resolve_class(rdf_type, context)
+                    if resolved_class:
+                        self._resolved_classes[(rdf_type, context.identifier)] = resolved_class
+                        return resolved_class
         return None
 
 
