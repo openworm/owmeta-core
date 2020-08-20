@@ -1,5 +1,9 @@
 #!/bin/sh -ex
 
+if [ $DEPLOY ] ; then
+    exit 0
+fi
+
 TARGET=
 if [ "$MYSQL_TEST" ] ; then
     TARGET=".[mysql_source_mysql_connector] .[mysql_source_mysqlclient]"
