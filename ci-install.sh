@@ -1,6 +1,8 @@
 #!/bin/sh -ex
 
 if [ $DEPLOY ] ; then
+    sudo apt-get install ruby
+    gem install travis
     exit 0
 fi
 
