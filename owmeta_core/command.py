@@ -37,7 +37,8 @@ import rdflib
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
                            DEFAULT_OWM_DIR)
 from . import connect, OWMETA_PROFILE_DIR
-from .bundle import BundleDependentStoreConfigBuilder, BundleDependencyManager
+from .bundle import (BundleDependentStoreConfigBuilder, BundleDependencyManager,
+                     retrieve_remotes)
 from .commands.bundle import OWMBundle
 from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
                       CLASS_REGISTRY_CONTEXT_KEY)
@@ -1083,9 +1084,11 @@ class OWM(object):
             if deps:
                 bundles_directory = self.bundle._bundles_directory()
                 remotes_directory = self.bundle._user_remotes_directory()
+                project_remotes = list(retrieve_remotes(self.bundle._project_remotes_directory()))
                 # XXX: Look at how we bring in projects remotes directory
                 cfg_builder = BundleDependentStoreConfigBuilder(bundles_directory=bundles_directory,
                                                                 remotes_directory=remotes_directory,
+                                                                remotes=project_remotes,
                                                                 read_only=read_only)
                 store_name, store_conf = cfg_builder.build(store_conf, deps)
                 dat['rdf.source'] = 'default'
@@ -1094,6 +1097,7 @@ class OWM(object):
 
                 self._bundle_dep_mgr = BundleDependencyManager(bundles_directory=bundles_directory,
                                                                remotes_directory=remotes_directory,
+                                                               remotes=project_remotes,
                                                                dependencies=lambda: deps)
 
             self._owm_connection = connect(conf=dat)
