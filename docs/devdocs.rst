@@ -9,4 +9,3 @@ For Developers
    docs
    coding_standards
    design/index
-   query

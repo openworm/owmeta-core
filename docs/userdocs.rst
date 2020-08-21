@@ -11,4 +11,5 @@ For Users
    versioning
    python_release_compatibility
    bittorrent
+   query
 
