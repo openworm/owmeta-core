@@ -228,9 +228,7 @@ def get_provider(ob, cap, provs):
         A provider of the given capability or `None`
     '''
     for provider in get_providers(cap, provs, ob):
-        ob_provider = provider.provides_to(ob)
-        if ob_provider:
-            return ob_provider
+        return provider
     return None
 
 

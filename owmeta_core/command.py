@@ -1329,8 +1329,8 @@ class OWM(object):
             # loaded something before.
 
             # XXX persist the dict
-            lclasses = [OWMDirDataSourceDirLoader()]
-            dsd = _DSD(dict(), pth_join(self.owmdir, 'data_source_data'), lclasses)
+            loaders = [OWMDirDataSourceDirLoader()]
+            dsd = _DSD(dict(), pth_join(self.owmdir, 'data_source_data'), loaders)
             try:
                 dindex = open(pth_join(self.owmdir, 'data_source_directories'))
                 for ds_id, dname in (x.strip().split(' ', 1) for x in dindex):
@@ -1976,8 +1976,7 @@ class OWMDirDataSourceDirLoader(DataSourceDirLoader):
             raise LoadFailed(data_source, self, "Failed to load the index: " + str(e))
 
         try:
-            res = self._index[str(data_source.identifier)]
-            return res
+            return self._index[str(data_source.identifier)]
         except KeyError:
             raise LoadFailed(data_source, self, 'The given identifier is not in the index')
 
