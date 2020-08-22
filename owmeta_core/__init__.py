@@ -78,8 +78,52 @@ class Connection(object):
     object.
     '''
 
-    def __init__(self, conf, mapper):
+    def __init__(self, configFile=None, conf=None, mapper=None):
+        """
+        Load desired configuration and open the database
+
+        Parameters
+        ----------
+        configFile : str, optional
+            The configuration file for owmeta_core.
+        conf : dict, .Configuration, .Data, optional
+            A configuration object for the connection. Takes precedence over `configFile`
+        mapper : owmeta_core.mapper.Mapper
+            Provides the mapper for this connection
+
+        Returns
+        -------
+        Connection
+            connection wrapping the configuration
+        """
+        from .data import Data, DatabaseConflict
+        from .mapper import Mapper
+
+        if configFile is not None and not isinstance(configFile, str):
+            conf = configFile
+            configFile = None
+
+        if conf:
+            if not isinstance(conf, Data):
+                conf = Data(conf)
+        elif configFile:
+            conf = Data.open(configFile)
+        else:
+            conf = Data({"rdf.source": "default"})
+
+        try:
+            conf.init_database()
+        except DatabaseConflict as e:
+            raise ConnectionFailError(e, "It looks like a connection is already opened by a living process")
+        except Exception as e:
+            raise ConnectionFailError(e)
+
+        logging.getLogger('owmeta_core').info("Connected to database")
+
         self.conf = conf
+
+        if mapper is None:
+            mapper = Mapper(conf=conf)
 
         self._context = Context(conf=self.conf, mapper=mapper)
 
@@ -150,45 +194,4 @@ class ConnectionFailError(Exception):
             super(ConnectionFailError, self).__init__('owmeta_core connection failed: {}'.format(cause))
 
 
-def connect(configFile=None,
-            conf=None):
-    """
-    Load desired configuration and open the database
-
-    Parameters
-    ----------
-    configFile : str, optional
-        The configuration file for owmeta_core.
-    conf : dict, .Configuration, .Data, optional
-        A configuration object for the connection. Takes precedence over `configFile`
-
-    Returns
-    -------
-    Connection
-        connection wrapping the configuration
-    """
-    from .data import Data, DatabaseConflict
-    from .mapper import Mapper
-
-    if configFile is not None and not isinstance(configFile, str):
-        conf = configFile
-        configFile = None
-
-    if conf:
-        if not isinstance(conf, Data):
-            conf = Data(conf)
-    elif configFile:
-        conf = Data.open(configFile)
-    else:
-        conf = Data({"rdf.source": "default"})
-
-    try:
-        conf.init_database()
-    except DatabaseConflict as e:
-        raise ConnectionFailError(e, "It looks like a connection is already opened by a living process")
-    except Exception as e:
-        raise ConnectionFailError(e)
-
-    logging.getLogger('owmeta_core').info("Connected to database")
-
-    return Connection(conf, Mapper(conf=conf))
+connect = Connection
