@@ -1041,7 +1041,7 @@ class OWM(object):
 
     def connect(self, read_only=False):
         self._init_store(read_only=read_only)
-        return self._owm_connection
+        return _ProjectConnection(self, self._owm_connection)
 
     def _conf(self, *args, read_only=False):
         from owmeta_core.data import Data
@@ -1657,6 +1657,26 @@ class OWM(object):
                 l = colored(l, 'red')
             l += os.linesep
             yield l
+
+
+class _ProjectConnection(object):
+
+    def __init__(self, owm, connection):
+        self.owm = owm
+        self.connection = connection
+        self._context = owm._context
+
+    def __getattr__(self, attr):
+        return getattr(self.connection, attr)
+
+    def __call__(self, o):
+        return self._context(o)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.connection.disconnect()
 
 
 class _ProjectContext(Context):
