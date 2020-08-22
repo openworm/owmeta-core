@@ -219,7 +219,7 @@ class DataObjectTest(_DataTest):
         ctx = Context(ident='http://example.org/geogia')
         b = ctx(B)(key='b')
         A.a(b)('square')
-        self.assertIn((R.URIRef('http://schema.openworm.org/2020/07/B#b'),
+        self.assertIn((R.URIRef('http://data.openworm.org/B#b'),
                        R.URIRef('http://schema.openworm.org/2020/07/A/a'),
                        R.Literal('square')), list(ctx.contents_triples()))
 
@@ -233,9 +233,9 @@ class DataObjectTest(_DataTest):
         ctx = Context(ident='http://example.org/alabama')
         b = ctx(B)(key='b')
         A.a(b)(A(key='a'))
-        self.assertIn((R.URIRef('http://schema.openworm.org/2020/07/B#b'),
+        self.assertIn((R.URIRef('http://data.openworm.org/B#b'),
                        R.URIRef('http://schema.openworm.org/2020/07/A/a'),
-                       R.URIRef('http://schema.openworm.org/2020/07/A#a')), list(ctx.contents_triples()))
+                       R.URIRef('http://data.openworm.org/A#a')), list(ctx.contents_triples()))
 
     def test_adhoc_union_property_in_context(self):
         class A(DataObject):
@@ -247,9 +247,9 @@ class DataObjectTest(_DataTest):
         ctx = Context(ident='http://example.org/wisconsin')
         b = ctx(B)(key='b')
         A.a(b)(A(key='a'))
-        self.assertIn((R.URIRef('http://schema.openworm.org/2020/07/B#b'),
+        self.assertIn((R.URIRef('http://data.openworm.org/B#b'),
                        R.URIRef('http://schema.openworm.org/2020/07/A/a'),
-                       R.URIRef('http://schema.openworm.org/2020/07/A#a')), list(ctx.contents_triples()))
+                       R.URIRef('http://data.openworm.org/A#a')), list(ctx.contents_triples()))
 
     def test_adhoc_property_twice_same_instance(self):
         '''

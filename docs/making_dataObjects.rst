@@ -67,7 +67,7 @@ either ObjectProperty or DatatypeProperty on the class::
 
     >>> d = ctx(Drug)(name='moon rocks')
     >>> Drug.DatatypeProperty('granularity', owner=d)
-    __main__.Drug_granularity(owner=Drug(ident=rdflib.term.URIRef('http://schema.openworm.org/2020/07/Drug#moon%20rocks')))
+    __main__.Drug_granularity(owner=Drug(ident=rdflib.term.URIRef('http://data.openworm.org/Drug#moon%20rocks')))
 
     >>> d.granularity('ground up')
     owmeta_core.statement.Statement(...Context(.../experiments"))
