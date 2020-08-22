@@ -7,7 +7,7 @@ import rdflib as R
 from rdflib.term import URIRef
 import six
 
-from . import BASE_SCHEMA_URL, DEF_CTX, RDF_CONTEXT
+from . import BASE_DATA_URL, BASE_SCHEMA_URL, DEF_CTX, RDF_CONTEXT
 from .contextualize import (Contextualizable,
                             ContextualizableClass,
                             contextualize_helper,
@@ -530,7 +530,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
     rdf_type : rdflib.term.URIRef
         The RDF type URI for objects of this type
     rdf_namespace : rdflib.namespace.Namespace
-        The rdflib namespace (prefix for URIs) for objects from this class
+        The rdflib namespace (prefix for URIs) for instances of this class
     schema_namespace : rdflib.namespace.Namespace
         The rdflib namespace (prefix for URIs) for types that are part of this class'
         schema
@@ -544,6 +544,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
     class_context = 'http://www.w3.org/2000/01/rdf-schema'
     rdf_type = R.RDFS['Resource']
     base_namespace = R.Namespace(BASE_SCHEMA_URL + "/")
+    base_data_namespace = R.Namespace(BASE_DATA_URL + "/")
 
     _next_variable_int = 0
 

@@ -22,6 +22,7 @@ LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(logging.NullHandler())
 
 BASE_SCHEMA_URL = 'http://schema.openworm.org/2020/07'
+BASE_DATA_URL = 'http://data.openworm.org'
 
 # The c extensions are incompatible with our code...
 os.environ['WRAPT_DISABLE_EXTENSIONS'] = '1'

@@ -41,9 +41,12 @@ class MappedClass(type):
             self.__schema_namespace = schema_ns
 
         if self.__rdf_namespace is None:
-            L.debug("Setting rdf_namespace to {}".format(self.base_namespace[self.__name__] + '#'))
-            self.__rdf_namespace = R.Namespace(
-                self.base_namespace[self.__name__] + "#")
+            if self.base_data_namespace is not None:
+                rdf_namespace = self.base_data_namespace[self.__name__] + '#'
+            else:
+                rdf_namespace = self.base_namespace[self.__name__] + '#'
+            L.debug("Setting rdf_namespace to {}".format(rdf_namespace))
+            self.__rdf_namespace = R.Namespace(rdf_namespace)
 
         if self.__schema_namespace is None:
             L.debug("Setting schema_namespace to {}".format(self.base_namespace[self.__name__] + '/'))
