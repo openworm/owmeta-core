@@ -137,14 +137,6 @@ class Connection(object):
         self.mapper = mapper
 
     @property
-    def transaction_manager(self):
-        return self.__transaction_manager
-
-    @transaction_manager.setter
-    def transaction_manager(self, transaction_manager):
-        self.__transaction_manager = transaction_manager
-
-    @property
     def rdf(self):
         return self.conf['rdf.graph']
 
