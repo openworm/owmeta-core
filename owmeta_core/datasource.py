@@ -304,7 +304,7 @@ class Translation(DataObject):
 
 class GenericTranslation(Translation):
     """
-    A generic translation that just has sources in order
+    A generic translation that just has sources in any order
     """
 
     class_context = BASE_CONTEXT

@@ -249,9 +249,6 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
         else:
             self.__context = Context()
 
-        if not hasattr(self, 'base_namespace') or self.base_namespace is None:
-            self.base_namespace = find_base_namespace(dct, bases)
-
         self._property_classes = dict()
         for b in bases:
             d = getattr(b, '_property_classes', None)

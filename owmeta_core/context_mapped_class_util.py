@@ -1,6 +1,7 @@
 from importlib import import_module
 import logging
 
+from rdflib.namespace import Namespace
 from rdflib.term import URIRef
 import six
 
@@ -42,4 +43,6 @@ def find_base_namespace(dct, bases):
             if hasattr(b, 'base_namespace') and b.base_namespace is not None:
                 base_ns = b.base_namespace
                 break
+    if base_ns and not isinstance(base_ns, Namespace):
+        base_ns = Namespace(base_ns)
     return base_ns

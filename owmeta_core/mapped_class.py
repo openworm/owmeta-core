@@ -6,6 +6,8 @@ import importlib as IM
 import six
 import rdflib as R
 
+from .context_mapped_class_util import find_base_namespace
+
 L = logging.getLogger(__name__)
 
 
@@ -18,6 +20,9 @@ class MappedClass(type):
     def __init__(self, name, bases, dct):
         L.debug("INITIALIZING %s", name)
         super(MappedClass, self).__init__(name, bases, dct)
+
+        self.__base_namespace = find_base_namespace(dct, bases)
+
         self.__rdf_type = None
         # Set the rdf_type early
         if 'rdf_type' in dct:
@@ -38,6 +43,8 @@ class MappedClass(type):
         schema_ns = dct.get('schema_namespace', None)
         if schema_ns is not None:
             L.debug("Setting schema_namespace to {}".format(schema_ns))
+            if not isinstance(schema_ns, R.Namespace):
+                schema_ns = R.Namespace(schema_ns)
             self.__schema_namespace = schema_ns
 
         if self.__rdf_namespace is None:
@@ -62,6 +69,10 @@ class MappedClass(type):
                 module.__yarom_mapped_classes__ = [self]
             else:
                 module.__yarom_mapped_classes__.append(self)
+
+    @property
+    def base_namespace(self):
+        return self.__base_namespace
 
     @property
     def rdf_type_object(self):
