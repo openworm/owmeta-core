@@ -16,7 +16,7 @@ from owmeta_core.datasource import DataTranslator, DataSource
 from owmeta_core.bundle import Descriptor
 
 from .test_modules.owmclitest01 import DT2
-from .TestUtilities import assertRegexpMatches
+from .TestUtilities import assertRegexpMatches, assertNotRegexpMatches
 
 pytestmark = mark.owm_cli_test
 
@@ -207,3 +207,30 @@ def test_source_list(owm_project, core_bundle):
 
     assertRegexpMatches(owm_project.sh('owm source list'),
             '<http://example.org/lfds>')
+
+
+def test_registry_list(owm_project):
+    owm_project.make_module('tests')
+    owm_project.copy('tests/test_modules', 'tests/test_modules')
+    save_out = owm_project.sh('owm save tests.test_modules.owmclitest05_monkey')
+    print("MONKEY")
+    print(save_out)
+    save_out = owm_project.sh('owm save tests.test_modules.owmclitest05_donkey')
+    print("DONKEY")
+    print(save_out)
+    registry_list_out = owm_project.sh('owm registry list')
+    assertRegexpMatches(registry_list_out, 'tests.test_modules.owmclitest05_monkey')
+    assertRegexpMatches(registry_list_out, 'tests.test_modules.owmclitest05_donkey')
+
+
+def test_registry_list_module_filter(owm_project):
+    owm_project.make_module('tests')
+    owm_project.copy('tests/test_modules', 'tests/test_modules')
+    save_out = owm_project.sh('owm save tests.test_modules.owmclitest05_monkey')
+    print("MONKEY")
+    print(save_out)
+    save_out = owm_project.sh('owm save tests.test_modules.owmclitest05_donkey')
+    print("DONKEY")
+    print(save_out)
+    registry_list_out = owm_project.sh('owm registry list --module tests.test_modules.owmclitest05_monkey')
+    assertNotRegexpMatches(registry_list_out, 'tests.test_modules.owmclitest05_donkey')
