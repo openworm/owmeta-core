@@ -11,9 +11,11 @@ import six
 from . import BASE_CONTEXT
 from .utils import FCN
 from .context import Context
-from .dataobject import DataObject, ObjectProperty, This
+from .dataobject import DataObject, ObjectProperty, DatatypeProperty, This
 
 L = logging.getLogger(__name__)
+
+INFO_PROP_PREFIX = '_info_prop_'
 
 
 class FormatUtil(object):
@@ -55,6 +57,12 @@ class Informational(object):
         """
 
         self.cls = None
+
+    def __get__(self, obj, owner):
+        if obj is None:
+            return self
+        else:
+            return getattr(obj, INFO_PROP_PREFIX + self.name)
 
     @property
     def display_name(self):
@@ -110,6 +118,24 @@ class DataSourceType(type(DataObject)):
                 meta.cls = self
                 meta.name = z
                 self.__info_fields.append(meta)
+
+                # Make the OWM property
+                #
+                # We set the name for the property to the inf.name since that's how we
+                # access the info on this object, but the inf.property_name is used for
+                # the linkName so that the property's URI is generated based on that name.
+                # This allows to set an attribute named inf.property_name on self while
+                # still having access to the property through inf.name.
+                ptype = None
+                if meta.property_type == 'DatatypeProperty':
+                    ptype = DatatypeProperty
+                elif meta.property_type == 'ObjectProperty':
+                    ptype = ObjectProperty
+
+                newdct[INFO_PROP_PREFIX + meta.name] = ptype(
+                        linkName=meta.property_name,
+                        multiple=meta.multiple,
+                        **meta.property_args)
             else:
                 others.append((z, dct[z]))
 
@@ -120,8 +146,11 @@ class DataSourceType(type(DataObject)):
         for k, v in others:
             for i in range(len(self.__info_fields)):
                 if self.__info_fields[i].name == k:
-                    self.__info_fields[i] = self.__info_fields[i].copy()
+                    # This is for setting default values from a super-class. We copy the
+                    # Informational because the default is baked-in to the Informational
+                    # instance, and we want it to apply only to the sub-class
                     self.__info_fields[i].default_override = v
+                    setattr(self, k, self.__info_fields[i])
                     break
             else: # no 'break'
                 newdct[k] = v
@@ -169,7 +198,8 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
     translation = Informational(display_name='Translation',
                                 description='Information about the translation process that created this object',
                                 identifier=URIRef('http://openworm.org/schema/DataSource/translation'),
-                                property_type='ObjectProperty')
+                                property_type='ObjectProperty',
+                                cascade_retract=True)
 
     description = Informational(display_name='Description',
                                 description='Free-text describing the data source')
@@ -178,6 +208,11 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
     schema_namespace = Namespace("http://schema.openworm.org/2020/07/data_sources/DataSource#")
 
     def __init__(self, **kwargs):
+        # There's a similar behavior in vanilla DataObject, but that doesn't have default
+        # defaults and default-overrides. We don't pass the arguments up to DataObject so
+        # the `properties_are_init_args` handling isn't used (whether
+        # `properties_are_init_args` is True or False we get bad or incomplete behavior
+        # when the property arguments are passed up)
         self.info_fields = OrderedDict((i.name, i) for i in self.__class__.info_fields)
         parent_kwargs = dict()
         new_kwargs = dict()
@@ -207,19 +242,7 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
         for n, vl in vals.items():
             inf = self.info_fields[n]
             v = vl.get('i', vl.get('e', vl.get('a', vl['d'])))
-
-            # Make the OWM property
-            #
-            # We set the name for the property to the inf.name since that's how we access the info on this object, but
-            # the inf.property_name is used for the linkName so that the property's URI is generated based on that name.
-            # This allows to set an attribute named inf.property_name on self while still having access to the property
-            # through inf.name.
-            getattr(inf.cls, inf.property_type)(owner=self,
-                                                linkName=inf.property_name,
-                                                multiple=inf.multiple,
-                                                attrName=inf.name,
-                                                **inf.property_args)
-            ctxd_prop = getattr(self, inf.name).contextualize(self.context)
+            ctxd_prop = getattr(self, INFO_PROP_PREFIX + inf.name)
             if v is not None:
                 ctxd_prop(v)
 
@@ -410,7 +433,7 @@ class BaseDataTranslator(six.with_metaclass(DataTransatorType, DataObject)):
         s = '''Input type(s): {}
                Output type(s): {}'''.format(self.input_type,
                                             self.output_type)
-        return FCN(type(self)) + ': \n    ' + ('\n    '.join(x.strip() for x in s.split('\n')))
+        return f'{FCN(type(self))}({self.idl})' + ': \n    ' + ('\n    '.join(x.strip() for x in s.split('\n')))
 
     def translate(self, *args, **kwargs):
         '''

@@ -78,6 +78,9 @@ class PropertyProperty(Contextualizable, property):
         return self._cls
 
     def __call__(self, dataobject):
+        '''
+        Attach this property to the given `.DataObject`
+        '''
         for p in dataobject.properties:
             if isinstance(p, self.property):
                 return p
@@ -137,6 +140,8 @@ class APThunk(PThunk):
 
     def __call__(self, cls, linkName):
         if self.result is None:
+            if 'linkName' in self.kwargs:
+                linkName = self.kwargs.pop('linkName')
             self.result = cls._create_property_class(linkName,
                                                      *self.args,
                                                      property_type=self.t,
@@ -145,7 +150,7 @@ class APThunk(PThunk):
 
     def __repr__(self):
         return '{}({}{})'.format(self.t, self.args and ',\n'.join(self.args) + ', ' or '',
-                                 ',\n'.join(k + '=' + str(v) for k, v in self.kwargs.items()))
+                                 ', '.join(k + '=' + str(v) for k, v in self.kwargs.items()))
 
 
 class Alias(object):
