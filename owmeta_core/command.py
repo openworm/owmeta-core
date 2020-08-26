@@ -1646,7 +1646,7 @@ class OWM(object):
         import re
         hunk_line_numbers_pattern = re.compile(r'^@@[0-9 +,-]+@@')
         for l in lines:
-            l = l.strip()
+            l = l.rstrip()
             if l.startswith('+++') or l.startswith('---'):
                 l = colored(l, attrs=['bold'])
             elif hunk_line_numbers_pattern.match(l):
