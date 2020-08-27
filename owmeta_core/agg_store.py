@@ -113,7 +113,9 @@ class AggregateStore(Store):
     def addN(self, *args, **kwargs):
         return self.__stores[0].addN(*args, **kwargs)
 
-    def remove(self, *args, **kwargs): raise UnsupportedAggregateOperation
+    def remove(self, *args, **kwargs):
+        self.__stores[0].remove(*args, **kwargs)
+
     def add_graph(self, *args, **kwargs): raise UnsupportedAggregateOperation
     def remove_graph(self, *args, **kwargs): raise UnsupportedAggregateOperation
     def create(self, *args, **kwargs): raise UnsupportedAggregateOperation
