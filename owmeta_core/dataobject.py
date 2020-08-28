@@ -415,10 +415,9 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             o.rdf_type_property(RDFSClass())
         elif isinstance(o, RDFSClass):
             o.rdf_type_property(o)
-        elif isinstance(o, PropertyDataObject):
-            o.rdf_type_property(RDFProperty())
         elif isinstance(o, RDFProperty):
-            o.rdf_type_property(RDFSClass())
+            RDFProperty.init_rdf_type_object()
+            o.rdf_type_property(RDFProperty.rdf_type_object)
         else:
             o.rdf_type_property.set(self.rdf_type_object)
         return o
@@ -583,7 +582,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
 
         return res
 
-    def __init__(self, **kwargs):
+    def __init__(self, query_mode=None, **kwargs):
         ot = type(self)
         pc = ot._property_classes
         paia = ot.properties_are_init_args
@@ -594,6 +593,8 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         super(BaseDataObject, self).__init__(**kwargs)
         self.properties = ContextualizableList(self.context)
         self.owner_properties = ContextFilteringList(self.context)
+        if query_mode is not None:
+            self.query_mode = query_mode
 
         self._variable = None
 
@@ -860,7 +861,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
                          value_type=value_type,
                          owner_type=owner_class,
                          class_context=owner_class.definition_context,
-                         rdf_object=PropertyDataObject.contextualize(owner_class.definition_context)(ident=link),
+                         rdf_object=RDFProperty.contextualize(owner_class.definition_context)(ident=link),
                          lazy=lazy,
                          multiple=multiple,
                          inverse_of=inverse_of,
@@ -941,7 +942,18 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
 
     def retract(self):
         """ Remove this object from the data store. """
-        self.retract_statements(self.graph_pattern(traverse_undefined=True))
+        print("RETRACTING", self, self.context)
+        # TODO: Actually finish this
+        # TODO: Fix this up with contexts etc.
+        for x in self.load():
+            for q in self.rdf.quads((x.identifier, None, None, None)):
+                print(' '.join(x.n3() for x in q))
+                for q in self.rdf.quads((q[1], None, None, None)):
+                    print(' ' * 4, ' '.join(x.n3() for x in q))
+            for q in self.rdf.quads((x.identifier, None, RDFProperty.rdf_type, None)):
+                print(' '.join(x.n3() for x in q))
+                for prop_do in self.context(RDFProperty).query(ident=q[1]).load():
+                    print('got', prop_do, 'for', q[1])
 
     def save(self):
         """ Write in-memory data to the database.
@@ -1139,13 +1151,13 @@ class DataObjectSingletonMeta(type(BaseDataObject)):
     def context(self):
         return self.definition_context
 
-    def __call__(self):
+    def __call__(self, **kwargs):
         if self.__instance is None:
             if self.__initalizing:
                 raise Exception('Unacceptable recursion in singleton initialization of'
                                 f' {self} instance')
             self.__initalizing = True
-            self.__instance = super().__call__()
+            self.__instance = super().__call__(**kwargs)
             self.__initalizing = False
         return self.__instance
 
@@ -1156,20 +1168,6 @@ class RDFSSubPropertyOfProperty(SP.ObjectProperty):
     linkName = 'rdfs_subpropertyof'
     multiple = True
     lazy = True
-
-
-class PropertyDataObject(BaseDataObject):
-    """ A PropertyDataObject represents the property-as-object.
-
-    Try not to confuse this with the Property class
-    """
-    rdf_type = R.RDF['Property']
-    class_context = 'http://www.w3.org/1999/02/22-rdf-syntax-ns'
-    rdfs_subpropertyof = CPThunk(RDFSSubPropertyOfProperty)
-
-
-RDFSSubPropertyOfProperty.value_type = PropertyDataObject
-RDFSSubPropertyOfProperty.owner_type = PropertyDataObject
 
 
 class RDFSCommentProperty(SP.DatatypeProperty):
@@ -1205,13 +1203,15 @@ class DataObject(BaseDataObject):
     rdfs_label = CPThunk(RDFSLabelProperty)
 
 
-class RDFProperty(BaseDataObject, metaclass=DataObjectSingletonMeta):
+class RDFProperty(BaseDataObject):
     """ The `DataObject` corresponding to rdf:Property """
-    rdf_type = R.RDF['Property']
+    rdf_type = R.RDF.Property
     class_context = URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns')
+    rdfs_subpropertyof = CPThunk(RDFSSubPropertyOfProperty)
 
-    def __init__(self):
-        super(RDFProperty, self).__init__(ident=R.RDF["Property"])
+
+RDFSSubPropertyOfProperty.value_type = RDFProperty
+RDFSSubPropertyOfProperty.owner_type = RDFProperty
 
 
 def disconnect():
