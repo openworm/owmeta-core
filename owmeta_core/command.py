@@ -580,7 +580,7 @@ class OWMRegistry(object):
     def __init__(self, parent):
         self._parent = parent
 
-    def list(self, module=None):
+    def list(self, module=None, rdf_type=None):
         '''
         List registered classes
 
@@ -589,6 +589,9 @@ class OWMRegistry(object):
         module : str
             If provided, limits the registry entries returned to those that have the given
             module name. Optional.
+        rdf_type : str
+            If provided, limits the registry entries returned to those that have the given
+            RDF type. Optional.
         '''
         from .dataobject import PythonClassDescription
         mapper = self._parent.connect().mapper
@@ -597,7 +600,8 @@ class OWMRegistry(object):
             for re in mapper.load_registry_entries():
                 ident = re.identifier
                 cd = re.class_description()
-                rdf_type = re.namespace_manager.normalizeUri(re.rdf_class())
+                re_rdf_type = re.rdf_class()
+                display_rdf_type = re.namespace_manager.normalizeUri(re_rdf_type)
                 if not isinstance(cd, PythonClassDescription):
                     continue
                 module_do = cd.module()
@@ -607,6 +611,9 @@ class OWMRegistry(object):
                     module_name = module_do.name()
 
                 if module is not None and module != module_name:
+                    continue
+
+                if rdf_type is not None and rdf_type != str(re_rdf_type):
                     continue
 
                 package = None
