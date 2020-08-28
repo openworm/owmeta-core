@@ -8,6 +8,7 @@ from .file_ds import FileDataSource
 
 
 class HTTPFileDataSource(FileDataSource):
+
     class_context = BASE_CONTEXT
 
     url = Informational(display_name='URL')

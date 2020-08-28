@@ -7,7 +7,6 @@ from rdflib.namespace import Namespace
 from .. import BASE_CONTEXT
 from ..datasource import Informational, DataTranslator
 
-from .common_data import DS_NS
 from .local_file_ds import LocalFileDataSource
 from .http_ds import HTTPFileDataSource
 
@@ -18,10 +17,6 @@ class CSVDataSource(LocalFileDataSource):
     '''
 
     class_context = BASE_CONTEXT
-
-    rdf_namespace = Namespace(DS_NS['CSVDataSource#'])
-
-    schema_namespace = Namespace(DS_NS['CSVDataSource#'])
 
     csv_file_name = Informational(display_name='CSV file name',
                                   also=LocalFileDataSource.file_name)
@@ -37,8 +32,6 @@ class CSVHTTPFileDataSource(HTTPFileDataSource):
     '''
 
     class_context = BASE_CONTEXT
-
-    rdf_namespace = Namespace(DS_NS['CSVHTTPFileDataSource#'])
 
     csv_header = Informational(display_name='Header column names', multiple=False)
 

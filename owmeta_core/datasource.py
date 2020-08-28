@@ -12,6 +12,7 @@ from . import BASE_CONTEXT
 from .utils import FCN
 from .context import Context
 from .dataobject import DataObject, ObjectProperty, DatatypeProperty, This
+from .data_trans.common_data import DS_NS, DS_DATA_NS
 
 L = logging.getLogger(__name__)
 
@@ -204,8 +205,8 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
     description = Informational(display_name='Description',
                                 description='Free-text describing the data source')
 
-    rdf_namespace = Namespace("http://openworm.org/entities/data_sources/DataSource#")
-    schema_namespace = Namespace("http://schema.openworm.org/2020/07/data_sources/DataSource#")
+    base_namespace = DS_NS
+    base_data_namespace = DS_DATA_NS
 
     def __init__(self, **kwargs):
         # There's a similar behavior in vanilla DataObject, but that doesn't have default

@@ -8,7 +8,6 @@ from ..capability import Capable, NoProviderGiven
 from ..capabilities import FilePathCapability
 
 from .file_ds import FileDataSource
-from .common_data import DS_NS
 
 
 class LocalFileDataSource(Capable, FileDataSource):
@@ -17,8 +16,6 @@ class LocalFileDataSource(Capable, FileDataSource):
     '''
     class_context = BASE_CONTEXT
 
-    schema_namespace = Namespace(DS_NS['LocalFileDataSource#'])
-    rdf_namespace = Namespace(DS_NS['LocalFileDataSource#'])
     file_name = Informational(display_name='File name')
     torrent_file_name = Informational(display_name='Torrent file name')
     needed_capabilities = [FilePathCapability()]
