@@ -46,29 +46,32 @@ class ContextMappedPropertyClass(ContextualizableClass):
         if not hasattr(self, 'base_namespace') or self.base_namespace is None:
             self.base_namespace = find_base_namespace(dct, bases)
 
-        self.__rdf_type_object = dct.get('rdf_type_object')
-        self.__rdf_type_object_callback = dct.get('rdf_type_object_callback')
+        self.__rdf_object = dct.get('rdf_object')
+        self.__rdf_object_callback = dct.get('rdf_object_callback')
+
+        # We have to deferr initializing our rdf_object since initialization depends on
+        # RDFSSubClassOfProperty being initialized
         try:
             from .dataobject import _DEFERRED_RDF_TYPE_OBJECT_INIT
         except ImportError:
-            self.init_rdf_type_object()
+            self.init_rdf_object()
         else:
             _DEFERRED_RDF_TYPE_OBJECT_INIT.append(self)
 
     @property
-    def rdf_type_object(self):
-        if self.__rdf_type_object_callback is not None:
-            rdto = self.__rdf_type_object_callback()
+    def rdf_object(self):
+        if self.__rdf_object_callback is not None:
+            rdto = self.__rdf_object_callback()
             if rdto is not None:
-                self.__rdf_type_object_callback = None
-                self.__rdf_type_object = rdto
-        return self.__rdf_type_object
+                self.__rdf_object_callback = None
+                self.__rdf_object = rdto
+        return self.__rdf_object
 
-    @rdf_type_object.setter
-    def rdf_type_object(self, value):
+    @rdf_object.setter
+    def rdf_object(self, value):
         if value is not None:
-            self.__rdf_type_object_callback = None
-        self.__rdf_type_object = value
+            self.__rdf_object_callback = None
+        self.__rdf_object = value
 
     def contextualize_class_augment(self, context):
         '''
@@ -77,10 +80,10 @@ class ContextMappedPropertyClass(ContextualizableClass):
         through these values to our "proxy" to avoid this behavior
         '''
         args = dict()
-        if self.rdf_type_object is None:
-            args['rdf_type_object_callback'] = lambda: self.rdf_type_object
+        if self.rdf_object is None:
+            args['rdf_object_callback'] = lambda: self.rdf_object
         else:
-            args['rdf_type_object'] = self.rdf_type_object
+            args['rdf_object'] = self.rdf_object
 
         res = super(ContextMappedPropertyClass, self).contextualize_class_augment(
                 context,
@@ -88,31 +91,28 @@ class ContextMappedPropertyClass(ContextualizableClass):
         res.__module__ = self.__module__
         return res
 
-    def init_rdf_type_object(self):
+    def init_rdf_object(self):
         # Properties created in a DataObject sub-class definition will have their
-        # rdf_type_object created for them, obviating this procedure.
-        if self.rdf_type_object is None or self.rdf_type_object.identifier != self.link:
-            from .dataobject import (PropertyDataObject, RDFSSubClassOfProperty,
-                                     RDFProperty)
-            if self is Property:
-                self.rdf_type_object = RDFProperty()
-                pass
-            else:
-                if self.definition_context is None:
-                    L.info("The class {0} has no context for PropertyDataObject(ident={1})".format(
-                        self, self.link))
-                    return
-                L.debug('Creating rdf_type_object for {} in {}'.format(self, self.definition_context))
-                rdto = PropertyDataObject.contextualize(self.definition_context)(ident=self.link)
-                rdto.attach_property(RDFSSubClassOfProperty)
-                for par in self.__bases__:
-                    prdto = getattr(par, 'rdf_type_object', None)
-                    if prdto is not None:
-                        if rdto.identifier == prdto.identifier:
-                            L.warning('Subclass declared without a distinct link: %s', self)
-                            continue
-                        rdto.rdfs_subclassof_property.set(prdto)
-                self.rdf_type_object = rdto
+        # rdf_object created for them, obviating this procedure.
+        if self.rdf_object is None or self.rdf_object.identifier != self.link:
+            from .dataobject import RDFSSubClassOfProperty, RDFProperty
+            if self.definition_context is None:
+                L.info("The class {0} has no context for PropertyDataObject(ident={1})".format(
+                    self, self.link))
+                return
+            L.debug('Creating rdf_object for {} in {}'.format(self, self.definition_context))
+            rdto = RDFProperty.contextualize(self.definition_context)(ident=self.link)
+            rdto.attach_property(RDFSSubClassOfProperty)
+            for par in self.__bases__:
+                prdto = getattr(par, 'rdf_object', None)
+                if prdto is not None:
+                    if rdto.identifier == prdto.identifier:
+                        L.warning('Subclass declared without a distinct link: %s', self)
+                        continue
+                    rdto.rdfs_subclassof_property.set(prdto)
+            self.rdf_object = rdto
+
+    init_rdf_type_object = init_rdf_object
 
     @property
     def definition_context(self):
