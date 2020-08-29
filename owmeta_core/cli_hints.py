@@ -70,6 +70,16 @@ CLI_HINTS = {
         'IGNORE': ['message', 'progress_reporter', 'prompt', 'disconnect', 'rdf']
     },
     'owmeta_core.command.OWMContexts': {
+        'list_imports': {
+            (METHOD_NAMED_ARG, 'context'): {
+                'names': ['context'],
+            },
+        },
+        'bundle': {
+            (METHOD_NAMED_ARG, 'context'): {
+                'names': ['context'],
+            },
+        },
         'edit': {
             (METHOD_NAMED_ARG, 'context'): {
                 'names': ['context'],

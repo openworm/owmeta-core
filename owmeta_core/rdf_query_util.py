@@ -194,7 +194,7 @@ def oid(identifier_or_rdf_type=None, rdf_type=None, context=None, base_type=None
         cls = context(cls)
 
     if identifier is not None:
-        o = cls(ident=identifier, no_type_decl=True)
+        o = cls(ident=identifier, query_mode=True, no_type_decl=True)
     else:
         o = cls()
     return o

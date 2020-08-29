@@ -11,7 +11,8 @@ import six
 from . import BASE_CONTEXT
 from .utils import FCN
 from .context import Context
-from .dataobject import DataObject, ObjectProperty, DatatypeProperty, This
+from .dataobject import (DataObject, ObjectProperty, DatatypeProperty, UnionProperty, This,
+                         CPThunk)
 from .data_trans.common_data import DS_NS, DS_DATA_NS
 
 L = logging.getLogger(__name__)
@@ -98,6 +99,11 @@ class Informational(object):
                                           repr(self.description),
                                           repr(self.identifier))
 
+    # NOTE: This guy has to come last to avoid conflict with the decorator
+    @property
+    def property(self):
+        return getattr(self.cls, INFO_PROP_PREFIX + self.name).property
+
 
 class DuplicateAlsoException(Exception):
     pass
@@ -116,27 +122,43 @@ class DataSourceType(type(DataObject)):
         for z in dct:
             meta = dct[z]
             if isinstance(meta, Informational):
-                meta.cls = self
-                meta.name = z
-                self.__info_fields.append(meta)
+                if meta.cls is not None:
+                    L.debug("Already created a Property from %s for %s. Not creating another for %s",
+                            meta, meta.cls, self)
+                    meta_owner_property_property = getattr(meta.cls, INFO_PROP_PREFIX + meta.name)
+                    newdct[INFO_PROP_PREFIX + z] = CPThunk(meta_owner_property_property.property)
 
-                # Make the OWM property
-                #
-                # We set the name for the property to the inf.name since that's how we
-                # access the info on this object, but the inf.property_name is used for
-                # the linkName so that the property's URI is generated based on that name.
-                # This allows to set an attribute named inf.property_name on self while
-                # still having access to the property through inf.name.
-                ptype = None
-                if meta.property_type == 'DatatypeProperty':
-                    ptype = DatatypeProperty
-                elif meta.property_type == 'ObjectProperty':
-                    ptype = ObjectProperty
+                    meta_copy = meta.copy()
+                    meta_copy.cls = self
+                    meta_copy.name = z
+                    self.__info_fields.append(meta_copy)
+                    setattr(self, z, meta_copy)
+                else:
+                    meta.cls = self
+                    meta.name = z
+                    self.__info_fields.append(meta)
 
-                newdct[INFO_PROP_PREFIX + meta.name] = ptype(
-                        linkName=meta.property_name,
-                        multiple=meta.multiple,
-                        **meta.property_args)
+                    # Make the OWM property
+                    #
+                    # We set the name for the property to the inf.name since that's how we
+                    # access the info on this object, but the inf.property_name is used for
+                    # the linkName so that the property's URI is generated based on that name.
+                    # This allows to set an attribute named inf.property_name on self while
+                    # still having access to the property through inf.name.
+                    ptype = None
+                    if meta.property_type == 'DatatypeProperty':
+                        ptype = DatatypeProperty
+                    elif meta.property_type == 'ObjectProperty':
+                        ptype = ObjectProperty
+                    elif meta.property_type == 'UnionProperty':
+                        ptype = UnionProperty
+                    else:
+                        raise ValueError(f'Unrecognized property type {meta.property_type}')
+
+                    newdct[INFO_PROP_PREFIX + meta.name] = ptype(
+                            linkName=meta.property_name,
+                            multiple=meta.multiple,
+                            **meta.property_args)
             else:
                 others.append((z, dct[z]))
 

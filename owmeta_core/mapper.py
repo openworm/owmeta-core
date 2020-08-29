@@ -40,11 +40,11 @@ class Mapper(Configurable):
             class_registry_context=None, **kwargs):
         super(Mapper, self).__init__(**kwargs)
 
-        """ Maps class names to classes """
-        self.MappedClasses = dict()
+        """ Maps full class names (i.e., including the module name) to classes """
+        self._mapped_classes = dict()
 
         """ Maps RDF types to properties of the related class """
-        self.RDFTypeTable = dict()
+        self._rdf_type_table = dict()
 
         if base_namespace is None:
             base_namespace = R.Namespace("http://example.com#")
@@ -82,12 +82,11 @@ class Mapper(Configurable):
 
     def _bootstrap_mappings(self):
         from .dataobject import Module
-        from .collections import List
 
         # Add classes needed for resolving other classes...
         # XXX: Smells off...probably don't want to have to do this.
         self.process_classes(BaseDataObject, DataObject, PythonClassDescription, Module,
-                             ClassDescription, PythonModule, RegistryEntry, List)
+                             ClassDescription, PythonModule, RegistryEntry)
 
     def add_class(self, cls):
         '''
@@ -113,7 +112,7 @@ class Mapper(Configurable):
                 raise ClassRedefinitionAttempt(self, maybe_cls, cls)
         L.debug("Adding class %s@0x%x", cls, id(cls))
 
-        self.MappedClasses[cname] = cls
+        self._mapped_classes[cname] = cls
         L.debug('parents %s', parents_str(cls))
 
         if hasattr(cls, 'on_mapper_add_class'):
@@ -122,7 +121,7 @@ class Mapper(Configurable):
         # This part happens after the on_mapper_add_class has run since the
         # class has an opportunity to set its RDF type based on what we provide
         # in the Mapper.
-        self.RDFTypeTable[cls.rdf_type] = cls
+        self._rdf_type_table[cls.rdf_type] = cls
         return True
 
     def load_module(self, module_name):
@@ -136,20 +135,12 @@ class Mapper(Configurable):
 
     def process_module(self, module_name, module):
         self.modules[module_name] = module
-        for c in self._module_load_helper(module):
-            try:
-                if hasattr(c, 'after_mapper_module_load'):
-                    c.after_mapper_module_load(self)
-            except Exception:
-                L.warning("Failed to process class %s", c)
-                continue
+        self._module_load_helper(module)
         return module
 
     def process_class(self, *classes):
         for c in classes:
             self.add_class(c)
-            if hasattr(c, 'after_mapper_module_load'):
-                c.after_mapper_module_load(self)
 
     process_classes = process_class
 
@@ -176,7 +167,7 @@ class Mapper(Configurable):
                   ' namespace'.format(cls, cls.__module__, cls.__name__))
 
     def save(self):
-        self.declare_python_class_registry_entry(*self.RDFTypeTable.values())
+        self.declare_python_class_registry_entry(*self._rdf_type_table.values())
         self.class_registry_context.save()
 
     def declare_python_class_registry_entry(self, *classes):
@@ -213,23 +204,30 @@ class Mapper(Configurable):
         '''
 
         # look up the class in the registryCache
-        c = self.RDFTypeTable.get(uri)
+        c = self._rdf_type_table.get(uri)
         if c is not None:
             return c
         # otherwise, attempt to load into the cache by
         # reading the RDF graph.
 
         cr_ctx = self.class_registry_context.stored
+        c = self._resolve_class(uri, cr_ctx)
+        if c:
+            self.add_class(c)
+        return c
+
+    def _resolve_class(self, uri, cr_ctx):
         re = cr_ctx(RegistryEntry)()
         re.rdf_class(uri)
         cd = cr_ctx(PythonClassDescription)()
         re.class_description(cd)
+        c = None
 
         for cd_l in cd.load():
             class_name = cd_l.name()
             moddo = cd_l.module()
             try:
-                mod = self.load_module(moddo.name())
+                mod = IM.import_module(moddo.name())
             except ModuleNotFoundError:
                 L.warn('Did not find module %s', moddo.name())
                 continue
@@ -260,20 +258,6 @@ class Mapper(Configurable):
             break
         return c
 
-    def load_class(self, cname_or_mname, cnames=None):
-        if cnames:
-            mpart = cname_or_mname
-        else:
-            mpart, cpart = cname_or_mname.rsplit('.', 1)
-            cnames = (cpart,)
-        m = self.load_module(mpart)
-        try:
-            res = tuple(getattr(m, cname) for cname in cnames)
-
-            return res[0] if len(res) == 1 else res
-        except AttributeError:
-            raise UnmappedClassException(cnames)
-
     def _module_load_helper(self, module):
         # TODO: Make this class selector pluggable
         return self.handle_mapped_classes(getattr(module, '__yarom_mapped_classes__', ()))
@@ -293,7 +277,7 @@ class Mapper(Configurable):
         return ret
 
     def _lookup_class(self, cname):
-        c = self.MappedClasses.get(cname, None)
+        c = self._mapped_classes.get(cname, None)
         if c is None:
             for p in self.imported_mappers:
                 c = p._lookup_class(cname)
@@ -308,7 +292,7 @@ class Mapper(Configurable):
         for p in self.imported_mappers:
             for c in p.mapped_classes():
                 yield
-        for c in self.MappedClasses.values():
+        for c in self._mapped_classes.values():
             yield c
 
     def __str__(self):

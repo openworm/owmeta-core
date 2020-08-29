@@ -1,7 +1,11 @@
 from __future__ import print_function
 
-import rdflib as R
+import itertools
 import logging
+from importlib import import_module
+
+from lazy_object_proxy import Proxy
+import rdflib as R
 from six import with_metaclass
 
 from . import RDF_CONTEXT
@@ -24,9 +28,6 @@ from .rdf_query_util import goq_hop_scorer, load_base
 from .rdf_go_modifiers import SubClassModifier
 from .statement import Statement
 from .variable import Variable
-
-import itertools
-from lazy_object_proxy import Proxy
 
 L = logging.getLogger(__name__)
 
@@ -57,6 +58,13 @@ class ContextMappedPropertyClass(ContextualizableClass):
             self.init_rdf_object()
         else:
             _DEFERRED_RDF_TYPE_OBJECT_INIT.append(self)
+
+        if not getattr(self, 'unmapped', False) and not dct.get('unmapped'):
+            module = import_module(self.__module__)
+            if not hasattr(module, '__yarom_mapped_classes__'):
+                module.__yarom_mapped_classes__ = [self]
+            else:
+                module.__yarom_mapped_classes__.append(self)
 
     @property
     def rdf_object(self):
@@ -190,6 +198,7 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
     class_context = RDF_CONTEXT
     link = R.RDF.Property
     linkName = "property"
+    cascade_retract = False
     base_namespace = R.Namespace("http://openworm.org/entities/")
 
     def __init__(self, owner, **kwargs):
@@ -760,12 +769,11 @@ class ObjectProperty(InversePropertyMixin,
 
     @property
     def statements(self):
-        return itertools.chain(self.defined_statements,
-                               (Statement(self.owner,
-                                          self,
-                                          self.id2ob(x[2]),
-                                          Context(ident=x[3]))
-                                for x in super(ObjectProperty, self).statements))
+        for x in self.get():
+            yield Statement(self.owner,
+                    self,
+                    x,
+                    self.context)
 
 
 class DatatypeProperty(DatatypePropertyMixin, PropertyCountMixin, Property):

@@ -942,18 +942,19 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
 
     def retract(self):
         """ Remove this object from the data store. """
+        # Things to consider: because we do not have a closed-world assumption, a given
+        # class cannot correctly delete all of the statements needed to "retract" all
+        # statements about the object in the graph: properties that are not defined ahead
+        # of time for the object may have been used to make statements about the object
+        # and this class wouldn't know about them from the Python side. We do, however,
+        # have some information about the properties themselves from the RDF graph and
+        # from the class registry. Just like there should be only one Python class for a
+        # given RDFS class, there should only be one Python class for each property
         print("RETRACTING", self, self.context)
         # TODO: Actually finish this
         # TODO: Fix this up with contexts etc.
         for x in self.load():
-            for q in self.rdf.quads((x.identifier, None, None, None)):
-                print(' '.join(x.n3() for x in q))
-                for q in self.rdf.quads((q[1], None, None, None)):
-                    print(' ' * 4, ' '.join(x.n3() for x in q))
-            for q in self.rdf.quads((x.identifier, None, RDFProperty.rdf_type, None)):
-                print(' '.join(x.n3() for x in q))
-                for prop_do in self.context(RDFProperty).query(ident=q[1]).load():
-                    print('got', prop_do, 'for', q[1])
+            self.rdf.remove((x.identifier, None, None))
 
     def save(self):
         """ Write in-memory data to the database.
@@ -1096,8 +1097,6 @@ class _Resolver(RDFTypeResolver):
 
 
 class RDFTypeProperty(SP.ObjectProperty):
-    # XXX: This class is special. It doesn't have its after_mapper_module_load called because that would mess up
-    # evaluation order for this module...
     class_context = RDF_CONTEXT
     link = R.RDF['type']
     linkName = "rdf_type_property"
@@ -1281,10 +1280,10 @@ class RegistryEntry(DataObject):
 
     rdf_class = DatatypeProperty()
     '''
-    The RDF type for the class
+    The |RDF| type for the class
 
-    We use rdf_type for the type of a DataObject (RegistryEntry.rdf_type in this case), so
-    we call this rdf_class to avoid the conflict
+    We use rdf_type for the type of a `DataObject` (``RegistryEntry.rdf_type`` in this
+    case), so we call this `rdf_class` to avoid the conflict
     '''
 
     def defined_augment(self):

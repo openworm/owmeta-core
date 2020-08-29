@@ -33,9 +33,9 @@ class CSVHTTPFileDataSource(HTTPFileDataSource):
 
     class_context = BASE_CONTEXT
 
-    csv_header = Informational(display_name='Header column names', multiple=False)
+    csv_header = CSVDataSource.csv_header
 
-    csv_field_delimiter = Informational(display_name='CSV field delimiter')
+    csv_field_delimiter = CSVDataSource.csv_field_delimiter
 
 
 class CSVDataTranslator(DataTranslator):

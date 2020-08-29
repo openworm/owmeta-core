@@ -151,8 +151,8 @@ class OWMSource(object):
 
         dst = ctx.stored(ctx.stored.resolve_class(kind_uri))
         if dst is None:
-            raise GenericUserError('Listing DataSources requires a dependency on the'
-                                   ' openworm/owmeta-core bundle')
+            raise GenericUserError('Could not resolve a Python class for ' + str(kind))
+
         dt = dst.query(conf=conf)
         nm = conf['rdf.graph'].namespace_manager
 
@@ -248,6 +248,26 @@ class OWMSource(object):
             else:
                 yield nm.normalizeUri(x.identifier)
 
+    def rm(self, *data_source):
+        '''
+        Remove a `DataSource`
+
+        Parameters
+        ----------
+        *data_source : str
+            ID of the source to remove
+        '''
+        import transaction
+        from .datasource import DataSource
+        with transaction.manager:
+            for ds in data_source:
+                uri = self._parent._den3(ds)
+                ctx = self._parent._default_ctx.stored
+                for x in ctx(DataSource).query(ident=uri).load():
+                    for trans in x.translation.get():
+                        ctx(trans).retract()
+                    ctx(x).retract()
+
 
 class OWMTranslator(object):
     '''
@@ -301,29 +321,22 @@ class OWMTranslator(object):
             self._parent.message(x)
             return
 
-    def create(self, translator_class):
+    def create(self, translator_type):
         '''
         Creates an instance of the given translator class and adds it to the graph
 
         Parameters
         ----------
-        translator_class : str
-            Fully qualified access path for the translator class in the form::
-
-                {module_name}.{class_name}
+        translator_type : str
+            RDF type for the translator class
         '''
         import transaction
 
         ctx = self._parent._default_ctx
-        module_name, class_name = translator_class.rsplit('.', 1)
-
-        connection = self._parent.connect()
-        module = connection.mapper.load_module(module_name)
-        try:
-            translator_type = getattr(module, class_name)
-        except AttributeError:
-            raise GenericUserError('Unable to find the given class name, "%s", in the'
-                                   ' module, "%s"' % (class_name, module_name))
+        translator_uri = self._parent._den3(translator_type)
+        translator_cls = ctx.stored.resolve_class(translator_uri)
+        if not translator_cls:
+            raise GenericUserError(f'Unable to find the class for {translator_type}')
         with transaction.manager:
             ctx(translator_type)()
             ctx.add_import(translator_type.definition_context)
@@ -569,6 +582,36 @@ class OWMContexts(object):
         Return the set of contexts which differ from the serialization on disk
         '''
         return self._parent._changed_contexts_set()
+
+    def list_imports(self, context):
+        '''
+        List the contexts that import the given context
+
+        Parameters
+        ----------
+        context : str
+            The context to list imports for
+        '''
+        ctx = self._parent._make_ctx(context).stored
+        for c in ctx.imports:
+            yield c.identifier
+
+    def bundle(self, context):
+        '''
+        Show the closest bundle that defines this context
+
+        Parameters
+        ----------
+        context : str
+            The context to lookup
+        '''
+        with self._parent.connect():
+            dep_mgr = self._parent._bundle_dep_mgr
+            contexts = set(str(getattr(c, 'identifier', c)) for c in self._parent.own_rdf.contexts())
+            target_bundle = dep_mgr.lookup_context_bundle(contexts, context)
+            if target_bundle is dep_mgr:
+                return None
+            return target_bundle
 
 
 class OWMRegistry(object):
@@ -997,7 +1040,8 @@ class OWM(object):
         from rdflib.term import URIRef
         conf = self._conf()
         nm = conf['rdf.graph'].namespace_manager
-        s = s.strip(u'<>')
+        if s.startswith('<') and s.endswith('>'):
+            return URIRef(s.strip(u'<>'))
         parts = s.split(':')
         if len(parts) > 1 and is_ncname(parts[1]):
             for pref, ns in nm.namespaces():
@@ -1279,8 +1323,6 @@ class OWM(object):
         ----------
         translator : str
             Translator identifier
-        imports_context_ident : str
-            Identifier for the imports context. All imports go in here
         output_key : str
             Output key. Used for generating the output's identifier. Exclusive with output_identifier
         output_identifier : str
@@ -1303,8 +1345,8 @@ class OWM(object):
         named_sources = {k: self._lookup_source(src) for k, src in named_data_sources}
         with self._tempdir(prefix='owm-translate.') as d:
             orig_wd = os.getcwd()
-            os.chdir(d)
             with transaction.manager:
+                os.chdir(d)
                 try:
                     res = self._default_ctx(translator_obj)(*positional_sources,
                                          output_identifier=output_identifier,
@@ -1727,7 +1769,7 @@ class _ProjectMapper(Mapper):
         target_id = context.identifier
         dep_mgr = self.owm._bundle_dep_mgr
         if dep_mgr:
-            contexts = set(str(getattr(c, 'identifier', c)) for c in self.owm.rdf.contexts())
+            contexts = set(str(getattr(c, 'identifier', c)) for c in self.owm.own_rdf.contexts())
             target_bundle = dep_mgr.lookup_context_bundle(contexts, target_id)
             if target_bundle is None:
                 target_bundle = dep_mgr

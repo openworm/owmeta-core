@@ -193,6 +193,21 @@ class RDFContextStore(Store):
             if inter:
                 yield t[0], inter
 
+    def remove(self, pattern, context=None):
+        self.__init_contexts()
+
+        context = getattr(context, 'identifier', context)
+        ctx = None if context is None else self.__graph.get_context(context)
+        for t in self.__store.triples(pattern, ctx):
+            triple = t[0]
+            contexts = set(getattr(c, 'identifier', c) for c in t[1])
+            if self.__context_transitive_imports:
+                inter = self.__context_transitive_imports & contexts
+            else:
+                inter = contexts
+            for ctx in inter:
+                self.__store.remove((triple[0], triple[1], triple[2], ctx))
+
     def triples_choices(self, pattern, context=None):
         self.__init_contexts()
 

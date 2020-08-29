@@ -1,4 +1,9 @@
+- Define __format__ for DataSource and DataTranslator to allow for multi-line
+vs single line format. 
+
 - Add acc test for source list from a project with a core bundle dep.
+
+- Make agg_store formula-aware
 
 # Bundle commands
 - add version number param to OWMBundle::checkout 

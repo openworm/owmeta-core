@@ -122,6 +122,3 @@ class MappedClass(type):
         Registers certain properties of the class
         """
         return self
-
-    def after_mapper_module_load(self, mapper):
-        """ Called after all classes in a module have been loaded """

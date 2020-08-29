@@ -160,4 +160,42 @@ class DataSourceTest(_DataTest):
         c = C()
         self.assertEqual(c.a.onedef(), 'Q')
 
+    def test_shared_informational_property(self):
+        class C(DataSource):
+            q = Informational()
+
+        class D(DataSource):
+            p = C.q
+
+        d = D(p='horses')
+        self.assertEqual(d.p.onedef(), 'horses')
+
+    def test_shared_informational_property_link(self):
+        class C(DataSource):
+            q = Informational()
+
+        class D(DataSource):
+            p = C.q
+
+        d = D(p='horses')
+        self.assertEqual(d.p.onedef(), 'horses')
+
+    def test_shared_informational_name(self):
+        class C(DataSource):
+            q = Informational()
+
+        class D(DataSource):
+            p = C.q
+
+        self.assertEqual(D.p.name, 'p')
+
+    def test_shared_informational_property_class(self):
+        class C(DataSource):
+            q = Informational()
+
+        class D(DataSource):
+            p = C.q
+
+        self.assertEqual(D.p.property, C.q.property)
+
 # TODO: Test throwing DuplicateAlsoException

@@ -366,36 +366,18 @@ class ClassRegistryTest(_DataTest):
 
         # given
         mod = import_module('tests.DataObjectTest')
-        self.mapper.process_class(A)
         self.mapper.declare_python_class_registry_entry(A)
-        self.mapper.class_registry_context.save()
+        self.mapper.save()
 
         mod.__yarom_mapped_classes__ = (A,)
 
         # when
         try:
-            del self.mapper.RDFTypeTable[A.rdf_type]
             res = self.mapper.resolve_class(A.rdf_type, A.context)
             # then
             self.assertIsNotNone(res)
         finally:
             delattr(mod, '__yarom_mapped_classes__')
-
-    def test_resolve_class_not_in_ymc(self):
-        class A(DataObject):
-            class_context = self.context
-            rdf_type = R.URIRef('http://example.org/A')
-
-        # given
-        self.mapper.process_class(A)
-
-        import_module('tests.DataObjectTest')
-
-        # when
-        del self.mapper.RDFTypeTable[A.rdf_type]
-
-        # then
-        self.assertIsNone(self.context.resolve_class(A.rdf_type))
 
     def test_resolve_class_multiple_entries_in_ymc(self):
         class A(DataObject):
@@ -405,16 +387,14 @@ class ClassRegistryTest(_DataTest):
 
         # given
         mod = import_module('tests.DataObjectTest')
-        self.mapper.process_class(A)
         self.mapper.declare_python_class_registry_entry(A)
-        self.mapper.class_registry_context.save()
+        self.mapper.save()
 
         mod.__yarom_mapped_classes__ = (A, A)
 
         with captured_logging() as logs:
             # when
             try:
-                del self.mapper.RDFTypeTable[A.rdf_type]
                 self.mapper.resolve_class(A.rdf_type, A.context)
                 # then
                 self.assertRegexpMatches(logs.getvalue(), r'More than one.*__yarom_mapped_classes__')
