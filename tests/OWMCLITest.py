@@ -218,7 +218,7 @@ def test_registry_list(owm_project):
     save_out = owm_project.sh('owm save tests.test_modules.owmclitest05_donkey')
     print("DONKEY")
     print(save_out)
-    registry_list_out = owm_project.sh('owm registry list')
+    registry_list_out = owm_project.sh('owm -o json registry list')
     assertRegexpMatches(registry_list_out, 'tests.test_modules.owmclitest05_monkey')
     assertRegexpMatches(registry_list_out, 'tests.test_modules.owmclitest05_donkey')
 
@@ -232,5 +232,5 @@ def test_registry_list_module_filter(owm_project):
     save_out = owm_project.sh('owm save tests.test_modules.owmclitest05_donkey')
     print("DONKEY")
     print(save_out)
-    registry_list_out = owm_project.sh('owm registry list --module tests.test_modules.owmclitest05_monkey')
+    registry_list_out = owm_project.sh('owm -o json registry list --module tests.test_modules.owmclitest05_monkey')
     assertNotRegexpMatches(registry_list_out, 'tests.test_modules.owmclitest05_donkey')

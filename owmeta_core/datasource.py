@@ -421,10 +421,8 @@ class DataTransatorType(type(DataObject)):
 
         if not getattr(self, '__doc__', None):
             self.__doc__ = '''Input type(s): {}\n
-                              Output type(s): {}\n
-                              URI: {}'''.format(format_types(self.input_type),
-                                                format_types(self.output_type),
-                                                self.translator_identifier)
+                              Output type(s): {}\n'''.format(format_types(self.input_type),
+                                                             format_types(self.output_type))
 
 
 class BaseDataTranslator(six.with_metaclass(DataTransatorType, DataObject)):
@@ -434,14 +432,7 @@ class BaseDataTranslator(six.with_metaclass(DataTransatorType, DataObject)):
 
     input_type = DataSource
     output_type = DataSource
-    translator_identifier = None
     translation_type = Translation
-
-    def __init__(self, **kwargs):
-        if self.translator_identifier is not None and 'ident' not in kwargs:
-            super(BaseDataTranslator, self).__init__(ident=self.translator_identifier, **kwargs)
-        else:
-            super(BaseDataTranslator, self).__init__(**kwargs)
 
     def __call__(self, *args, **kwargs):
         self.output_key = kwargs.pop('output_key', None)
@@ -457,6 +448,12 @@ class BaseDataTranslator(six.with_metaclass(DataTransatorType, DataObject)):
                Output type(s): {}'''.format(self.input_type,
                                             self.output_type)
         return f'{FCN(type(self))}({self.idl})' + ': \n    ' + ('\n    '.join(x.strip() for x in s.split('\n')))
+
+    def defined_augment(self):
+        return True
+
+    def identifier_augment(self):
+        return self.make_identifier(type(self).rdf_type)
 
     def translate(self, *args, **kwargs):
         '''

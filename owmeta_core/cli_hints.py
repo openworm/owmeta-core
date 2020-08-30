@@ -201,6 +201,11 @@ CLI_HINTS = {
                 'names': ['translator'],
             },
         },
+        'create': {
+            (METHOD_NAMED_ARG, 'translator_type'): {
+                'names': ['translator_type'],
+            },
+        },
     },
     'owmeta_core.command.OWMConfig': {
         'set': {

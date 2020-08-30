@@ -288,13 +288,12 @@ class OWMTranslator(object):
             Whether to (attempt to) shorten the source URIs by using the namespace manager
         '''
         from owmeta_core.datasource import DataTranslator
-        conf = self._parent._conf()
         if context is not None:
             ctx = self._parent._make_ctx(context)
         else:
             ctx = self._parent._default_ctx
-        dt = ctx.stored(DataTranslator)(conf=conf)
-        nm = conf['rdf.graph'].namespace_manager
+        dt = ctx.stored(DataTranslator).query()
+        nm = self._parent.rdf.namespace_manager
 
         def id_fmt(trans):
             if full:
@@ -302,7 +301,8 @@ class OWMTranslator(object):
             else:
                 return nm.normalizeUri(trans.identifier)
 
-        return GeneratorWithData(dt.load(), header=('ID',), columns=(id_fmt,))
+        return GeneratorWithData(dt.load(), header=('ID',), columns=(id_fmt,),
+                text_format=id_fmt)
 
     def show(self, translator):
         '''
@@ -338,10 +338,55 @@ class OWMTranslator(object):
         if not translator_cls:
             raise GenericUserError(f'Unable to find the class for {translator_type}')
         with transaction.manager:
-            ctx(translator_type)()
-            ctx.add_import(translator_type.definition_context)
+            ctx(translator_cls)()
+            ctx.add_import(translator_cls.definition_context)
             ctx.save(inline_imports=True)
             ctx.save_imports()
+
+    def list_kinds(self, full=False):
+        """
+        List kinds of translators
+
+        Parameters
+        ----------
+        full : bool
+            Whether to (attempt to) shorten the translator URIs by using the namespace manager
+        """
+        from .datasource import DataTranslator
+        from .dataobject import TypeDataObject, RDFSSubClassOfProperty
+        from .graph_object import ZeroOrMoreTQLayer
+        from .rdf_query_util import zomifier
+        conf = self._parent._conf()
+        ctx = self._parent._default_ctx
+        rdfto = ctx.stored(DataTranslator.rdf_type_object)
+        sc = ctx.stored(TypeDataObject)()
+        sc.attach_property(RDFSSubClassOfProperty)
+        sc.rdfs_subclassof_property(rdfto)
+        nm = conf['rdf.graph'].namespace_manager
+        g = ZeroOrMoreTQLayer(zomifier(DataTranslator.rdf_type), ctx.stored.rdf_graph())
+        for x in sc.load(graph=g):
+            if full:
+                yield x.identifier
+            else:
+                yield nm.normalizeUri(x.identifier)
+
+    def rm(self, *translator):
+        '''
+        Remove a `DataTranslator`
+
+        Parameters
+        ----------
+        *translator : str
+            ID of the source to remove
+        '''
+        import transaction
+        from .datasource import DataTranslator
+        with transaction.manager:
+            for dt in translator:
+                uri = self._parent._den3(dt)
+                ctx = self._parent._default_ctx.stored
+                for x in ctx(DataTranslator).query(ident=uri).load():
+                    ctx(x).retract()
 
 
 class OWMNamespace(object):
@@ -695,8 +740,8 @@ class OWMRegistry(object):
                                               version=package.version())
                 yield res
 
-        def fmt_text(entry, text_format=None):
-            if text_format == 'pretty':
+        def fmt_text(entry, format=None):
+            if format == 'pretty':
                 pkg_id = entry.get('package') and entry['package']['id']
                 return dedent('''\
                 {id}:
