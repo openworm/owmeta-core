@@ -38,6 +38,8 @@ def additional_args(parser):
     parser.add_argument('--text-record-separator', default='\n',
             help='Separator to use between records in "text" output mode. Default is'
             r" '\n' (newline)")
+    parser.add_argument('--text-format',
+            help='Format for text output. Available formats determined by the command')
     parser.add_argument('--progress',
             help='Progress reporter to use. Default is \'tqdm\'',
             choices=['tqdm', 'none'],
@@ -69,8 +71,8 @@ class NSHandler(object):
         if default is NOT_SET:
             try:
                 return self.opts[k]
-            except KeyError:
-                raise AttributeError()
+            except KeyError as e:
+                raise AttributeError(k) from e
         else:
             return self.opts.get(k, default)
 
@@ -78,6 +80,7 @@ class NSHandler(object):
         self.opts['output_mode'] = ns.output_mode
         self.opts['text_field_separator'] = ns.text_field_separator
         self.opts['text_record_separator'] = ns.text_record_separator
+        self.opts['text_format'] = ns.text_format
         self.opts['columns'] = ns.columns
         prog = parse_progress(ns.progress)
         if prog:
@@ -266,6 +269,7 @@ def _format_output(out, ns_handler):
     output_mode = ns_handler.output_mode
     text_field_separator = ns_handler.text_field_separator
     text_record_separator = ns_handler.text_record_separator
+    text_format = ns_handler.text_format
 
     if output_mode == 'json':
         json.dump(out, sys.stdout, default=JSONSerializer(), indent=2)
@@ -352,7 +356,11 @@ def _format_output(out, ns_handler):
             else:
                 for x in iterable:
                     if hasattr(out, 'text_format'):
-                        print(out.text_format(x), end=text_record_separator)
+                        addl_args = dict()
+                        if text_format:
+                            addl_args['format'] = text_format
+
+                        print(out.text_format(x, **addl_args), end=text_record_separator)
                     else:
                         print(x, end=text_record_separator)
 

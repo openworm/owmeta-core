@@ -88,6 +88,12 @@ CLI_HINTS = {
             (METHOD_NAMED_ARG, 'list_formats'): {
                 'nargs': '?'
             }
+        },
+        'rm': {
+            (METHOD_NAMED_ARG, 'context'): {
+                'names': ['context'],
+                'nargs': '?'
+            },
         }
     },
     'owmeta_core.commands.bundle.OWMBundleRemote': {

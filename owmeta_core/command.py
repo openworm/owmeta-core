@@ -153,7 +153,7 @@ class OWMSource(object):
         if dst is None:
             raise GenericUserError('Could not resolve a Python class for ' + str(kind))
 
-        dt = dst.query(conf=conf)
+        ds = dst.query()
         nm = conf['rdf.graph'].namespace_manager
 
         def format_id(r):
@@ -167,7 +167,7 @@ class OWMSource(object):
                 return '\n'.join(comment)
             return ''
 
-        return GeneratorWithData(dt.load(),
+        return GeneratorWithData(ds.load(),
                                  text_format=format_id,
                                  default_columns=('ID',),
                                  columns=(format_id,
@@ -605,13 +605,29 @@ class OWMContexts(object):
         context : str
             The context to lookup
         '''
+        context = self._parent._den3(context)
         with self._parent.connect():
             dep_mgr = self._parent._bundle_dep_mgr
             contexts = set(str(getattr(c, 'identifier', c)) for c in self._parent.own_rdf.contexts())
-            target_bundle = dep_mgr.lookup_context_bundle(contexts, context)
+            target_bundle = dep_mgr.lookup_context_bundle(contexts, str(context))
             if target_bundle is dep_mgr:
                 return None
             return target_bundle
+
+    def rm(self, context):
+        '''
+        Remove a context
+
+        Parameters
+        ----------
+        context : str
+            The context to remove
+        '''
+        import transaction
+        context = self._parent._den3(context)
+        with transaction.manager:
+            g = self._parent.own_rdf.get_context(context)
+            g.remove((None, None, None))
 
 
 class OWMRegistry(object):
@@ -623,7 +639,7 @@ class OWMRegistry(object):
     def __init__(self, parent):
         self._parent = parent
 
-    def list(self, module=None, rdf_type=None):
+    def list(self, module=None, rdf_type=None, class_name=None):
         '''
         List registered classes
 
@@ -635,6 +651,9 @@ class OWMRegistry(object):
         rdf_type : str
             If provided, limits the registry entries returned to those that have the given
             RDF type. Optional.
+        class_name : str
+            If provided, limits the registry entries returned to those that have the given
+            class name. Optional.
         '''
         from .dataobject import PythonClassDescription
         mapper = self._parent.connect().mapper
@@ -652,6 +671,7 @@ class OWMRegistry(object):
                     ident = re.namespace_manager.normalizeUri(ident)
                 if hasattr(module_do, 'name'):
                     module_name = module_do.name()
+                re_class_name = cd.name()
 
                 if module is not None and module != module_name:
                     continue
@@ -659,32 +679,75 @@ class OWMRegistry(object):
                 if rdf_type is not None and rdf_type != str(re_rdf_type):
                     continue
 
-                package = None
+                if class_name is not None and class_name != str(re_class_name):
+                    continue
+
+                res = dict(id=ident,
+                        rdf_type=re_rdf_type,
+                        class_name=re_class_name,
+                        module_name=module_name)
+
                 if hasattr(module_do, 'package'):
                     package = module_do.package()
-                    package_name = None
-                    package_version = None
                     if package:
-                        package_name = package.name()
-                        package_version = package.version()
+                        res['package'] = dict(id=package.identifier,
+                                              name=package.name(),
+                                              version=package.version())
+                yield res
 
-                yield (ident, rdf_type, cd.name(), module_name, package, package_name,
-                       package_version)
-
-        def fmt_text(entry):
-            return dedent('''\
-            {0}:
-                RDF Type: {1}
-                Module Name: {3}
-                Class Name: {2}
-                Package: {4}\n''').format(*entry)
+        def fmt_text(entry, text_format=None):
+            if text_format == 'pretty':
+                pkg_id = entry.get('package') and entry['package']['id']
+                return dedent('''\
+                {id}:
+                    RDF Type: {rdf_type}
+                    Module Name: {module_name}
+                    Class Name: {class_name}
+                    Package: {pkg_id}\n''').format(pkg_id=pkg_id, **entry)
+            else:
+                return entry['id']
 
         return GeneratorWithData(registry_entries(),
                 header=('ID', 'RDF Type', 'Class Name', 'Module Name', 'Package',
                         'Package Name', 'Package Version'),
-                columns=tuple,
+                columns=(lambda r: r['id'],
+                         lambda r: r['rdf_type'],
+                         lambda r: r['class_name'],
+                         lambda r: r['module_name'],
+                         lambda r: r.get('package') and r['package']['id'],
+                         lambda r: r.get('package') and r['package']['name'],
+                         lambda r: r.get('package') and r['package']['version'],),
                 default_columns=('ID', 'RDF Type', 'Class Name', 'Module Name', 'Package'),
                 text_format=fmt_text)
+
+    def show(self, *registry_entry):
+        '''
+        Show registry entries
+
+        Parameters
+        ----------
+        *registry_entry : str
+            Registry entry to show
+        '''
+
+    def rm(self, *registry_entry):
+        '''
+        Remove a registry entry
+
+        Parameters
+        ----------
+        *registry_entry : str
+            Registry entry to remove
+        '''
+        import transaction
+        from .dataobject import RegistryEntry
+
+        with transaction.manager:
+            for re in registry_entry:
+                uri = self._parent._den3(re)
+                crctx = self._parent.connect().mapper.class_registry_context
+                for x in crctx(RegistryEntry).query(ident=uri).load():
+                    crctx.stored(x).retract()
 
 
 class OWM(object):
@@ -804,10 +867,6 @@ class OWM(object):
     @log_level.setter
     def log_level(self, level):
         logging.getLogger().setLevel(getattr(logging, level.upper()))
-        # Tailoring for known loggers
-        # Generally, too verbose for the user
-        logging.getLogger('owmeta_core.mapper').setLevel(logging.ERROR)
-        logging.getLogger('owmeta_core.module_recorder').setLevel(logging.ERROR)
 
     def save(self, module, provider=None, context=None):
         '''

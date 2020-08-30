@@ -75,6 +75,8 @@ class Mapper(Configurable):
                         self.conf.get(CLASS_REGISTRY_CONTEXT_KEY, None) or
                         uuid.uuid4().urn)
 
+            # XXX: Probably should get the connection in here to contextualize this
+            # context
             crctx = Context(crctx_id, conf=self.conf, mapper=self)
             crctx.add_import(BASE_CONTEXT)
             self.__class_registry_context = crctx

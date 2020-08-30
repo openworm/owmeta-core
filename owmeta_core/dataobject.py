@@ -582,7 +582,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
 
         return res
 
-    def __init__(self, query_mode=None, **kwargs):
+    def __init__(self, **kwargs):
         ot = type(self)
         pc = ot._property_classes
         paia = ot.properties_are_init_args
@@ -593,8 +593,6 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         super(BaseDataObject, self).__init__(**kwargs)
         self.properties = ContextualizableList(self.context)
         self.owner_properties = ContextFilteringList(self.context)
-        if query_mode is not None:
-            self.query_mode = query_mode
 
         self._variable = None
 
@@ -950,7 +948,6 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         # have some information about the properties themselves from the RDF graph and
         # from the class registry. Just like there should be only one Python class for a
         # given RDFS class, there should only be one Python class for each property
-        print("RETRACTING", self, self.context)
         # TODO: Actually finish this
         # TODO: Fix this up with contexts etc.
         for x in self.load():
