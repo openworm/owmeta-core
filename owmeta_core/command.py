@@ -397,10 +397,14 @@ class OWMNamespace(object):
         self._parent = parent
 
     def list(self):
+        '''
+        List namespace prefixes and URIs in the project
+        '''
         conf = self._parent._conf()
         nm = conf['rdf.graph'].namespace_manager
-        for prefix, uri in nm.namespaces():
-            self._parent.message(prefix, uri.n3())
+        return GeneratorWithData(
+                (dict(prefix=prefix, uri=uri)
+                    for prefix, uri in nm.namespaces()))
 
 
 class _ProgressMock(object):
