@@ -118,7 +118,7 @@ def test_translator_list(owm_project):
             DT1.definition_context.save(conn.rdf)
             conn.mapper.declare_python_class_registry_entry(DT1, DataTranslator)
             # Create a translator
-            ctx(DT1)()
+            ctx(DT1)(ident=expected)
 
             ctx_id = conn.conf[DEFAULT_CONTEXT_KEY]
             main_ctx = conn(Context)(ident=ctx_id)
@@ -145,7 +145,7 @@ def test_translate_data_source_loader(owm_project):
                 file_name='DSFile',
             )
             ctx.mapper.process_class(DT2)
-            ctx(DT2)()
+            ctx(DT2)(ident='http://example.org/trans1')
             # Create a translator
             ctx_id = conn.conf[DEFAULT_CONTEXT_KEY]
             print(conn.rdf.serialize(format='nquads').decode('utf-8'))
@@ -234,3 +234,26 @@ def test_registry_list_module_filter(owm_project):
     print(save_out)
     registry_list_out = owm_project.sh('owm -o json registry list --module tests.test_modules.owmclitest05_monkey')
     assertNotRegexpMatches(registry_list_out, 'tests.test_modules.owmclitest05_donkey')
+
+
+def test_type_rm_no_resolve(owm_project):
+    from .test_modules.owmclitest06_datasource import TestDataSource
+    owm_project.make_module('tests')
+    owm_project.copy('tests/test_modules', 'tests/test_modules')
+    print(owm_project.sh('owm save tests.test_modules.owmclitest06_datasource'))
+    print(owm_project.sh(f'owm type rm {TestDataSource.rdf_type}'))
+    owm = owm_project.owm()
+    assert owm.connect().mapper.resolve_class(
+            TestDataSource.rdf_type,
+            TestDataSource.definition_context) is None
+
+
+def test_save_class_resolve_class(owm_project):
+    from .test_modules.owmclitest06_datasource import TestDataSource
+    owm_project.make_module('tests')
+    owm_project.copy('tests/test_modules', 'tests/test_modules')
+    print(owm_project.sh('owm save tests.test_modules.owmclitest06_datasource'))
+    owm = owm_project.owm()
+    assert owm.connect().mapper.resolve_class(
+            TestDataSource.rdf_type,
+            TestDataSource.definition_context) is not None

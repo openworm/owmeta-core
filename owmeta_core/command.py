@@ -389,6 +389,39 @@ class OWMTranslator(object):
                     ctx(x).retract()
 
 
+class OWMTypes(object):
+    '''
+    Commands for dealing with Python classes and RDF types
+    '''
+    def __init__(self, parent):
+        self._parent = parent
+
+    def rm(self, *type):
+        '''
+        Removes info about the given types, like ``rdfs:subClassOf`` statements, and
+        removes the corresponding registry entries as well
+
+        Parameters
+        ----------
+        *type : str
+            Types to remove
+        '''
+        import transaction
+        from .dataobject import TypeDataObject, RegistryEntry
+        with transaction.manager:
+            for class_id in type:
+                uri = self._parent._den3(class_id)
+                ctx = self._parent._default_ctx.stored
+                tdo = ctx.stored(TypeDataObject)(ident=uri)
+                ctx(tdo).retract()
+
+                crctx = self._parent.connect().mapper.class_registry_context
+                re = crctx.stored(RegistryEntry).query()
+                re.rdf_class(uri)
+                for x in re.load():
+                    crctx.stored(x).retract()
+
+
 class OWMNamespace(object):
     '''
     RDF namespace commands
@@ -828,6 +861,8 @@ class OWM(object):
     namespace = SubCommand(OWMNamespace)
 
     contexts = SubCommand(OWMContexts)
+
+    type = SubCommand(OWMTypes)
 
     bundle = SubCommand(OWMBundle)
 
@@ -1823,6 +1858,11 @@ class _ProjectConnection(object):
         self.owm = owm
         self.connection = connection
         self._context = owm._context
+
+    @property
+    def mapper(self):
+        # XXX: Maybe refactor this...
+        return self._context.mapper
 
     def __getattr__(self, attr):
         return getattr(self.connection, attr)
