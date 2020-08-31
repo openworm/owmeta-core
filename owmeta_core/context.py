@@ -248,7 +248,7 @@ class Context(six.with_metaclass(ContextMeta,
             for y in x.transitive_imports():
                 yield y
 
-    def save_imports(self, context=None, *args, **kwargs):
+    def save_imports(self, context=None, *args, transitive=True, **kwargs):
         '''
         Add the `imports` on this context to a graph
 
@@ -258,14 +258,16 @@ class Context(six.with_metaclass(ContextMeta,
             The context to add statements to. This context's configured graph will
             ultimately receive the triples. By default, a context will be created with
             ``self.conf[IMPORTS_CONTEXT_KEY]`` as the identifier
+        transitive : bool, optional
+            If `True`, call imported imported contexts to save their imports as well
         '''
         if not context:
             ctx_key = self.conf[IMPORTS_CONTEXT_KEY]
             context = Context(ident=ctx_key, conf=self.conf)
-        self.declare_imports(context)
+        self.declare_imports(context, transitive)
         context.save_context(*args, **kwargs)
 
-    def declare_imports(self, context=None):
+    def declare_imports(self, context=None, transitive=False):
         '''
         Declare `imports <~context_dataobject.ContextDataObject.imports>` statements in
         the given context
@@ -284,16 +286,17 @@ class Context(six.with_metaclass(ContextMeta,
         if not context:
             ctx_key = self.conf[IMPORTS_CONTEXT_KEY]
             context = Context(ident=ctx_key, conf=self.conf)
-        self._declare_imports(context)
+        self._declare_imports(context, transitive)
         return context
 
-    def _declare_imports(self, context):
+    def _declare_imports(self, context, transitive):
         for ctx in self._imported_contexts:
             if self.identifier is not None \
                     and ctx.identifier is not None \
                     and not isinstance(ctx.identifier, rdflib.term.BNode):
                 context(self.rdf_object).imports(ctx.rdf_object)
-                ctx._declare_imports(context)
+                if transitive:
+                    ctx._declare_imports(context, transitive)
 
     def save_context(self, graph=None, inline_imports=False, autocommit=True, saved_contexts=None):
         '''
