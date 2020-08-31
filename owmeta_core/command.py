@@ -1465,20 +1465,22 @@ class OWM(object):
 
         Parameters
         ----------
-        translator : str
+        translator : str or `.DataTranslator`
             Translator identifier
         output_key : str
             Output key. Used for generating the output's identifier. Exclusive with output_identifier
         output_identifier : str
             Output identifier. Exclusive with output_key
-        data_sources : list of str
+        data_sources : list of str or list of `.DataSource`
             Input data sources
         named_data_sources : dict
             Named input data sources
         """
         import transaction
+
         if named_data_sources is None:
             named_data_sources = dict()
+
         translator_obj = self._lookup_translator(translator)
         if translator_obj is None:
             raise GenericUserError('No translator for ' + translator)
@@ -1548,11 +1550,19 @@ class OWM(object):
 
     def _lookup_translator(self, tname):
         from owmeta_core.datasource import DataTranslator
-        for x in self._default_ctx.stored(DataTranslator)(ident=tname).load():
+
+        if isinstance(tname, DataTranslator):
+            tname = tname.identifier
+
+        for x in self._default_ctx.stored(DataTranslator)(ident=self._den3(tname)).load():
             return x
 
     def _lookup_source(self, sname):
         from owmeta_core.datasource import DataSource
+
+        if isinstance(sname, DataSource):
+            sname = sname.identifier
+
         for x in self._default_ctx.stored(DataSource)(ident=self._den3(sname)).load():
             provide(x, self._cap_provs)
             return x
