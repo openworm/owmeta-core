@@ -663,20 +663,21 @@ class OWMContexts(object):
                 return None
             return target_bundle
 
-    def rm(self, context):
+    def rm(self, *context):
         '''
         Remove a context
 
         Parameters
         ----------
-        context : str
-            The context to remove
+        *context : str
+            Context to remove
         '''
         import transaction
-        context = self._parent._den3(context)
-        with transaction.manager:
-            g = self._parent.own_rdf.get_context(context)
-            g.remove((None, None, None))
+        for c in context:
+            c = self._parent._den3(c)
+            with transaction.manager:
+                g = self._parent.own_rdf.get_context(c)
+                g.remove((None, None, None))
 
 
 class OWMRegistry(object):
