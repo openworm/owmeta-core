@@ -119,7 +119,7 @@ class CLITextOutputModeTest(CLIOutputModeTest):
             @with_defaults
             def main(argument_namespace_callback, **kwargs):
                 argument_namespace_callback.output_mode = 'text'
-                argument_namespace_callback.text_field_separator = '\0'
+                argument_namespace_callback.text_pair_separator = '\0'
                 return dict(a='b')
             self.ccw().main.side_effect = main
             PCLI.main()
@@ -130,7 +130,7 @@ class CLITextOutputModeTest(CLIOutputModeTest):
             @with_defaults
             def main(argument_namespace_callback, **kwargs):
                 argument_namespace_callback.output_mode = 'text'
-                argument_namespace_callback.text_record_separator = '\0'
+                argument_namespace_callback.text_record_terminator = '\0'
                 return dict(a='b')
             self.ccw().main.side_effect = main
             PCLI.main()
@@ -141,7 +141,7 @@ class CLITextOutputModeTest(CLIOutputModeTest):
             @with_defaults
             def main(argument_namespace_callback, **kwargs):
                 argument_namespace_callback.output_mode = 'text'
-                argument_namespace_callback.text_record_separator = '\0'
+                argument_namespace_callback.text_record_terminator = '\0'
                 return ['a', 'b']
             self.ccw().main.side_effect = main
             PCLI.main()

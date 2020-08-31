@@ -172,7 +172,7 @@ class GeneratorWithData(object):
         else:
             self.columns = columns
         self.default_columns = default_columns
-        self.text_format = text_format if text_format else format
+        self.text_format = text_format or None
 
     def __iter__(self):
         for m in self._gen:

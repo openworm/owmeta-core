@@ -32,12 +32,15 @@ def additional_args(parser):
             choices=['json', 'text', 'table'])
     parser.add_argument('--columns',
             help='Comma-separated list of columns to display in "table" output mode')
-    parser.add_argument('--text-field-separator', default='\t',
-            help=r'Separator to use between fields in "text" output mode. Default is'
+    parser.add_argument('--text-pair-separator', default='\t',
+            help=r'Separator to use between key and value in "text" output mode. Default is'
             r" '\t' (tab character)")
-    parser.add_argument('--text-record-separator', default='\n',
-            help='Separator to use between records in "text" output mode. Default is'
-            r" '\n' (newline)")
+    parser.add_argument('--text-field-separator', default='\n',
+            help=r'Separator to use between fields in "text" output mode. Default is'
+            r" '\n' (newline character)")
+    parser.add_argument('--text-record-terminator', default='\n',
+            help='Terminator to use after each record in "text" output mode. Default is'
+            r" '\n' (newline character)")
     parser.add_argument('--text-format',
             help='Format for text output. Available formats determined by the command')
     parser.add_argument('--progress',
@@ -78,8 +81,9 @@ class NSHandler(object):
 
     def __call__(self, ns):
         self.opts['output_mode'] = ns.output_mode
+        self.opts['text_pair_separator'] = ns.text_pair_separator
         self.opts['text_field_separator'] = ns.text_field_separator
-        self.opts['text_record_separator'] = ns.text_record_separator
+        self.opts['text_record_terminator'] = ns.text_record_terminator
         self.opts['text_format'] = ns.text_format
         self.opts['columns'] = ns.columns
         prog = parse_progress(ns.progress)
@@ -267,8 +271,9 @@ def _helper(p):
 
 def _format_output(out, ns_handler):
     output_mode = ns_handler.output_mode
+    text_pair_separator = ns_handler.text_pair_separator
     text_field_separator = ns_handler.text_field_separator
-    text_record_separator = ns_handler.text_record_separator
+    text_record_terminator = ns_handler.text_record_terminator
     text_format = ns_handler.text_format
 
     if output_mode == 'json':
@@ -344,8 +349,13 @@ def _format_output(out, ns_handler):
         print(format_table(mygen(), header=header))
     elif output_mode == 'text':
         if isinstance(out, dict):
+            first = True
             for k, v in out.items():
-                print('{}{}{}'.format(k, text_field_separator, v), end=text_record_separator)
+                if not first:
+                    print(text_field_separator, end='')
+                first = False
+                print('{}{}{}'.format(k, text_pair_separator, v), end='')
+            print(text_record_terminator, end='')
         elif isinstance(out, six.string_types):
             print(out)
         else:
@@ -355,14 +365,22 @@ def _format_output(out, ns_handler):
                 print(out)
             else:
                 for x in iterable:
-                    if hasattr(out, 'text_format'):
+                    if getattr(out, 'text_format', None):
                         addl_args = dict()
                         if text_format:
                             addl_args['format'] = text_format
 
-                        print(out.text_format(x, **addl_args), end=text_record_separator)
+                        print(out.text_format(x, **addl_args), end='')
+                    elif isinstance(x, dict):
+                        first = True
+                        for k, v in x.items():
+                            if not first:
+                                print(text_field_separator, end='')
+                            first = False
+                            print('{}{}{}'.format(k, text_pair_separator, v), end='')
                     else:
-                        print(x, end=text_record_separator)
+                        print(x, end='')
+                    print(text_record_terminator, end='')
 
 
 if __name__ == '__main__':
