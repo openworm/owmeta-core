@@ -535,7 +535,7 @@ class OWMTranslatorTest(unittest.TestCase):
         dct['rdf.graph'] = Mock()
         parent._conf.return_value = dct
         # Mock the loading of DataObjects from the DataContext
-        parent._default_ctx.stored(ANY)(conf=ANY).load.return_value = [Mock()]
+        parent._default_ctx.stored(ANY).query(conf=ANY).load.return_value = [Mock()]
         ps = OWMTranslator(parent)
 
         self.assertIsNotNone(next(ps.list(), None))
