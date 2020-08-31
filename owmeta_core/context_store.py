@@ -206,7 +206,7 @@ class RDFContextStore(Store):
             else:
                 inter = contexts
             for ctx in inter:
-                self.__store.remove((triple[0], triple[1], triple[2], ctx))
+                self.__store.remove((triple[0], triple[1], triple[2]), ctx)
 
     def triples_choices(self, pattern, context=None):
         self.__init_contexts()
