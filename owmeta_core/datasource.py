@@ -275,8 +275,6 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
 
         This includes staging files such as they would be available for a translation. In general, a sub-class should
         implement :meth:`commit_augment` rather than this method, or at least call this method via super
-
-        For example, if the data source produces a file, that file should be in
         '''
         self.commit_augment()
 
