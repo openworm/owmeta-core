@@ -78,8 +78,7 @@ class CSVDataTranslator(DataTranslator):
         @contextmanager
         def cm(skiplines, dict_reader):
             _skipheader = skipheader
-            rel_fname = source.csv_file_name.one()
-            fname = pth_join(source.basedir(), rel_fname)
+            fname = source.full_path()
             with open(fname) as f:
                 while skiplines > 0:
                     next(f)
