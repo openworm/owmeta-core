@@ -340,8 +340,8 @@ class OWMTranslator(object):
         with transaction.manager:
             ctx(translator_cls)()
             ctx.add_import(translator_cls.definition_context)
-            ctx.save(inline_imports=True)
-            ctx.save_imports()
+            ctx.save()
+            ctx.save_imports(transitive=False)
 
     def list_kinds(self, full=False):
         """
