@@ -254,25 +254,6 @@ class Configurable(object):
     def conf(self, conf):
         self.__conf = conf
 
-    def __getitem__(self, k):
-        """
-        Get a configuration value out by providing a key k
-
-        :param k: the key for the value you wish to retrieve
-        :return: the value you want to get back
-        """
-        return self.conf.get(k)
-
-    def __setitem__(self, k, v):
-        """
-        Set a key - value pair on this object
-
-        :param k: The key for the value to set
-        :param v: The value to set
-        :return: no return
-        """
-        self.conf[k] = v
-
     def get(self, pname, default=None):
         """
         Gets a config value from this :class:`Configurable`'s `conf`

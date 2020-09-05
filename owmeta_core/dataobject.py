@@ -748,15 +748,6 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
     `DataObject` comparison by identity by default.
     '''
 
-    def __getitem__(self, x):
-        try:
-            return DataUser.__getitem__(self, x)
-        except KeyError:
-            raise Exception(
-                "You attempted to get the value `%s' from `%s'. It isn't here."
-                " Perhaps you misspelled the name of a Property?" %
-                (x, self))
-
     def get_owners(self, property_class_name):
         """ Return a generator of owners along a property pointing to this object """
         for x in self.owner_properties:
