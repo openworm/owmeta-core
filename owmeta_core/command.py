@@ -1698,6 +1698,8 @@ class OWM(object):
         deleted_contexts = dict(self._context_fnames)
         with transaction.manager:
             for context in g.contexts():
+                if not context:
+                    continue
                 ident = context.identifier
 
                 if not ignore_change_cache:
@@ -1715,9 +1717,6 @@ class OWM(object):
                 # This can happen if we get out of sync with what's on disk.
                 if not ctx_changed and not exists(fname):
                     ctx_changed = True
-
-                if not context:
-                    continue
 
                 if ctx_changed:
                     # N.B. We *overwrite* changes to the serialized graphs -- the source of truth is what's in the
@@ -2267,6 +2266,7 @@ class OWMSaveNamespace(object):
             c.save_imports(*args, **kwargs)
         for c in self._external_contexts:
             c.save_context(*args, **kwargs)
+            self.context(c).save_imports(*args, **kwargs)
         self.context.save_imports(*args, **kwargs)
 
         return self.context.save_context(*args, **kwargs)
