@@ -648,7 +648,7 @@ class OWMContexts(object):
                     ctx.own_stored.rdf_graph().serialize(destination, format=format)
                 call([editor, fname])
                 with open(fname, mode='rb') as source:
-                    g = self._parent.rdf.get_context(ctxid)
+                    g = self._parent.own_rdf.get_context(ctxid)
                     g.remove((None, None, None))
                     parser.parse(create_input_source(source), g)
 
@@ -656,7 +656,7 @@ class OWMContexts(object):
         '''
         List the set of contexts in the graph
         '''
-        for c in self._parent.rdf.contexts():
+        for c in self._parent.own_rdf.contexts():
             yield c.identifier
 
     def list_changed(self):
@@ -706,11 +706,11 @@ class OWMContexts(object):
             Context to remove
         '''
         import transaction
-        for c in context:
-            c = self._parent._den3(c)
-            with transaction.manager:
-                g = self._parent.own_rdf.get_context(c)
-                g.remove((None, None, None))
+        graph = self._parent.own_rdf
+        with transaction.manager:
+            for c in context:
+                c = self._parent._den3(c)
+                graph.remove_graph(c)
 
 
 class OWMRegistry(object):
@@ -1488,7 +1488,8 @@ class OWM(object):
         positional_sources = [self._lookup_source(src) for src in data_sources]
         if None in positional_sources:
             raise GenericUserError('No source for "' + data_sources[positional_sources.index(None)] + '"')
-        named_sources = {k: self._lookup_source(src) for k, src in named_data_sources}
+        named_sources = {k: self._lookup_source(src) for k, src in
+                named_data_sources.items()}
         with self._tempdir(prefix='owm-translate.') as d:
             orig_wd = os.getcwd()
             with transaction.manager:
@@ -1502,6 +1503,7 @@ class OWM(object):
                     os.chdir(orig_wd)
                 res.commit()
                 res.context.save_context()
+                return res
 
     @contextmanager
     def _tempdir(self, *args, **kwargs):
@@ -1580,6 +1582,8 @@ class OWM(object):
         except KeyError:
             raise ConfigMissingException(DEFAULT_CONTEXT_KEY)
 
+    default_context = _default_ctx
+
     def _make_ctx(self, ctxid):
         return Context.contextualize(self._context)(ident=ctxid)
 
@@ -1649,7 +1653,8 @@ class OWM(object):
     def own_rdf(self):
         has_dependencies = self._conf('dependencies', None)
         if has_dependencies:
-            return rdflib.ConjunctiveGraph(self._conf('rdf.graph').store.stores[0])
+            return rdflib.Dataset(self._conf('rdf.graph').store.stores[0],
+                    default_union=True)
         else:
             return self._conf('rdf.graph')
 
@@ -1710,6 +1715,9 @@ class OWM(object):
                 # This can happen if we get out of sync with what's on disk.
                 if not ctx_changed and not exists(fname):
                     ctx_changed = True
+
+                if not context:
+                    continue
 
                 if ctx_changed:
                     # N.B. We *overwrite* changes to the serialized graphs -- the source of truth is what's in the

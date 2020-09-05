@@ -11,19 +11,28 @@ class AggregateStore(Store):
 
     context_aware = True
     '''
-    Specified by RDFLib. Required to be True for `~rdflib.graph.ConjunctiveGraph` stores.
+    Specified by RDFLib. Required to be `True` for `~rdflib.graph.ConjunctiveGraph` stores.
 
     Aggregated stores MUST be context-aware. This is enforced by :meth:`open`.
+    '''
+
+    graph_aware = True
+    '''
+    Specified by RDFLib. Required to be `True` for `~rdflib.graph.Dataset` stores.
+
+    The first store must be graph-aware. This is enforced by :meth:`open`.
     '''
 
     # Unlike "awareness" attributes, checking for support of range queries is handled
     # after the store is open, so we don't care if we need to change it to `True` later.
     supports_range_queries = False
 
-    def __init__(self, configuration=None, identifier=None):
+    def __init__(self, configuration=None, identifier=None, graph_aware=None):
         super(AggregateStore, self).__init__(configuration, identifier)
         self.__stores = []
         self.__bound_ns = dict()
+        if graph_aware is not None:
+            self.graph_aware = graph_aware
 
     @property
     def stores(self):
@@ -44,8 +53,10 @@ class AggregateStore(Store):
             store = plugin.get(store_key, Store)()
             store.open(store_conf)
             self.__stores.append(store)
+        assert self.__stores, 'At least one store configuration must be provided'
         assert all(x.context_aware for x in self.__stores), ('All aggregated stores must be'
                                                              ' context_aware')
+        assert self.__stores[0].graph_aware, 'The first store must be graph_aware'
         self.supports_range_queries = all(getattr(x, 'supports_range_queries', False) for x in self.__stores)
 
     def triples(self, triple, context=None):
@@ -108,7 +119,8 @@ class AggregateStore(Store):
         for store in self.__stores:
             store.gc()
 
-    def add(self, *args, **kwargs): raise UnsupportedAggregateOperation
+    def add(self, *args, **kwargs):
+        return self.__stores[0].add(*args, **kwargs)
 
     def addN(self, *args, **kwargs):
         return self.__stores[0].addN(*args, **kwargs)
@@ -116,11 +128,23 @@ class AggregateStore(Store):
     def remove(self, *args, **kwargs):
         self.__stores[0].remove(*args, **kwargs)
 
-    def add_graph(self, *args, **kwargs): raise UnsupportedAggregateOperation
-    def remove_graph(self, *args, **kwargs): raise UnsupportedAggregateOperation
+    def add_graph(self, *args, **kwargs):
+        if not self.graph_aware:
+            super().add_graph(*args, **kwargs)
+        else:
+            self.__stores[0].add_graph(*args, **kwargs)
+
+    def remove_graph(self, *args, **kwargs):
+        if not self.graph_aware:
+            super().remove_graph(*args, **kwargs)
+        else:
+            self.__stores[0].remove_graph(*args, **kwargs)
+
     def create(self, *args, **kwargs): raise UnsupportedAggregateOperation
     def destroy(self, *args, **kwargs): raise UnsupportedAggregateOperation
-    def rollback(self, *args, **kwargs): raise UnsupportedAggregateOperation
+
+    def rollback(self, *args, **kwargs):
+        return self.__stores[0].rollback(*args, **kwargs)
 
     def commit(self, *args, **kwargs):
         return self.__stores[0].commit(*args, **kwargs)

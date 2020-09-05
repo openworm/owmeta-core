@@ -5,7 +5,7 @@ import logging
 import atexit
 import hashlib
 
-from rdflib import URIRef, Graph, Namespace, ConjunctiveGraph, plugin
+from rdflib import URIRef, Graph, Namespace, Dataset, plugin
 from rdflib.store import Store
 from rdflib.events import Event
 from rdflib.namespace import RDF, NamespaceManager
@@ -127,7 +127,7 @@ class DataUser(Configurable):
             return self.conf['rdf.graph']
         except KeyError:
             if ALLOW_UNCONNECTED_DATA_USERS:
-                return ConjunctiveGraph()
+                return Dataset(default_union=True)
             raise DataUserUnconnected('No rdf.graph')
 
     @property
@@ -448,7 +448,7 @@ class SPARQLSource(RDFSource):
     def open(self):
         # XXX: If we have a source that's read only, should we need to set the
         # store separately??
-        g0 = ConjunctiveGraph('SPARQLUpdateStore')
+        g0 = Dataset('SPARQLUpdateStore', default_union=True)
         g0.open(tuple(self.conf['rdf.store_conf']))
         self.graph = g0
         return self.graph
@@ -468,7 +468,7 @@ class SleepyCatSource(RDFSource):
         import logging
         # XXX: If we have a source that's read only, should we need to set the
         # store separately??
-        g0 = ConjunctiveGraph('Sleepycat')
+        g0 = Dataset('Sleepycat', default_union=True)
         self.conf['rdf.store'] = 'Sleepycat'
         g0.open(self.conf['rdf.store_conf'], create=True)
         self.graph = g0
@@ -491,7 +491,7 @@ class DefaultSource(RDFSource):
     """
 
     def open(self):
-        self.graph = ConjunctiveGraph(self.conf['rdf.store'])
+        self.graph = Dataset(self.conf['rdf.store'], default_union=True)
         self.graph.open(self.conf['rdf.store_conf'], create=True)
 
 
@@ -552,7 +552,7 @@ class ZODBSource(RDFSource):
             L.exception('Forced to abort transaction on ZODB store opening', exc_info=True)
             transaction.abort()
         transaction.begin()
-        self.graph = ConjunctiveGraph(root['rdflib'])
+        self.graph = Dataset(root['rdflib'], default_union=True)
         self.graph.open(openstr)
 
     def close(self):
@@ -592,7 +592,7 @@ class SQLSource(RDFSource):
         registerplugins()
 
         store = plugin.get("SQLAlchemy", Store)(**self._initargs())
-        self.graph = ConjunctiveGraph(store)
+        self.graph = Dataset(store, default_union=True)
         cfg = self._openconfig()
         self.graph.open(cfg, create=True)
 

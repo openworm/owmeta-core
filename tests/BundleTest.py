@@ -16,6 +16,8 @@ from owmeta_core.agg_store import UnsupportedAggregateOperation
 from owmeta_core.bundle import (Bundle, BundleNotFound, Descriptor, DependencyDescriptor,
                                 _RemoteHandlerMixin, make_include_func, NoRemoteAvailable,
                                 BUNDLE_INDEXED_DB_NAME, DEFAULT_BUNDLES_DIRECTORY)
+import transaction
+import ZODB
 
 
 Dirs = namedtuple('Dirs', ('source_directory', 'bundles_directory'))
@@ -357,11 +359,13 @@ def test_add_to_graph_not_supported(custom_bundle):
     with custom_bundle(dep_desc, graph=depgraph) as depbun, \
             custom_bundle(test_desc, bundles_directory=depbun.bundles_directory) as testbun, \
             Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
-        with pytest.raises(UnsupportedAggregateOperation):
-            bnd.rdf.add(
-                (URIRef('http://example.org/sub'),
-                 URIRef('http://example.org/prop'),
-                 URIRef('http://example.org/obj')))
+
+        with pytest.raises(ZODB.POSException.ReadOnlyError):
+            with transaction.manager:
+                bnd.rdf.add(
+                    (URIRef('http://example.org/sub'),
+                     URIRef('http://example.org/prop'),
+                     URIRef('http://example.org/obj')))
 
 
 def test_remote_handler_mixin_configured_remotes():
