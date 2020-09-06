@@ -437,7 +437,10 @@ class OWMNamespace(object):
         nm = conf['rdf.graph'].namespace_manager
         return GeneratorWithData(
                 (dict(prefix=prefix, uri=uri)
-                    for prefix, uri in nm.namespaces()))
+                    for prefix, uri in nm.namespaces()),
+                header=('Prefix', 'URI'),
+                columns=(lambda r: r['prefix'],
+                         lambda r: r['uri']))
 
 
 class _ProgressMock(object):
