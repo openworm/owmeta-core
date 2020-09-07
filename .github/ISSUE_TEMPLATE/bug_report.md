@@ -31,7 +31,7 @@ If applicable, add screenshots to help explain your problem.
  - OS Version: [e.g. 22]
 
 **owmeta-core version**
-- 0.11.3 [must be a version actually released on PyPI. For an issue with an unreleased version, talk with the developer responsible]
+- 0.12.0 [must be a version actually released on PyPI. For an issue with an unreleased version, talk with the developer responsible]
 
 **Additional context**
 [Add any other context about the problem here.]
