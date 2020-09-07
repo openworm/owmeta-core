@@ -33,6 +33,7 @@ from tempfile import TemporaryDirectory
 import uuid
 
 import rdflib
+from rdflib.term import URIRef
 
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
                            DEFAULT_OWM_DIR)
@@ -42,6 +43,7 @@ from .bundle import (BundleDependentStoreConfigBuilder, BundleDependencyManager,
 from .commands.bundle import OWMBundle
 from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
                       CLASS_REGISTRY_CONTEXT_KEY)
+from .context_common import CONTEXT_IMPORTS
 from .capability import provide
 from .capabilities import FilePathProvider
 from .datasource_loader import DataSourceDirLoader, LoadFailed
@@ -681,6 +683,24 @@ class OWMContexts(object):
         for c in ctx.imports:
             yield c.identifier
 
+    def rm_import(self, importer, imported):
+        '''
+        Remove an import statement
+
+        Parameters
+        ----------
+        importer : str
+            The importing context
+        imported : list of str
+            An imported context
+        '''
+        import transaction
+        imports_ctxid = self._parent.imports_context()
+        imports_ctx = self._parent._context(Context)(imports_ctxid).stored
+        with transaction.manager:
+            for imp in imported:
+                imports_ctx.rdf_graph().remove((URIRef(importer), CONTEXT_IMPORTS, URIRef(imp)))
+
     def bundle(self, context):
         '''
         Show the closest bundle that defines this context
@@ -1184,7 +1204,6 @@ class OWM(object):
         if not s:
             return s
         from rdflib.namespace import is_ncname
-        from rdflib.term import URIRef
         conf = self._conf()
         nm = conf['rdf.graph'].namespace_manager
         if s.startswith('<') and s.endswith('>'):
@@ -1675,7 +1694,6 @@ class OWM(object):
         repo.commit(message)
 
     def _changed_contexts_set(self):
-        from rdflib.term import URIRef
         gf_index = {URIRef(y): x for x, y in self._graphs_index()}
         gfkeys = set(gf_index.keys())
         return gfkeys

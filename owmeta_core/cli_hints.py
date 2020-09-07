@@ -94,6 +94,15 @@ CLI_HINTS = {
                 'names': ['context'],
                 'nargs': '?'
             },
+        },
+        'rm_import': {
+            (METHOD_NAMED_ARG, 'importer'): {
+                'names': ['importer'],
+            },
+            (METHOD_NAMED_ARG, 'imported'): {
+                'names': ['imported'],
+                'nargs': '*'
+            },
         }
     },
     'owmeta_core.commands.bundle.OWMBundleRemote': {

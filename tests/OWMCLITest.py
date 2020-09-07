@@ -257,3 +257,34 @@ def test_save_class_resolve_class(owm_project):
     assert owm.connect().mapper.resolve_class(
             TestDataSource.rdf_type,
             TestDataSource.definition_context) is not None
+
+
+def test_contexts_list_imports(owm_project):
+    owm = owm_project.owm()
+    ctx1_id = 'http://example.org/context#ctx1'
+    ctx2_id = 'http://example.org/context#ctx2'
+    with owm.connect() as conn:
+        with transaction.manager:
+            # Create data sources
+            ctx1 = conn(Context)(ident=ctx1_id)
+            ctx2 = conn(Context)(ident=ctx2_id)
+            ctx1.add_import(ctx2)
+            ctx1.save_imports()
+
+    assert owm_project.sh(f'owm contexts list-imports {ctx1_id}') == f'{ctx2_id}\n'
+
+
+def test_contexts_rm_import_not_listed(owm_project):
+    owm = owm_project.owm()
+    ctx1_id = 'http://example.org/context#ctx1'
+    ctx2_id = 'http://example.org/context#ctx2'
+    with owm.connect() as conn:
+        with transaction.manager:
+            # Create data sources
+            ctx1 = conn(Context)(ident=ctx1_id)
+            ctx2 = conn(Context)(ident=ctx2_id)
+            ctx1.add_import(ctx2)
+            ctx1.save_imports()
+
+    owm_project.sh(f'owm contexts rm-import {ctx1_id} {ctx2_id}')
+    assert owm_project.sh(f'owm contexts list-imports {ctx1_id}') == f''
