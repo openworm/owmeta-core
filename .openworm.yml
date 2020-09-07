@@ -1,10 +1,11 @@
 --- 
-repo: openworm/owmeta
+repo: openworm/owmeta-core
 shortDescription: "Unified, simple data access python library for data & facts about C. elegans anatomy"
-coordinator: stephen@openworm.org
+coordinator: Mark Watts (@mwatts15)
 outputs: 
-  - openworm/CElegansNeuroML
+  - openworm/c302
   - openworm/ChannelWorm
+  - openworm/owmeta
 parent:
   - openworm/OpenWorm
 children:
