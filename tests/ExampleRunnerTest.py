@@ -16,16 +16,12 @@ class ExampleRunnerTest(unittest.TestCase):
     # Currently these are all failing because we aren't reproducing the actual data that
     # a user gets when they grab the code for the first time
 
-    @classmethod
-    def setUpClass(self):
+    def setUp(self):
         self.testdir = tempfile.mkdtemp(prefix=__name__ + '.')
         shutil.copytree('examples', p(self.testdir, 'examples'), symlinks=True)
         self.startdir = os.getcwd()
-        os.chdir(p(self.testdir, 'examples'))
 
-    @classmethod
-    def tearDownClass(self):
-        os.chdir(self.startdir)
+    def tearDown(self):
         shutil.rmtree(self.testdir)
 
     def execfile(self, example_file_name):

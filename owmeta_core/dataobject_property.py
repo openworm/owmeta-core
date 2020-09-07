@@ -4,7 +4,6 @@ import itertools
 import logging
 from importlib import import_module
 
-from lazy_object_proxy import Proxy
 import rdflib as R
 from six import with_metaclass
 
@@ -156,17 +155,6 @@ class ContextualizedPropertyValue(PropertyValue):
     @property
     def context(self):
         return None
-
-
-class _ContextualizableLazyProxy(Proxy, Contextualizable):
-    """ Contextualizes its factory for execution """
-    def contextualize(self, context):
-        assert isinstance(self.__factory__, Contextualizable)
-        self.__factory__ = self.__factory__.contextualize(context)
-        return self
-
-    def __repr__(self):
-        return '{}({})'.format(FCN(type(self)), repr(self.__factory__))
 
 
 class _StatementContextRDFObjectFactory(Contextualizable):
@@ -697,13 +685,6 @@ class ExprResultObj(object):
         return f'{FCN(type(self))}({repr(self._expr)}, {repr(self.identifier)})'
 
 
-class _ContextualizingPropertySetMixin(object):
-    def set(self, v):
-        if isinstance(v, _ContextualizableLazyProxy):
-            v = v.contextualize(self.context)
-        return super(_ContextualizingPropertySetMixin, self).set(v)
-
-
 class OPResolver(object):
 
     def __init__(self, context):
@@ -735,7 +716,6 @@ class PropertyCountMixin(object):
 
 
 class ObjectProperty(InversePropertyMixin,
-                     _ContextualizingPropertySetMixin,
                      PropertyCountMixin,
                      Property):
 
@@ -805,8 +785,7 @@ class DatatypeProperty(DatatypePropertyMixin, PropertyCountMixin, Property):
                                 for x in super(DatatypeProperty, self).statements))
 
 
-class UnionProperty(_ContextualizingPropertySetMixin,
-                    InversePropertyMixin,
+class UnionProperty(InversePropertyMixin,
                     UnionPropertyMixin,
                     PropertyCountMixin,
                     Property):

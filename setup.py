@@ -41,32 +41,35 @@ setup(
         'bibtexparser~=1.1.0',
         'BTrees>=4.0.8',
         'gitpython>=2.1.1',
-        'lazy-object-proxy==1.2.1',
         'libneuroml',
-        'numpydoc>=0.7.0',
         'persistent>=4.0.8',
         'Pint',
-        'pow-store-zodb==0.0.10',
+        'pow-store-zodb>=0.0.11',
         'rdflib>=4.1.2',
         'requests',
         'six~=1.10',
         'tqdm~=4.23',
-        'termcolor==1.1.0',
+        'termcolor~=1.1.0',
         'transaction>=1.4.4',
         'wrapt~=1.11.1',
         'zc.lockfile',
-        'ZConfig==3.0.4',
-        'zdaemon==4.0.0',
         'zodb>=4.1.0',
-        'rdflib-sqlalchemy~=0.4.0',
         'pyyaml',
     ],
     extras_require={
         # SQL source support
-        'mysql_source_mysql_connector': 'mysql-connector-python',
-        'mysql_source_mysqlclient': 'mysqlclient',
-        'postgres_source_psycopg': 'psycopg2',
-        'postgres_source_pg8000': 'pg8000',
+        'mysql_source_mysql_connector': [
+            'rdflib-sqlalchemy~=0.4.0',
+            'mysql-connector-python'],
+        'mysql_source_mysqlclient': [
+            'rdflib-sqlalchemy~=0.4.0',
+            'mysqlclient'],
+        'postgres_source_psycopg': [
+            'rdflib-sqlalchemy~=0.4.0',
+            'psycopg2'],
+        'postgres_source_pg8000': [
+            'rdflib-sqlalchemy~=0.4.0',
+            'pg8000'],
         # Need 1.5.3 for host key file support
         'sftp': 'paramiko>=1.5.3'
     },
