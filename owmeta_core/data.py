@@ -5,7 +5,7 @@ import logging
 import atexit
 import hashlib
 
-from rdflib import URIRef, Graph, Namespace, Dataset, plugin
+from rdflib import URIRef, Graph, Namespace, ConjunctiveGraph, Dataset, plugin
 from rdflib.store import Store
 from rdflib.events import Event
 from rdflib.namespace import RDF, NamespaceManager
@@ -592,7 +592,7 @@ class SQLSource(RDFSource):
         registerplugins()
 
         store = plugin.get("SQLAlchemy", Store)(**self._initargs())
-        self.graph = Dataset(store, default_union=True)
+        self.graph = ConjunctiveGraph(store)
         cfg = self._openconfig()
         self.graph.open(cfg, create=True)
 
