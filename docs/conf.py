@@ -38,7 +38,7 @@ extensions = ['sphinx.ext.autodoc', 'sphinx.ext.todo', 'sphinx.ext.viewcode',
               'sphinx.ext.intersphinx', 'numpydoc']
 intersphinx_mapping = {'python': ('https://docs.python.org/3', None),
                        'rdflib': ('https://rdflib.readthedocs.io/en/stable/', None),
-                       'owmeta': ('https://pyopenworm.readthedocs.io/en/dev/', None),
+                       'owmeta': ('https://pyopenworm.readthedocs.io/en/stable/', None),
                        'paramiko': ('http://docs.paramiko.org/en/stable/', None)}
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
