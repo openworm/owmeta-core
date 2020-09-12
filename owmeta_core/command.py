@@ -1505,11 +1505,11 @@ class OWM(object):
 
         translator_obj = self._lookup_translator(translator)
         if translator_obj is None:
-            raise GenericUserError('No translator for ' + translator)
+            raise GenericUserError(f'No translator for {translator}')
 
         positional_sources = [self._lookup_source(src) for src in data_sources]
         if None in positional_sources:
-            raise GenericUserError('No source for "' + data_sources[positional_sources.index(None)] + '"')
+            raise GenericUserError(f'No source for "{data_sources[positional_sources.index(None)]}"')
         named_sources = {k: self._lookup_source(src) for k, src in
                 named_data_sources.items()}
         with self._tempdir(prefix='owm-translate.') as d:

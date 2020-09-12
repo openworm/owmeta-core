@@ -20,6 +20,7 @@ from owmeta_core.context import (DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
 from owmeta_core.context_common import CONTEXT_IMPORTS
 from owmeta_core.bittorrent import BitTorrentDataSourceDirLoader
 from owmeta_core.command_util import IVar, PropertyIVar
+from owmeta_core.datasource import DataTranslator, DataSource
 from owmeta_core.datasource_loader import LoadFailed
 from owmeta_core.cli_command_wrapper import CLICommandWrapper
 from owmeta_core.cli_common import METHOD_NAMED_ARG
@@ -558,6 +559,17 @@ class OWMTranslateTest(BaseTest):
         with self.assertRaisesRegexp(GenericUserError, re.escape(translator)):
             self.cut.translate(translator, imports_context_ident)
 
+    def test_translate_unknown_translator_object_message(self):
+        '''
+        Should exit with a message indicating the translator type
+        cannot be found in the graph
+        '''
+
+        translator = DataTranslator(ident='http://example.org/translator')
+        imports_context_ident = 'http://example.org/imports'
+        with self.assertRaisesRegexp(GenericUserError, re.escape(translator.identifier)):
+            self.cut.translate(translator, imports_context_ident)
+
     def test_translate_unknown_source_message(self):
         '''
         Should exit with a message indicating the source type cannot
@@ -569,6 +581,19 @@ class OWMTranslateTest(BaseTest):
         imports_context_ident = 'http://example.org/imports'
         self.cut._lookup_translator = lambda *args, **kwargs: Mock()
         with self.assertRaisesRegexp(GenericUserError, re.escape(source)):
+            self.cut.translate(translator, imports_context_ident, data_sources=(source,))
+
+    def test_translate_unknown_source_object_message(self):
+        '''
+        Should exit with a message indicating the source type cannot
+        be found in the graph
+        '''
+
+        translator = 'http://example.org/translator'
+        source = DataSource(ident='http://example.org/source')
+        imports_context_ident = 'http://example.org/imports'
+        self.cut._lookup_translator = lambda *args, **kwargs: Mock()
+        with self.assertRaisesRegexp(GenericUserError, re.escape(source.identifier)):
             self.cut.translate(translator, imports_context_ident, data_sources=(source,))
 
     # Test saving a translator ensures the input and output types are saved source is saved
