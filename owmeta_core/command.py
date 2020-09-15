@@ -672,7 +672,7 @@ class OWMContexts(object):
 
     def list_imports(self, context):
         '''
-        List the contexts that import the given context
+        List the contexts that the given context imports
 
         Parameters
         ----------
@@ -682,6 +682,23 @@ class OWMContexts(object):
         ctx = self._parent._make_ctx(context).stored
         for c in ctx.imports:
             yield c.identifier
+
+    def list_importers(self, context):
+        '''
+        List the contexts that import the given context
+
+        Parameters
+        ----------
+        context : str
+            The context to list importers for
+        '''
+        from .context_dataobject import ContextDataObject
+        imports_ctxid = self._parent.imports_context()
+        imports_ctx = self._parent._context(Context)(imports_ctxid).stored
+
+        g = imports_ctx.rdf_graph()
+        for t in g.triples((None, CONTEXT_IMPORTS, URIRef(context))):
+            yield t[0]
 
     def rm_import(self, importer, imported):
         '''
@@ -1606,7 +1623,7 @@ class OWM(object):
 
     default_context = _default_ctx
 
-    def _make_ctx(self, ctxid):
+    def _make_ctx(self, ctxid=None):
         return Context.contextualize(self._context)(ident=ctxid)
 
     def serialize(self, context=None, destination=None, format='nquads', include_imports=False, whole_graph=False):

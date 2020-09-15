@@ -75,6 +75,11 @@ CLI_HINTS = {
                 'names': ['context'],
             },
         },
+        'list_importers': {
+            (METHOD_NAMED_ARG, 'context'): {
+                'names': ['context'],
+            },
+        },
         'bundle': {
             (METHOD_NAMED_ARG, 'context'): {
                 'names': ['context'],
