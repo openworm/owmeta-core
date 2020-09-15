@@ -182,12 +182,24 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
     '''
     A property attached to a `~owmeta_core.dataobject.DataObject`.
     '''
+
     multiple = False
+    '''
+    If `True`, then the property will only maintain a single staged value at a time. No
+    effort is made to check how many values are stored in the RDF graph.
+    '''
+
     class_context = RDF_CONTEXT
     link = R.RDF.Property
     linkName = "property"
     cascade_retract = False
     base_namespace = R.Namespace("http://openworm.org/entities/")
+
+    lazy = True
+    '''
+    If `True`, then the property is not attached to an instance until the property is set
+    or queried.
+    '''
 
     def __init__(self, owner, **kwargs):
         super(Property, self).__init__(**kwargs)
