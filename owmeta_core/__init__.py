@@ -9,7 +9,7 @@ owmeta-core is a platform for sharing relational data over the internet.
 """
 
 from __future__ import print_function
-__version__ = '0.12.1.dev0'
+__version__ = '0.12.1'
 __author__ = 'OpenWorm.org authors and contributors'
 
 import sys
