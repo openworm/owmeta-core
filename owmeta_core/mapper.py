@@ -228,10 +228,11 @@ class Mapper(Configurable):
         for cd_l in cd.load():
             class_name = cd_l.name()
             moddo = cd_l.module()
+            modname = moddo.name()
             try:
-                mod = IM.import_module(moddo.name())
+                mod = IM.import_module(modname)
             except ModuleNotFoundError:
-                L.warn('Did not find module %s', moddo.name())
+                L.warn('Did not find module %s', modname)
                 continue
             c = getattr(mod, class_name, None)
             if c is not None:

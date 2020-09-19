@@ -1,6 +1,7 @@
 from __future__ import print_function
 from functools import partial
 import hashlib
+import importlib as IM
 import logging
 
 import rdflib as R
@@ -245,8 +246,34 @@ def _get_rdf_type_property():
 
 
 class ContextMappedClass(MappedClass, ContextualizableClass):
+    '''
+    The metaclass for a `BaseDataObject`.
+
+    Attributes
+    ----------
+    context_carries : tuple
+        When defining a specialized DataObject sub-class, you may want to define some
+        attribute on a class that is only defined if it's literally in the class body. You
+        can do this by creating a metaclass that is a sub-class of this one. However,
+        contextualizing will, by default, make a sub-class that you want to carry over to
+        the contextualized class. You can do this easily by defining `context_carries` in
+        the metaclass's class body
+    '''
+
+    context_carries = ('rdf_type',
+                       'rdf_namespace',
+                       'schema_namespace')
+
     def __init__(self, name, bases, dct):
         super(ContextMappedClass, self).__init__(name, bases, dct)
+
+        carries = set(type(self).context_carries)
+        for base in type(self).__bases__:
+            base_carries = getattr(base, 'context_carries', ())
+            carries |= set(base_carries)
+
+        self.context_carries = tuple(carries)
+
         ctx = find_class_context(self, dct, bases)
 
         if ctx is not None:
@@ -351,7 +378,8 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
         try:
             _DEFERRED_RDF_TYPE_OBJECT_INIT.append(self)
         except NameError:
-            self.init_rdf_type_object()
+            if not self._skip_rdf_type_object_declaration:
+                self.init_rdf_type_object()
 
     def contextualize_class_augment(self, context):
         '''
@@ -365,10 +393,10 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
         else:
             args['rdf_type_object'] = self.rdf_type_object
 
-        res = super(ContextMappedClass, self).contextualize_class_augment(context,
-                rdf_type=self.rdf_type,
-                rdf_namespace=self.rdf_namespace,
-                schema_namespace=self.schema_namespace, **args)
+        for cc in self.context_carries:
+            args[cc] = getattr(self, cc)
+
+        res = super(ContextMappedClass, self).contextualize_class_augment(context, **args)
         res.__module__ = self.__module__
         return res
 
@@ -548,6 +576,8 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
     base_data_namespace = R.Namespace(BASE_DATA_URL + "/")
 
     _next_variable_int = 0
+
+    _skip_rdf_type_object_declaration = False
 
     properties_are_init_args = True
     ''' If true, then properties defined in the class body can be passed as
@@ -1321,6 +1351,17 @@ class PythonClassDescription(ClassDescription):
     ''' Local name of the class (i.e., relative to the module name) '''
 
     key_properties = (name, 'module')
+
+    def resolve_module(self):
+        modname = moddo.name()
+        return IM.import_module(modname)
+
+    def resolve_class(self):
+        class_name = self.name()
+        moddo = self.module()
+        modname = moddo.name()
+        mod = IM.import_module(modname)
+        return getattr(mod, class_name, None)
 
 
 for c in _DEFERRED_RDF_TYPE_OBJECT_INIT:
