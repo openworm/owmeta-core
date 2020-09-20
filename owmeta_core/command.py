@@ -1130,8 +1130,7 @@ class OWM(object):
         else:
             return self._conf().get(IMPORTS_CONTEXT_KEY)
 
-    def init(self, update_existing_config=False, default_context_id=None,
-            imports_context_id=None):
+    def init(self, update_existing_config=False, default_context_id=None):
         """
         Makes a new graph store.
 
@@ -1151,15 +1150,12 @@ class OWM(object):
             file for the store configuration
         default_context_id : str
             URI for the default context. Required
-        imports_context_id : str
-            URI for the imports context.
         """
         try:
             reinit = exists(self.owmdir)
             self._ensure_owmdir()
             if not exists(self.config_file):
-                self._init_config_file(imports_context_id=imports_context_id,
-                        default_context_id=default_context_id)
+                self._init_config_file(default_context_id=default_context_id)
             elif update_existing_config:
                 with open(self.config_file, 'r+') as f:
                     conf = json.load(f)
@@ -1182,9 +1178,7 @@ class OWM(object):
         if exists(self.owmdir):
             shutil.rmtree(self.owmdir)
 
-    def _init_config_file(self,
-            default_context_id=None,
-            imports_context_id=None):
+    def _init_config_file(self, default_context_id=None):
         with open(self._default_config_file_name(), 'r') as f:
             default = json.load(f)
             with open(self.config_file, 'w') as of:
