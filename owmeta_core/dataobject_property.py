@@ -204,7 +204,7 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
     '''
 
     class_context = RDF_CONTEXT
-    link = R.RDF.Property
+    link = None
     linkName = "property"
     cascade_retract = False
     base_namespace = R.Namespace("http://openworm.org/entities/")

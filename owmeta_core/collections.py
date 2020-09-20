@@ -108,7 +108,7 @@ class ContainerValueConflict(Exception):
 
 
 class ContainerMembershipProperty(UnionPropertyType):
-    link = RDFS.ContainerMembershipProperty
+    link = RDFS.member
     class_context = RDFS_CONTEXT
     owner_type = BaseDataObject
 
