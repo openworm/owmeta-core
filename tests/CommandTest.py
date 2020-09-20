@@ -160,7 +160,7 @@ class OWMTest(BaseTest):
     def test_context_set_config_get(self):
         c = 'http://example.org/context'
         self._init_conf()
-        self.cut.context(c)
+        self.cut.set_default_context(c)
         self.assertEqual(self.cut.config.get(DEFAULT_CONTEXT_KEY), c)
 
     def test_config_HERE_relative(self):
@@ -204,9 +204,9 @@ class OWMTest(BaseTest):
         c = 'http://example.org/context'
         d = 'http://example.org/context_override'
         self._init_conf()
-        self.cut.context(d, user=True)
-        self.cut.context(c)
-        self.assertEqual(self.cut.context(), d)
+        self.cut.set_default_context(d, user=True)
+        self.cut.set_default_context(c)
+        self.assertEqual(self.cut.get_default_context(), d)
 
     def test_save_empty_attr_defaults(self):
         self._init_conf()
@@ -526,6 +526,11 @@ class OWMTest(BaseTest):
         trips = set(self.cut._conf()['rdf.graph'].triples((None, None, None),
                                                           context=URIRef(imports_context)))
         self.assertIn((URIRef(default_context), CONTEXT_IMPORTS, imported_context_id), trips)
+
+    def test_context_on_default_ctx(self):
+        self._init_conf({DEFAULT_CONTEXT_KEY: 'http://example.org/orig_default_ctx'})
+        self.cut.context = 'http://example.org/context_option'
+        assert URIRef('http://example.org/context_option') == self.cut._default_ctx.identifier
 
 
 class OWMTranslatorTest(unittest.TestCase):

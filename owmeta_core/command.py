@@ -888,6 +888,10 @@ class OWM(object):
     non_interactive = IVar(value_type=bool,
             doc='If this option is provided, then interactive prompts are not allowed')
 
+    context = IVar(doc='Context to use instead of the default context. Commands that'
+            ' work with other contexts (e.g., `owm contexts rm-import`) will continue'
+            ' to use those other contexts unless otherwise indicated')
+
     # N.B.: Sub-commands are created on-demand when you access the attribute,
     # hence they do not, in any way, store attributes set on them. You must
     # save the instance of the subcommand to a variable in order to make
@@ -1021,6 +1025,7 @@ class OWM(object):
         if cwd not in sys.path:
             sys.path.append(cwd)
             added_cwd = True
+
         try:
             mod = IM.import_module(module)
             provider_not_set = provider is None
@@ -1092,9 +1097,9 @@ class OWM(object):
                 getattr(dctx(ob), property)(object)
             dctx.save()
 
-    def context(self, context=None, user=False):
+    def set_default_context(self, context, user=False):
         '''
-        Read or set current target context for the repository
+        Set current default context for the repository
 
         Parameters
         ----------
@@ -1104,12 +1109,15 @@ class OWM(object):
             If set, set the context only for the current user. Has no effect for
             retrieving the context
         '''
-        if context is not None:
-            config = self.config
-            config.user = user
-            config.set(DEFAULT_CONTEXT_KEY, context)
-        else:
-            return self._conf().get(DEFAULT_CONTEXT_KEY)
+        config = self.config
+        config.user = user
+        config.set(DEFAULT_CONTEXT_KEY, context)
+
+    def get_default_context(self):
+        '''
+        Read or set current target context for the repository
+        '''
+        return self._conf().get(DEFAULT_CONTEXT_KEY)
 
     def imports_context(self, context=None, user=False):
         '''
@@ -1609,11 +1617,17 @@ class OWM(object):
 
     @property
     def _default_ctx(self):
-        conf = self._conf()
-        try:
-            return Context.contextualize(self._context)(ident=conf[DEFAULT_CONTEXT_KEY])
-        except KeyError:
-            raise ConfigMissingException(DEFAULT_CONTEXT_KEY)
+        context = None
+        if self.context:
+            context = self.context
+        else:
+            conf = self._conf()
+            try:
+                context = conf[DEFAULT_CONTEXT_KEY]
+            except KeyError:
+                raise ConfigMissingException(DEFAULT_CONTEXT_KEY)
+
+        return Context.contextualize(self._context)(ident=context)
 
     default_context = _default_ctx
 
