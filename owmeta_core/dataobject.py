@@ -266,12 +266,6 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
     def __init__(self, name, bases, dct):
         super(ContextMappedClass, self).__init__(name, bases, dct)
 
-        carries = set(type(self).context_carries)
-        for base in type(self).__bases__:
-            base_carries = getattr(base, 'context_carries', ())
-            carries |= set(base_carries)
-
-        self.context_carries = tuple(carries)
         self.rdf_type_object_deferred = dct.get('rdf_type_object_deferred', False)
 
         ctx = find_class_context(self, dct, bases)

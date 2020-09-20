@@ -268,10 +268,21 @@ class ContextualizingProxy(wrapt.ObjectProxy):
 class ContextualizableClass(type):
     ''' A super-type for contextualizable classes '''
 
+    context_carries = ()
+
     def __new__(self, name, typ, dct):
         res = super(ContextualizableClass, self).__new__(self, name, typ, dct)
         res.__contexts = WeakValueDictionary()
         return res
+
+    def __init__(self, name, bases, dct):
+        super().__init__(name, bases, dct)
+        carries = set(type(self).context_carries)
+        for base in type(self).__bases__:
+            base_carries = getattr(base, 'context_carries', ())
+            carries |= set(base_carries)
+
+        self.context_carries = tuple(carries)
 
     def __getattribute__(self, name):
         # This method is optimized to save a comparison in the common case

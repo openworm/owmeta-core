@@ -7,7 +7,7 @@ from importlib import import_module
 import rdflib as R
 from six import with_metaclass
 
-from . import RDF_CONTEXT
+from . import RDF_CONTEXT, BASE_SCHEMA_URL, BASE_DATA_URL
 from .utils import FCN
 from .data import DataUser
 from .context import Context
@@ -19,6 +19,7 @@ from .graph_object import (GraphObject,
                            GraphObjectQuerier,
                            ZeroOrMoreTQLayer)
 from .inverse_property import InversePropertyMixin
+from .mapped_class import MappedClass
 from .property_mixins import (DatatypePropertyMixin,
                               UnionPropertyMixin)
 from .property_value import PropertyValue
@@ -31,22 +32,22 @@ from .variable import Variable
 L = logging.getLogger(__name__)
 
 
-class ContextMappedPropertyClass(ContextualizableClass):
+class ContextMappedPropertyClass(MappedClass, ContextualizableClass):
 
     rdf_object_deferred = False
 
-    context_carries = ('rdf_object_deferred',)
+    context_carries = ('rdf_object_deferred', 'link', 'linkName')
 
     def __init__(self, name, bases, dct):
         super(ContextMappedPropertyClass, self).__init__(name, bases, dct)
         ctx = find_class_context(self, dct, bases)
 
-        carries = set(type(self).context_carries)
-        for base in type(self).__bases__:
-            base_carries = getattr(base, 'context_carries', ())
-            carries |= set(base_carries)
+        self.linkName = dct.get('linkName')
 
-        self.context_carries = tuple(carries)
+        self.link = dct.get('link')
+
+        if self.link is None and self.linkName is not None:
+            self.link = self.rdf_namespace[self.linkName]
 
         if 'definition_context' in dct:
             self.__definition_context = dct['definition_context']
@@ -207,7 +208,8 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
     link = None
     linkName = "property"
     cascade_retract = False
-    base_namespace = R.Namespace("http://openworm.org/entities/")
+    base_namespace = R.Namespace(BASE_SCHEMA_URL + '/')
+    base_data_namespace = R.Namespace(BASE_DATA_URL + '/')
 
     lazy = True
     '''
