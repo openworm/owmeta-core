@@ -32,9 +32,21 @@ L = logging.getLogger(__name__)
 
 
 class ContextMappedPropertyClass(ContextualizableClass):
+
+    rdf_object_deferred = False
+
+    context_carries = ('rdf_object_deferred',)
+
     def __init__(self, name, bases, dct):
         super(ContextMappedPropertyClass, self).__init__(name, bases, dct)
         ctx = find_class_context(self, dct, bases)
+
+        carries = set(type(self).context_carries)
+        for base in type(self).__bases__:
+            base_carries = getattr(base, 'context_carries', ())
+            carries |= set(base_carries)
+
+        self.context_carries = tuple(carries)
 
         if 'definition_context' in dct:
             self.__definition_context = dct['definition_context']
@@ -49,14 +61,12 @@ class ContextMappedPropertyClass(ContextualizableClass):
         self.__rdf_object = dct.get('rdf_object')
         self.__rdf_object_callback = dct.get('rdf_object_callback')
 
+        self.rdf_object_deferred = dct.get('rdf_object_deferred', False)
+
         # We have to deferr initializing our rdf_object since initialization depends on
         # RDFSSubClassOfProperty being initialized
-        try:
-            from .dataobject import _DEFERRED_RDF_TYPE_OBJECT_INIT
-        except ImportError:
+        if not self.rdf_object_deferred:
             self.init_rdf_object()
-        else:
-            _DEFERRED_RDF_TYPE_OBJECT_INIT.append(self)
 
         if not getattr(self, 'unmapped', False) and not dct.get('unmapped'):
             module = import_module(self.__module__)
@@ -91,6 +101,10 @@ class ContextMappedPropertyClass(ContextualizableClass):
             args['rdf_object_callback'] = lambda: self.rdf_object
         else:
             args['rdf_object'] = self.rdf_object
+
+        for cc in self.context_carries:
+            if hasattr(self, cc):
+                args[cc] = getattr(self, cc)
 
         res = super(ContextMappedPropertyClass, self).contextualize_class_augment(
                 context,
@@ -200,6 +214,8 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
     If `True`, then the property is not attached to an instance until the property is set
     or queried.
     '''
+
+    rdf_object_deferred = True
 
     def __init__(self, owner, **kwargs):
         super(Property, self).__init__(**kwargs)
@@ -731,6 +747,8 @@ class ObjectProperty(InversePropertyMixin,
                      PropertyCountMixin,
                      Property):
 
+    rdf_object_deferred = True
+
     def __init__(self, resolver, *args, **kwargs):
         super(ObjectProperty, self).__init__(*args, **kwargs)
         self.resolver = resolver
@@ -770,6 +788,8 @@ class ObjectProperty(InversePropertyMixin,
 
 class DatatypeProperty(DatatypePropertyMixin, PropertyCountMixin, Property):
 
+    rdf_object_deferred = True
+
     def get(self):
         r = super(DatatypeProperty, self).get()
         s = set()
@@ -801,6 +821,8 @@ class UnionProperty(InversePropertyMixin,
                     UnionPropertyMixin,
                     PropertyCountMixin,
                     Property):
+
+    rdf_object_deferred = True
 
     """ A Property that can handle either DataObjects or basic types """
     def get(self):

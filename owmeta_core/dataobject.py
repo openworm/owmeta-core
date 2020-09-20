@@ -32,10 +32,6 @@ from .rdf_query_util import (goq_hop_scorer,
                              load_terms)
 from .utils import FCN
 
-# This has to be defined before dataobject_property because they have an icky dependency
-# between them as far as rdf_type_object init.
-_DEFERRED_RDF_TYPE_OBJECT_INIT = []
-
 import owmeta_core.dataobject_property as SP
 
 __all__ = [
@@ -262,7 +258,10 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
 
     context_carries = ('rdf_type',
                        'rdf_namespace',
-                       'schema_namespace')
+                       'schema_namespace',
+                       'rdf_type_object_deferred')
+
+    rdf_type_object_deferred = False
 
     def __init__(self, name, bases, dct):
         super(ContextMappedClass, self).__init__(name, bases, dct)
@@ -273,6 +272,7 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             carries |= set(base_carries)
 
         self.context_carries = tuple(carries)
+        self.rdf_type_object_deferred = dct.get('rdf_type_object_deferred', False)
 
         ctx = find_class_context(self, dct, bases)
 
@@ -374,12 +374,8 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             self.key_property = _process_key_property(key_property)
 
         self.__query_form = None
-
-        try:
-            _DEFERRED_RDF_TYPE_OBJECT_INIT.append(self)
-        except NameError:
-            if not self._skip_rdf_type_object_declaration:
-                self.init_rdf_type_object()
+        if not self.rdf_type_object_deferred:
+            self.init_rdf_type_object()
 
     def contextualize_class_augment(self, context):
         '''
@@ -415,7 +411,14 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
                         L.warning('Subclass %s of %s declared without a distinct rdf_type', self, par)
                         continue
                     rdto.rdfs_subclassof_property.set(prdto)
+            self.augment_rdf_type_object(rdto)
             self.rdf_type_object = rdto
+
+    def augment_rdf_type_object(self, rdf_type_object):
+        '''
+        Runs after initialization of the rdf_type_object
+        '''
+        pass
 
     @property
     def query(self):
@@ -577,8 +580,6 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
 
     _next_variable_int = 0
 
-    _skip_rdf_type_object_declaration = False
-
     properties_are_init_args = True
     ''' If true, then properties defined in the class body can be passed as
         keyword arguments to __init__. For example::
@@ -597,6 +598,8 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
     key_property = None
 
     query_mode = False
+
+    rdf_type_object_deferred = True
 
     def __new__(cls, *args, **kwargs):
         # This is defined so that the __init__ method gets a contextualized
@@ -1122,6 +1125,7 @@ class RDFTypeProperty(SP.ObjectProperty):
     owner_type = BaseDataObject
     multiple = True
     lazy = False
+    rdf_object_deferred = True
 
 
 class RDFSClass(BaseDataObject):
@@ -1137,6 +1141,7 @@ class RDFSClass(BaseDataObject):
     instance = None
     defined = True
     identifier = R.RDFS["Class"]
+    rdf_type_object_deferred = True
 
     def __new__(cls, *args, **kwargs):
         if cls.instance is None:
@@ -1152,31 +1157,12 @@ class RDFSSubClassOfProperty(SP.ObjectProperty):
     owner_type = RDFSClass
     multiple = True
     lazy = False
+    rdf_object_deferred = True
 
 
 class TypeDataObject(BaseDataObject):
     class_context = URIRef(BASE_SCHEMA_URL)
-
-
-class DataObjectSingletonMeta(type(BaseDataObject)):
-    def __init__(self, name, bases, dct):
-        super().__init__(name, bases, dct)
-        self.__instance = None
-        self.__initalizing = False
-
-    @property
-    def context(self):
-        return self.definition_context
-
-    def __call__(self, **kwargs):
-        if self.__instance is None:
-            if self.__initalizing:
-                raise Exception('Unacceptable recursion in singleton initialization of'
-                                f' {self} instance')
-            self.__initalizing = True
-            self.__instance = super().__call__(**kwargs)
-            self.__initalizing = False
-        return self.__instance
+    rdf_type_object_deferred = True
 
 
 class RDFSSubPropertyOfProperty(SP.ObjectProperty):
@@ -1185,6 +1171,7 @@ class RDFSSubPropertyOfProperty(SP.ObjectProperty):
     linkName = 'rdfs_subpropertyof'
     multiple = True
     lazy = True
+    rdf_object_deferred = True
 
 
 class RDFSCommentProperty(SP.DatatypeProperty):
@@ -1197,6 +1184,7 @@ class RDFSCommentProperty(SP.DatatypeProperty):
     owner_type = BaseDataObject
     multiple = True
     lazy = True
+    rdf_object_deferred = True
 
 
 class RDFSLabelProperty(SP.DatatypeProperty):
@@ -1209,6 +1197,7 @@ class RDFSLabelProperty(SP.DatatypeProperty):
     owner_type = BaseDataObject
     multiple = True
     lazy = True
+    rdf_object_deferred = True
 
 
 class DataObject(BaseDataObject):
@@ -1218,6 +1207,13 @@ class DataObject(BaseDataObject):
     class_context = BASE_SCHEMA_URL
     rdfs_comment = CPThunk(RDFSCommentProperty)
     rdfs_label = CPThunk(RDFSLabelProperty)
+    rdf_type_object_deferred = True
+
+
+BaseDataObject.init_rdf_type_object()
+RDFSClass.init_rdf_type_object()
+TypeDataObject.init_rdf_type_object()
+DataObject.init_rdf_type_object()
 
 
 class RDFProperty(BaseDataObject):
@@ -1364,6 +1360,14 @@ class PythonClassDescription(ClassDescription):
         return getattr(mod, class_name, None)
 
 
-for c in _DEFERRED_RDF_TYPE_OBJECT_INIT:
-    c.init_rdf_type_object()
-del _DEFERRED_RDF_TYPE_OBJECT_INIT
+# Run all of the deferred RDF object initalizations
+
+SP.Property.init_rdf_object()
+SP.DatatypeProperty.init_rdf_object()
+SP.ObjectProperty.init_rdf_object()
+SP.UnionProperty.init_rdf_object()
+RDFTypeProperty.init_rdf_object()
+RDFSSubClassOfProperty.init_rdf_object()
+RDFSSubPropertyOfProperty.init_rdf_object()
+RDFSCommentProperty.init_rdf_object()
+RDFSLabelProperty.init_rdf_object()
