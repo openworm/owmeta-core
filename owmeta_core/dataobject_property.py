@@ -47,7 +47,7 @@ class ContextMappedPropertyClass(MappedClass, ContextualizableClass):
         self.link = dct.get('link')
 
         if self.link is None and self.linkName is not None:
-            self.link = self.rdf_namespace[self.linkName]
+            self.link = self.base_namespace[self.linkName]
 
         if 'definition_context' in dct:
             self.__definition_context = dct['definition_context']
@@ -423,12 +423,6 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
             if x.object.defined and x.context == self.context:
                 return x.object
         return None
-
-    @classmethod
-    def on_mapper_add_class(cls, mapper):
-        cls.rdf_type = cls.base_namespace[cls.__name__]
-        cls.rdf_namespace = R.Namespace(cls.rdf_type + "/")
-        return cls
 
     @property
     def defined_statements(self):
