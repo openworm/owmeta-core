@@ -487,12 +487,11 @@ def test_dependency_class_registry(custom_bundle):
             pytest.fail('Expected an object')
 
 
-def test_checkout(owm_project):
-    '''
-    Checking out a bundle changes the set of graphs to the chosen bundle
-    '''
-    owm_project.sh('owm bundle checkout test/main')
-    # TODO: Add an assert
+def test_owm_bundle_remote_add_and_list_in_user(shell_helper):
+    print(shell_helper.sh('owm bundle remote --user add example-remote http://example.org/remote'))
+    output = shell_helper.sh('owm bundle remote --user list')
+    assert 'example-remote' in output
+
 
 # TODO: Test for bundles with extras that aren't installed
 # TODO: Test for bundle remotes that depend on extras that aren't installed

@@ -6,7 +6,7 @@ import hashlib
 import logging
 import shutil
 from os.path import join as p, abspath, relpath, isdir, isfile
-from os import mkdir, unlink, getcwd, rename
+from os import makedirs, unlink, getcwd, rename
 from urllib.parse import urlparse
 
 import yaml
@@ -120,7 +120,7 @@ class OWMBundleRemoteAdd(_OWMBundleRemoteAddUpdate):
         remotes_dir = p(base, 'remotes')
         if not isdir(remotes_dir):
             try:
-                mkdir(remotes_dir)
+                makedirs(remotes_dir)
             except Exception:
                 L.warning('Could not crerate directory for storage of remote configurations', exc_info=True)
                 raise GenericUserError('Could not create directory for storage of remote configurations')
