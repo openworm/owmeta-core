@@ -42,7 +42,7 @@ class ContextMappedPropertyClass(MappedClass, ContextualizableClass):
         super(ContextMappedPropertyClass, self).__init__(name, bases, dct)
         ctx = find_class_context(self, dct, bases)
 
-        self.linkName = dct.get('linkName')
+        self.linkName = dct.get('link_name', dct.get('linkName'))
 
         self.link = dct.get('link')
 
