@@ -581,8 +581,24 @@ class PythonClassDescriptionResolveClassTest(_DataTest):
         pcddo.module(pmo)
         self.assertIsNone(pcddo.resolve_class())
 
+    def test_module_missing(self):
+        cname = self.__class__.__name__
+
+        pcddo = PythonClassDescription(ident=pcd)
+        pcddo.name(cname)
+        self.assertIsNone(pcddo.resolve_class())
+
     def test_module_name_missing(self):
         cname = self.__class__.__name__
+
+        pmo = PythonModule(ident=pm)
+        pcddo = PythonClassDescription(ident=pcd)
+        pcddo.module(pmo)
+        pcddo.name(cname)
+        self.assertIsNone(pcddo.resolve_class())
+
+    def test_class_not_found(self):
+        cname = 'BlahBluhBooHoo'
 
         pmo = PythonModule(ident=pm)
         pcddo = PythonClassDescription(ident=pcd)
