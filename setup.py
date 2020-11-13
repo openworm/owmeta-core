@@ -69,7 +69,9 @@ setup(
             'psycopg2'],
         'postgres_source_pg8000': [
             'rdflib-sqlalchemy~=0.4.0',
-            'pg8000'],
+
+            'pg8000<=1.16.5', # XXX: Remove once sqlalchemy 1.4.x is released
+            'sqlalchemy[postgresql_pg8000]'],
         # Need 1.5.3 for host key file support
         'sftp': 'paramiko>=1.5.3'
     },
