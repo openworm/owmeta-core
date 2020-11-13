@@ -522,6 +522,75 @@ class ClassRegistryMissingClassTest(_DataTest):
         self.assertEqual('tests.tmod.tdo.TDO', FCN(type(o[0])))
 
 
+class PythonClassDescriptionResolveClassTest(_DataTest):
+    def test_staged_nocontext(self):
+        '''
+        Test resolving a class when the relevant data are staged only in the object graph
+        '''
+        cname = self.__class__.__name__
+        mname = self.__class__.__module__
+
+        pmo = PythonModule()
+        pmo.name(mname)
+        pcddo = PythonClassDescription()
+        pcddo.name(cname)
+        pcddo.module(pmo)
+        self.assertEqual(self.__class__, pcddo.resolve_class())
+
+    def test_staged_context(self):
+        '''
+        Test resolving a class when the relevant data are staged in a context
+        '''
+        ctxid = 'http://example.org/test'
+        ctx = Context(ident=ctxid, conf=self.TestConfig)
+        cname = self.__class__.__name__
+        mname = self.__class__.__module__
+
+        pmo = ctx(PythonModule)(ident=pm)
+        pmo.name(mname)
+        pcddo = ctx(PythonClassDescription)(ident=pcd)
+        pcddo.name(cname)
+        pcddo.module(pmo)
+        pcddo1 = ctx(PythonClassDescription)(ident=pcd)
+        self.assertEqual(self.__class__, pcddo1.resolve_class())
+
+    def test_stored(self):
+        '''
+        Test resolving a class when the relevant data are "stored" in a RDFLib graph
+        '''
+        ctxid = 'http://example.org/test'
+        ctx = Context(ident=ctxid, conf=self.TestConfig)
+
+        cname = self.__class__.__name__
+        mname = self.__class__.__module__
+        trips = [(pcd, PythonClassDescription.name.link, R.Literal(cname), ctxid),
+                 (pcd, PythonClassDescription.module.link, pm, ctxid),
+                 (pm, PythonModule.name.link, R.Literal(mname), ctxid),
+                 (pm, R.RDF.type, PythonModule.rdf_type, ctxid)]
+        for t in trips:
+            ctx.rdf.add(t)
+        pcddo = ctx.stored(PythonClassDescription)(ident=pcd)
+        self.assertEqual(self.__class__, pcddo.resolve_class())
+
+    def test_class_name_missing(self):
+        mname = self.__class__.__module__
+
+        pmo = PythonModule(ident=pm)
+        pmo.name(mname)
+        pcddo = PythonClassDescription(ident=pcd)
+        pcddo.module(pmo)
+        self.assertIsNone(pcddo.resolve_class())
+
+    def test_module_name_missing(self):
+        cname = self.__class__.__name__
+
+        pmo = PythonModule(ident=pm)
+        pcddo = PythonClassDescription(ident=pcd)
+        pcddo.module(pmo)
+        pcddo.name(cname)
+        self.assertIsNone(pcddo.resolve_class())
+
+
 class KeyPropertiesTest(_DataTest):
 
     def test_defined(self):

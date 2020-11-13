@@ -14,13 +14,12 @@ from .contextualize import (Contextualizable,
                             contextualize_helper,
                             decontextualize_helper)
 from .context import ContextualizableDataUserMixin, ClassContext, Context
-from .context_mapped_class_util import find_class_context, find_base_namespace
+from .context_mapped_class_util import find_class_context
 
 from .graph_object import (GraphObject,
                            ComponentTripler,
                            GraphObjectQuerier)
 from .rdf_utils import triples_to_bgp, deserialize_rdflib_term
-from .data import DataUser
 from .identifier_mixin import IdMixin
 from .inverse_property import InverseProperty
 from .mapped_class import MappedClass
@@ -1342,14 +1341,35 @@ class PythonClassDescription(ClassDescription):
 
     key_properties = (name, 'module')
 
+    @classmethod
+    def from_class(cls, other_cls):
+        mod = PythonModule.contextualize_class(cls.context)()
+        mod.name(other_cls.__module__)
+        return cls(name=other_cls.__name__, module=mod)
+
     def resolve_module(self):
+        moddo = self.module()
         modname = moddo.name()
         return IM.import_module(modname)
 
     def resolve_class(self):
+        '''
+        Load the class described by this object
+
+        Returns
+        -------
+        type or None
+            The class or `None` if it could not be loaded
+        '''
         class_name = self.name()
+        if not class_name:
+            return None
         moddo = self.module()
+        if moddo is None:
+            return None
         modname = moddo.name()
+        if modname is None:
+            return None
         mod = IM.import_module(modname)
         return getattr(mod, class_name, None)
 

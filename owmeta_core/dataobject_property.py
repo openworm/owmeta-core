@@ -49,6 +49,9 @@ class ContextMappedPropertyClass(MappedClass, ContextualizableClass):
         if self.link is None and self.linkName is not None:
             self.link = self.base_namespace[self.linkName]
 
+        if getattr(self, 'value_type', None) is not None and getattr(self, 'value_rdf_type', None) is None:
+            self.value_rdf_type = self.value_type.rdf_type
+
         if 'definition_context' in dct:
             self.__definition_context = dct['definition_context']
         elif ctx is not None:

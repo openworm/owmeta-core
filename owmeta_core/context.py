@@ -643,7 +643,6 @@ class Context(six.with_metaclass(ContextMeta,
         return self.rdf
 
     def resolve_class(self, uri):
-        # look up the class in the registryCache
         if self.mapper is None:
             return None
         return self.mapper.resolve_class(uri, self)
