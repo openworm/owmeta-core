@@ -1115,7 +1115,7 @@ class OWM(object):
 
     def get_default_context(self):
         '''
-        Read or set current target context for the repository
+        Read the current target context for the repository
         '''
         return self._conf().get(DEFAULT_CONTEXT_KEY)
 
