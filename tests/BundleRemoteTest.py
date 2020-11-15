@@ -2,6 +2,7 @@ from io import StringIO
 from unittest.mock import patch, Mock
 
 from owmeta_core.bundle import Remote, URLConfig
+from owmeta_core.bundle.loaders import load_entry_point_loaders
 from owmeta_core.bundle.loaders.http import HTTPBundleLoader
 
 
@@ -69,6 +70,8 @@ def test_get_http_url_loaders():
     '''
     Find loaders for HTTP URLs
     '''
+
+    load_entry_point_loaders()
     r0 = Remote('remote')
     r0.add_config(URLConfig('http://example.org/bundle_remote0'))
     for l in r0.generate_loaders():

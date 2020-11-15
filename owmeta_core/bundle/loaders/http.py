@@ -5,6 +5,7 @@ from os.path import join as p
 import re
 import ssl
 from urllib.parse import quote as urlquote, urlparse
+import hashlib
 
 from ...command_util import GenericUserError
 from ...utils import FCN, getattrs
@@ -101,7 +102,7 @@ class HTTPBundleLoader(Loader):
     Loads bundles from HTTP(S) resources listed in an index file
     '''
 
-    def __init__(self, index_url, cachedir=None, **kwargs):
+    def __init__(self, index_url, cachedir=None, hash_preference=('sha224',), **kwargs):
         '''
         Parameters
         ----------
@@ -112,6 +113,9 @@ class HTTPBundleLoader(Loader):
             If provided, the index and bundle archive is cached in the given directory. If
             not provided, the index will be cached in memory and the bundle will not be
             cached.
+        hash_preference : tuple of str
+            Preference ordering of hashes to use for checking integrity of files. If none
+            match in the preference ordering, then the first one
         **kwargs
             Passed on to `.Loader`
         '''
@@ -125,6 +129,14 @@ class HTTPBundleLoader(Loader):
             raise TypeError('Expecting a string or URLConfig. Received %s' %
                     type(index_url))
 
+        if not hash_preference:
+            hash_preference = tuple(hash_preference)
+
+        for hash_name in hash_preference:
+            if hash_name not in hashlib.algorithms_available:
+                raise ValueError(f'"{hash_name}" is not available in hashlib on this system')
+
+        self.hash_preference = hash_preference
         self.cachedir = cachedir
         self._index = None
 
@@ -231,7 +243,8 @@ class HTTPBundleLoader(Loader):
 
     def load(self, bundle_id, bundle_version=None):
         '''
-        Loads a bundle by downloading an index file
+        Loads a bundle by downloading an index file, looking up the bundle location, and
+        then downloading the bundle
         '''
         import requests
         self._setup_index()
@@ -240,6 +253,7 @@ class HTTPBundleLoader(Loader):
             raise LoadFailed(bundle_id, self, 'Bundle is not in the index')
         if not isinstance(binfo, dict):
             raise LoadFailed(bundle_id, self, 'Unexpected type of bundle info in the index')
+
         if bundle_version is None:
             max_vn = 0
             for k in binfo.keys():
@@ -253,21 +267,59 @@ class HTTPBundleLoader(Loader):
             if not max_vn:
                 raise LoadFailed(bundle_id, self, 'No releases found')
             bundle_version = max_vn
-        bundle_url = binfo.get(str(bundle_version))
+
+        versioned_binfo = binfo.get(str(bundle_version))
+
+        if not versioned_binfo or not isinstance(versioned_binfo, dict):
+            raise LoadFailed(bundle_id, self, f'No bundle info for version {bundle_version}')
+
+        bundle_url = versioned_binfo.get('url')
+
         if not self._bundle_url_is_ok(bundle_url):
             raise LoadFailed(bundle_id, self, 'Did not find a valid URL for "%s" at'
                     ' version %s' % (bundle_id, bundle_version))
+
+        hashes = versioned_binfo.get('hashes')
+        if not isinstance(hashes, dict) or not hashes:
+            raise LoadFailed(bundle_id, self, f'No hash info for version {bundle_version}')
+
+        for hash_name in self.hash_preference:
+            bundle_hash = hashes.get(hash_name)
+            if bundle_hash:
+                break
+        else: # no break
+            for hash_name, bundle_hash in hashes.items():
+                if hash_name in hashlib.algorithms_available:
+                    break
+            else: # no break
+                raise LoadFailed(bundle_id, self, f'No supported hash for version {bundle_version}')
+
+        try:
+            hsh = hashlib.new(hash_name)
+        except ValueError:
+            L.warning('Hash in hashlib.algorithms_available unsupported in hashlib.new')
+            raise LoadFailed(bundle_id, self, f'Unsupported hash {hash_name} for version {bundle_version}')
+
         response = requests.get(bundle_url, stream=True)
         if self.cachedir is not None:
             bfn = urlquote(bundle_id)
             with open(p(self.cachedir, bfn), 'wb') as f:
                 for chunk in response.iter_content(chunk_size=1024):
+                    hsh.update(chunk)
                     f.write(chunk)
+            if bundle_hash != hsh.hexdigest():
+                raise LoadFailed(bundle_id, self,
+                        f'Failed to verify {hash_name} hash for version {bundle_version}')
             with open(p(self.cachedir, bfn), 'rb') as f:
                 Unarchiver().unpack(f, self.base_directory)
         else:
             bio = io.BytesIO()
-            bio.write(response.raw.read())
+            bundle_bytes = response.raw.read()
+            hsh.update(bundle_bytes)
+            if bundle_hash != hsh.hexdigest():
+                raise LoadFailed(bundle_id, self,
+                        f'Failed to verify {hash_name} hash for version {bundle_version}')
+            bio.write(bundle_bytes)
             bio.seek(0)
             Unarchiver().unpack(bio, self.base_directory)
 

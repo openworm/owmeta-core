@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import hashlib
 from unittest.mock import patch, ANY
 import re
 
@@ -121,7 +122,7 @@ def test_load_fail_no_valid_release_number():
 
 def test_load_fail_no_valid_bundle_url():
     cut = HTTPBundleLoader('index_url')
-    with successful_get({'test_bundle': {'1': 'down'}}):
+    with successful_get({'test_bundle': {'1': {'url': 'down'}}}):
         with pytest.raises(LoadFailed,
                 match=re.compile('valid url', re.I)):
             cut.load('test_bundle')
@@ -131,9 +132,12 @@ def test_load_no_cachedir():
     from io import BytesIO
     cut = HTTPBundleLoader('index_url')
     cut.base_directory = 'bdir'
-    with successful_get({'test_bundle': {'1': 'http://some_host'}}) as get, \
+    bundle_contents = b'bytes bytes bytes'
+    bundle_hash = hashlib.sha224(bundle_contents).hexdigest()
+    with successful_get({'test_bundle': {'1': {'url': 'http://some_host',
+                                               'hashes': {'sha224': bundle_hash}}}}) as get, \
             patch('owmeta_core.bundle.loaders.http.Unarchiver') as Unarchiver:
-        get().raw.read.return_value = b'bytes bytes bytes'
+        get().raw.read.return_value = bundle_contents
         cut.load('test_bundle')
         Unarchiver().unpack.assert_called_with(MatchingBytesIO(BytesIO(b'bytes bytes bytes')), 'bdir')
 
@@ -141,7 +145,10 @@ def test_load_no_cachedir():
 def test_load_cachedir(bundle_archive, tempdir):
     cut = HTTPBundleLoader('index_url', cachedir=tempdir)
     cut.base_directory = 'bdir'
-    with successful_get({'test_bundle': {'1': 'http://some_host'}}) as get, \
+    with open(bundle_archive.archive_path, 'rb') as bf:
+        bundle_hash = hashlib.sha224(bf.read()).hexdigest()
+    with successful_get({'test_bundle': {'1': {'url': 'http://some_host',
+                                               'hashes': {'sha224': bundle_hash}}}}) as get, \
             patch('owmeta_core.bundle.loaders.http.Unarchiver') as Unarchiver:
         with open(bundle_archive.archive_path, 'rb') as bf:
             get().iter_content.return_value = [bf.read()]
