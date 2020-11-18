@@ -266,8 +266,19 @@ class ContextualizingProxy(wrapt.ObjectProxy):
 
 
 class ContextualizableClass(type):
-    ''' A super-type for contextualizable classes '''
+    ''' A super-type for contextualizable classes
 
+    Attributes
+    ----------
+    context_carries : tuple of str
+        When defining a specialized contextualizable class, you may want to define some
+        attribute on the class that is only set if it's declared directly in the class
+        body (e.g., by using `property` and name mangling). However, by default,
+        contextualization creates a subclass and you may want your property to be
+        "carried" into the new context. You can achieve this by declaring
+        `context_carries` with the names of attributes that should be carried through a
+        contextualization.
+    '''
     context_carries = ()
 
     def __new__(self, name, typ, dct):
@@ -305,6 +316,11 @@ class ContextualizableClass(type):
         if context is None:
             return self
         _H = contextualize_metaclass(context, self)
+
+        for cc in self.context_carries:
+            if hasattr(self, cc):
+                kwargs[cc] = getattr(self, cc)
+
         res = _H(self.__name__, (self,), dict(class_context=context.identifier, **kwargs))
         res.__module__ = self.__module__
         return res

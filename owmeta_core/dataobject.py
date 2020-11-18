@@ -243,16 +243,6 @@ def _get_rdf_type_property():
 class ContextMappedClass(MappedClass, ContextualizableClass):
     '''
     The metaclass for a `BaseDataObject`.
-
-    Attributes
-    ----------
-    context_carries : tuple
-        When defining a specialized DataObject sub-class, you may want to define some
-        attribute on a class that is only defined if it's literally in the class body. You
-        can do this by creating a metaclass that is a sub-class of this one. However,
-        contextualizing will, by default, make a sub-class that you want to carry over to
-        the contextualized class. You can do this easily by defining `context_carries` in
-        the metaclass's class body
     '''
 
     context_carries = ('rdf_type',
@@ -381,9 +371,6 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             args['rdf_type_object_callback'] = lambda: self.rdf_type_object
         else:
             args['rdf_type_object'] = self.rdf_type_object
-
-        for cc in self.context_carries:
-            args[cc] = getattr(self, cc)
 
         res = super(ContextMappedClass, self).contextualize_class_augment(context, **args)
         res.__module__ = self.__module__

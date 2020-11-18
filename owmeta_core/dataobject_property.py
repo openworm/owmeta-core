@@ -106,10 +106,6 @@ class ContextMappedPropertyClass(MappedClass, ContextualizableClass):
         else:
             args['rdf_object'] = self.rdf_object
 
-        for cc in self.context_carries:
-            if hasattr(self, cc):
-                args[cc] = getattr(self, cc)
-
         res = super(ContextMappedPropertyClass, self).contextualize_class_augment(
                 context,
                 **args)
