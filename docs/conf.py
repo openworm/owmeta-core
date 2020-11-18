@@ -53,7 +53,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'owmeta_core'
+project = u'owmeta-core'
 copyright = u'2013-2020, OpenWorm'
 
 # For substitutions in docs

@@ -58,7 +58,7 @@ the old data.
 The two-way compatibility described above is appropriate in the context of the
 `"open world assumption"`_: the relationships an RDF type participates in are
 described by the Python class, but that description may be incomplete. We may
-make the description of a RDF type more complete by adding properties to the
+make the description of an RDF type more complete by adding properties to the
 Python class or constraining existing properties. When we add properties,
 however, we should create a new Python class rather than modifying the existing
 one: this allows for querying for data created with the earlier version of the
@@ -77,9 +77,20 @@ the old class.
 
 .. _"open world assumption": https://en.wikipedia.org/wiki/Open-world_assumption
 
+Release Notes
+-------------
+Release notes are organized, generally into three sections. 'Features and
+Enhancements' are changes to the external interface of |owm| where there wasn't
+anything that fulfilled the use case previously (features) or where the
+previous behavior was sub-optimal or just different (enhancements), but not
+wrong per se. The second section, 'Fixes', contains corrections to previous
+behavior. The third section 'Internal/Misc. Changes' contains changes that
+either don't really change |owm| itself, like changes in to project metadata,
+documentation changes, or changes to build automation. Other sections may be
+added, like 'Known Issues', which should be self-explanatory when used.
+
 Notes:
 
 .. [1] One alternative to this is returning, for each RDF instance of a type,
    ``N`` Python instances for ``N`` Python classes in the registry mapped to the
    RDF type.
-
