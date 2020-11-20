@@ -53,8 +53,14 @@ def test_cannot_load_in_index_with_releases_but_bad_url_no_version_provided():
 
 def test_can_load_in_index_with_releases_no_version_provided():
     cut = HTTPBundleLoader('index_url')
-    with successful_get({'test_bundle': {'1': 'http://some_host'}}):
+    with successful_get({'test_bundle': {'1': {'url': 'http://some_host'}}}):
         assert cut.can_load('test_bundle')
+
+
+def test_can_load_in_index_with_releases_bad_bundle_info():
+    cut = HTTPBundleLoader('index_url')
+    with successful_get({'test_bundle': {'1': 'http://some_host'}}):
+        assert not cut.can_load('test_bundle')
 
 
 def test_cannot_load_in_index_with_releases_but_no_matching_version_provided():
@@ -77,8 +83,14 @@ def test_cannot_load_not_in_index():
 
 def test_can_load_in_index_with_releases_and_matching_version_provided():
     cut = HTTPBundleLoader('index_url')
-    with successful_get({'test_bundle': {'1': 'http://some_host'}}):
+    with successful_get({'test_bundle': {'1': {'url': 'http://some_host'}}}):
         assert cut.can_load('test_bundle', 1)
+
+
+def test_can_load_index_missing_url(bundle_archive):
+    cut = HTTPBundleLoader('index_url')
+    with successful_get({'test_bundle': {'1': {'hashes': {'sha224': 'deadbeef'}}}}):
+        assert not cut.can_load('test_bundle')
 
 
 def test_bundle_versions_multiple():
@@ -125,6 +137,13 @@ def test_load_fail_no_valid_bundle_url():
     with successful_get({'test_bundle': {'1': {'url': 'down'}}}):
         with pytest.raises(LoadFailed,
                 match=re.compile('valid url', re.I)):
+            cut.load('test_bundle')
+
+
+def test_index_missing_url(bundle_archive):
+    cut = HTTPBundleLoader('index_url')
+    with successful_get({'test_bundle': {'1': {'hashes': {'sha224': 'deadbeef'}}}}):
+        with pytest.raises(LoadFailed, match=re.compile('valid.*url', re.I)):
             cut.load('test_bundle')
 
 

@@ -6,6 +6,7 @@ import re
 import ssl
 from urllib.parse import quote as urlquote, urlparse
 import hashlib
+import json
 
 from ...command_util import GenericUserError
 from ...utils import FCN, getattrs
@@ -149,7 +150,10 @@ class HTTPBundleLoader(Loader):
             response = requests.get(self.index_url)
             if response.status_code != 200:
                 raise IndexLoadFailed(response)
-            self._index = response.json()
+            try:
+                self._index = response.json()
+            except json.decoder.JSONDecodeError:
+                raise IndexLoadFailed(response)
 
     @classmethod
     def can_load_from(cls, ac):
@@ -199,19 +203,30 @@ class HTTPBundleLoader(Loader):
         binfo = self._index.get(bundle_id)
         if binfo:
             if bundle_version is None:
-                for binfo_version, binfo_url in binfo.items():
+                for binfo_version, versioned_binfo in binfo.items():
                     try:
                         int(binfo_version)
                     except ValueError:
                         L.warning("Got unexpected non-version-number key '%s' in bundle index info", binfo_version)
                         continue
+                    try:
+                        binfo_url = versioned_binfo.get('url')
+                    except AttributeError:
+                        L.warning("Got unexpected bundle info for version '%s' in bundle index info", binfo_version)
+                        continue
+
                     if self._bundle_url_is_ok(binfo_url):
                         return True
                 return False
             if not isinstance(binfo, dict):
                 return False
 
-            binfo_url = binfo.get(str(bundle_version))
+            versioned_binfo = binfo.get(str(bundle_version))
+            try:
+                binfo_url = versioned_binfo.get('url')
+            except AttributeError:
+                L.warning("Got unexpected bundle info for version '%s' in bundle index info", versioned_binfo)
+                return False
             return self._bundle_url_is_ok(binfo_url)
 
     def _bundle_url_is_ok(self, bundle_url):
