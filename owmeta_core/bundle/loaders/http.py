@@ -28,9 +28,37 @@ PROVIDER_PATH_FORMAT = r'''
 PROVIDER_PATH_RE = re.compile(PROVIDER_PATH_FORMAT, flags=re.VERBOSE)
 
 
-class HTTPSURLConfig(URLConfig):
+class HTTPURLConfig(URLConfig):
+    def __init__(self, *args, cache_dir=None, **kwargs):
+        '''
+        Parameters
+        ----------
+        *args
+            Passed on to URLConfig
+        cache_dir : str, optional
+            HTTP cache directory
+        **kwargs
+            Passed on to URLConfig
+        '''
+        super(HTTPURLConfig, self).__init__(*args, **kwargs)
+        self.cache_dir = cache_dir
+
+
+class HTTPSURLConfig(HTTPURLConfig):
     def __init__(self, *args, ssl_context_provider=None,
             ssl_context=None, **kwargs):
+        '''
+        Parameters
+        ----------
+        *args
+            Passed on to HTTPURLConfig
+        ssl_context_provider : str
+            Path to a callable that provides a `ssl.SSLContext`. See `https_remote`
+        ssl_context : ssl.SSLContext
+            The SSL/TLS context to use for connections with this accessor
+        **kwargs
+            Passed on to HTTPURLConfig
+        '''
         super(HTTPSURLConfig, self).__init__(*args, **kwargs)
         self.ssl_context_provider = ssl_context_provider
         self._ssl_context = ssl_context

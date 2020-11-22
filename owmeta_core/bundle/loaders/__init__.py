@@ -37,6 +37,10 @@ class Loader(object):
     '''
     Downloads bundles into the local index and caches them
 
+    Note that a `Loader` is transient: it will be created when needed to download *one*
+    bundle and then discarded. Any state that should be carried from request to request
+    should be attached to an `AccessorConfig`
+
     Attributes
     ----------
     base_directory : str
