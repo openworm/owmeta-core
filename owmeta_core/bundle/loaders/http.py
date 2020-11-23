@@ -1,12 +1,18 @@
 import http.client
 import io
 import logging
+import os
 from os.path import join as p
 import re
 import ssl
 from urllib.parse import quote as urlquote, urlparse
 import hashlib
 import json
+import pickle
+
+from cachecontrol import CacheControl
+from cachecontrol.caches.file_cache import FileCache
+import requests
 
 from ...command_util import GenericUserError
 from ...utils import FCN, getattrs
@@ -29,7 +35,7 @@ PROVIDER_PATH_RE = re.compile(PROVIDER_PATH_FORMAT, flags=re.VERBOSE)
 
 
 class HTTPURLConfig(URLConfig):
-    def __init__(self, *args, cache_dir=None, **kwargs):
+    def __init__(self, *args, cache_dir=None, session_file_name=None, **kwargs):
         '''
         Parameters
         ----------
@@ -37,11 +43,41 @@ class HTTPURLConfig(URLConfig):
             Passed on to URLConfig
         cache_dir : str, optional
             HTTP cache directory
+        session_file_name : str, optional
+            Session file name
         **kwargs
             Passed on to URLConfig
         '''
         super(HTTPURLConfig, self).__init__(*args, **kwargs)
         self.cache_dir = cache_dir
+        self.session_file_name = session_file_name
+        self._session = None
+
+    @property
+    def session(self):
+        if self._session is None:
+            if self.session_file_name:
+                try:
+                    with open(self.session_file_name, 'rb') as session_file:
+                        self._session = pickle.load(session_file)
+                except FileNotFoundError:
+                    pass
+
+            if self._session is None:
+                if self.cache_dir:
+                    http_cache = FileCache(self.cache_dir)
+                    self._session = CacheControl(requests.Session(), cache=http_cache)
+
+            if self._session is None:
+                self._session = requests.Session()
+
+        return self._session
+
+    def save_session(self):
+        with open(self.session_file_name + '.tmp', 'wb') as session_file:
+            self._session = pickle.load(session_file)
+            pickle.dump(self._session, session_file)
+        os.rename(self.session_file_name + '.tmp', self.session_file_name)
 
 
 class HTTPSURLConfig(HTTPURLConfig):
@@ -167,15 +203,15 @@ class HTTPBundleLoader(Loader):
 
         self.hash_preference = hash_preference
         self.cachedir = cachedir
+        self._session = getattr(index_url, 'session', None) or requests.Session()
         self._index = None
 
     def __repr__(self):
         return '{}({})'.format(FCN(type(self)), repr(self.index_url))
 
     def _setup_index(self):
-        import requests
         if self._index is None:
-            response = requests.get(self.index_url)
+            response = self._session.get(self.index_url)
             if response.status_code != 200:
                 raise IndexLoadFailed(response)
             try:
@@ -289,7 +325,6 @@ class HTTPBundleLoader(Loader):
         Loads a bundle by downloading an index file, looking up the bundle location, and
         then downloading the bundle
         '''
-        import requests
         self._setup_index()
         binfo = self._index.get(bundle_id)
         if not binfo:
@@ -343,7 +378,7 @@ class HTTPBundleLoader(Loader):
             L.warning('Hash in hashlib.algorithms_available unsupported in hashlib.new')
             raise LoadFailed(bundle_id, self, f'Unsupported hash {hash_name} for version {bundle_version}')
 
-        response = requests.get(bundle_url, stream=True)
+        response = self._session.get(bundle_url, stream=True)
         if self.cachedir is not None:
             bfn = urlquote(bundle_id)
             with open(p(self.cachedir, bfn), 'wb') as f:
@@ -422,7 +457,7 @@ class HTTPBundleUploader(Uploader):
         # conn.getresponse()
 
 
-def https_remote(self, *, ssl_context_provider=None):
+def https_remote(self, *, ssl_context_provider=None, cache_dir=None):
     '''
     Provide additional parameters for HTTPS remote accessors
 
@@ -432,6 +467,8 @@ def https_remote(self, *, ssl_context_provider=None):
         Path to a callable that provides a `ssl.SSLContext`. The format is similar to that
         for setuptools entry points: ``path.to.module:path.to.provider.callable``.
         Notably, there's no name and "extras" are not supported. optional.
+    cache_dir : str
+        File path to a cache directory
     '''
 
     if self._url_config is None:
@@ -446,6 +483,9 @@ def https_remote(self, *, ssl_context_provider=None):
             self._url_config.init_ssl_context()
     except HTTPSURLError as e:
         raise GenericUserError(str(e))
+
+    if cache_dir:
+        self._url_config.cache_dir = cache_dir
 
     return self._write_remote()
 

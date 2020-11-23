@@ -47,6 +47,7 @@ setup(
         'pow-store-zodb>=0.0.11',
         'rdflib>=4.1.2',
         'requests',
+        'cachecontrol[filecache]',
         'six~=1.10',
         'tqdm~=4.23',
         'termcolor~=1.1.0',

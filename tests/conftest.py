@@ -1,6 +1,7 @@
 from collections import namedtuple
 from contextlib import contextmanager
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+import json
 import logging
 from multiprocessing import Process, Queue
 from subprocess import check_output, CalledProcessError
@@ -44,12 +45,13 @@ class ServerData():
 
 
 @contextmanager
-def _http_server():
+def _http_server(handler_func=None):
     srvdir = tempfile.mkdtemp(prefix=__name__ + '.')
     process = None
     request_queue = Queue()
     try:
-        server = make_server(request_queue)
+        server = make_server(request_queue,
+                handler=handler_func and handler_func(request_queue))
 
         def pfunc():
             chdir(srvdir)
@@ -95,23 +97,47 @@ def http_server():
         yield server_data
 
 
-def make_server(request_queue):
-    class _Handler(SimpleHTTPRequestHandler):
-        def handle_request(self, code):
-            request_queue.put(dict(
-                method=self.command,
-                path=self.path,
-                headers={k.lower(): v for k, v in self.headers.items()}))
-            self.send_response(code)
-            self.end_headers()
+@fixture
+def http_bundle_server():
+    with open(p('tests', 'test_data', 'example_bundle.tar.xz'), 'rb') as f:
+        bundle_data = f.read()
 
-        def do_POST(self):
-            self.handle_request(201)
+    def handler(request_queue):
+        class _Handler(basic_handler(request_queue)):
+            def do_GET(self):
+                self.queue_reuqest()
+                if self.path == '/index.json':
+                    self.send_response(200)
+                    self.send_header('ETag', 'doesntmatter')
+                    self.send_header('Cache-Control', 'max-age=6000')
+                    self.end_headers()
+                    host, port = self.server.server_address
+                    index_data = json.dumps({"example/aBundle": {
+                        "23": {"url": f"http://{host}:{port}/bundle",
+                            "hashes": {"sha224": "0594501335a6566917309f98cef9e750a6004b14ec541bb1211f71b4"}}}})
+                    self.wfile.write(index_data.encode())
+                else:
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(bundle_data)
+        return _Handler
+
+    with _http_server(handler) as server_data:
+        server_data.start()
+        yield server_data
+
+
+def make_server(request_queue, handler=None):
+    if not handler:
+        class _Handler(basic_handler(request_queue)):
+            def do_POST(self):
+                self.handle_request(201)
+        handler = _Handler
 
     port = 8000
     while True:
         try:
-            server = HTTPServer(('127.0.0.1', port), _Handler)
+            server = HTTPServer(('127.0.0.1', port), handler)
             break
         except OSError as e:
             if e.errno != 98:
@@ -119,6 +145,22 @@ def make_server(request_queue):
             port += 1
 
     return server
+
+
+def basic_handler(request_queue):
+    class _Handler(SimpleHTTPRequestHandler):
+        def queue_reuqest(self):
+            request_queue.put(dict(
+                method=self.command,
+                path=self.path,
+                headers={k.lower(): v for k, v in self.headers.items()}))
+
+        def handle_request(self, code):
+            self.queue_reuqest()
+            self.send_response(code)
+            self.end_headers()
+
+    return _Handler
 
 
 def wait_for_started(server_data, max_tries=10):
