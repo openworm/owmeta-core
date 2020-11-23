@@ -1,6 +1,7 @@
 from collections import namedtuple
 from contextlib import contextmanager
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+import hashlib
 import json
 import logging
 from multiprocessing import Process, Queue
@@ -101,6 +102,7 @@ def http_server():
 def http_bundle_server():
     with open(p('tests', 'test_data', 'example_bundle.tar.xz'), 'rb') as f:
         bundle_data = f.read()
+        bundle_hash = hashlib.sha224(bundle_data).hexdigest()
 
     def handler(request_queue):
         class _Handler(basic_handler(request_queue)):
@@ -114,10 +116,12 @@ def http_bundle_server():
                     host, port = self.server.server_address
                     index_data = json.dumps({"example/aBundle": {
                         "23": {"url": f"http://{host}:{port}/bundle",
-                            "hashes": {"sha224": "0594501335a6566917309f98cef9e750a6004b14ec541bb1211f71b4"}}}})
+                            "hashes": {"sha224": bundle_hash}}}})
                     self.wfile.write(index_data.encode())
                 else:
                     self.send_response(200)
+                    self.send_header('ETag', 'whocares')
+                    self.send_header('Cache-Control', 'max-age=6000')
                     self.end_headers()
                     self.wfile.write(bundle_data)
         return _Handler
