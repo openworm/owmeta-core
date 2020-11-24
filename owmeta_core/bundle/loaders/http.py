@@ -79,6 +79,17 @@ class HTTPURLConfig(URLConfig):
             pickle.dump(self._session, session_file)
         os.rename(self.session_file_name + '.tmp', self.session_file_name)
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # We're storing the session in a separate file (if at all), so obviously we don't
+        # to persist it with the HTTPURLConfig
+        del state['_session']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._session = None
+
 
 class HTTPSURLConfig(HTTPURLConfig):
     def __init__(self, *args, ssl_context_provider=None,
@@ -139,12 +150,12 @@ class HTTPSURLConfig(HTTPURLConfig):
         return self._ssl_context
 
     def __getstate__(self):
-        state = self.__dict__.copy()
+        state = super(HTTPSURLConfig, self).__getstate__()
         del state['_ssl_context']
         return state
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        super(HTTPSURLConfig, self).__setstate__(state)
         self._ssl_context = None
 
     def __str__(self):
