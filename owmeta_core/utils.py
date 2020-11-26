@@ -3,8 +3,17 @@ Common utilities for translation, massaging data, etc., that don't fit
 elsewhere in owmeta_core
 """
 import functools
+import importlib
+import re
 
 __all__ = ['grouper', 'slice_dict']
+
+PROVIDER_PATH_FORMAT = r'''
+(?P<module>(?:\w+)(?:\.\w+)*)
+:
+(?P<provider>(?:\w+)(?:\.\w+)*)'''
+
+PROVIDER_PATH_RE = re.compile(PROVIDER_PATH_FORMAT, flags=re.VERBOSE)
 
 
 def grouper(iterable, n, fillvalue=None):
@@ -51,3 +60,38 @@ def getattrs(obj, names, default=UNSET):
         if default is UNSET:
             raise
         return default
+
+
+def provider_lookup(provider_path):
+    '''
+    Look up a "provider" specified by a string.
+
+    Path to an object that provides something. The format is similar to that for
+    setuptools entry points: ``path.to.module:path.to.provider.callable``. Notably,
+    there's no name and "extras" are not supported.
+
+    Parameters
+    ----------
+    provider_path : str
+        The path to the provider
+
+    Returns
+    -------
+    object
+        The provider
+
+    Raises
+    ------
+    ValueError
+        The `provider_path` format doesn't match the expected pattern
+    AttributeError
+        Some element in the path is missing
+    '''
+    md = PROVIDER_PATH_RE.match(provider_path)
+    if not md:
+        raise ValueError('Format of the provider path is incorrect')
+    module = md.group('module')
+    provider = md.group('provider')
+    m = importlib.import_module(module)
+    attr_chain = provider.split('.')
+    return getattrs(m, attr_chain)

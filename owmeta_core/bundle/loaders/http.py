@@ -3,7 +3,6 @@ import io
 import logging
 import os
 from os.path import join as p
-import re
 import ssl
 from urllib.parse import quote as urlquote, urlparse
 import hashlib
@@ -15,7 +14,7 @@ from cachecontrol.caches.file_cache import FileCache
 import requests
 
 from ...command_util import GenericUserError
-from ...utils import FCN, getattrs
+from ...utils import FCN, getattrs, PROVIDER_PATH_RE, provider_lookup
 
 from .. import URLConfig
 from ..archive import ensure_archive, Unarchiver
@@ -26,16 +25,13 @@ from . import LoadFailed, Loader, Uploader
 
 L = logging.getLogger(__name__)
 
-PROVIDER_PATH_FORMAT = r'''
-(?P<module>(?:\w+)(?:\.\w+)*)
-:
-(?P<provider>(?:\w+)(?:\.\w+)*)'''
-
-PROVIDER_PATH_RE = re.compile(PROVIDER_PATH_FORMAT, flags=re.VERBOSE)
-
 
 class HTTPURLConfig(URLConfig):
-    def __init__(self, *args, cache_dir=None, session_file_name=None, **kwargs):
+    def __init__(self, *args,
+            session_file_name=None,
+            cache_dir=None,
+            mem_cache=False,
+            cache_func=None, **kwargs):
         '''
         Parameters
         ----------
@@ -43,6 +39,10 @@ class HTTPURLConfig(URLConfig):
             Passed on to URLConfig
         cache_dir : str, optional
             HTTP cache directory
+        mem_cache : bool, optional
+            Whether to use an in-memory cache. Superseded by `cache_dir`
+        cache_func : callable, optional
+            Function to call to get a cache. Superseded by `cache_dir` and `mem_func`
         session_file_name : str, optional
             Session file name
         **kwargs
@@ -51,6 +51,8 @@ class HTTPURLConfig(URLConfig):
         super(HTTPURLConfig, self).__init__(*args, **kwargs)
         self.cache_dir = cache_dir
         self.session_file_name = session_file_name
+        self.cache_func = cache_func
+        self.mem_cache = bool(mem_cache)
         self._session = None
 
     @property
@@ -67,6 +69,14 @@ class HTTPURLConfig(URLConfig):
                 if self.cache_dir:
                     http_cache = FileCache(self.cache_dir)
                     self._session = CacheControl(requests.Session(), cache=http_cache)
+
+            if self._session is None:
+                if self.mem_cache:
+                    self._session = CacheControl(requests.Session())
+
+            if self._session is None:
+                if self.cache_func:
+                    self._session = CacheControl(requests.Session())
 
             if self._session is None:
                 self._session = requests.Session()
@@ -111,19 +121,11 @@ class HTTPSURLConfig(HTTPURLConfig):
         self._ssl_context = ssl_context
 
     def init_ssl_context(self):
-        import importlib as IM
         if self._ssl_context is not None:
             return
 
         if self.ssl_context_provider:
-            md = PROVIDER_PATH_RE.match(self.ssl_context_provider)
-            if not md:
-                raise HTTPSURLError('Format of the provider path is incorrect')
-            module = md.group('module')
-            provider = md.group('provider')
-            m = IM.import_module(module)
-            attr_chain = provider.split('.')
-            ssl_context_provider = self._lookup_ssl_context_provider(m, attr_chain)
+            ssl_context_provider = self._lookup_ssl_context_provider()
 
             try:
                 ssl_context = ssl_context_provider()
@@ -137,9 +139,11 @@ class HTTPSURLConfig(HTTPURLConfig):
 
             self._ssl_context = ssl_context
 
-    def _lookup_ssl_context_provider(self, m, attr_chain):
+    def _lookup_ssl_context_provider(self):
         try:
-            return getattrs(m, attr_chain)
+            return provider_lookup(self.ssl_context_provider)
+        except ValueError:
+            raise HTTPSURLError('Format of the provider path is incorrect')
         except AttributeError:
             raise HTTPSURLError(f'"{self.ssl_context_provider}" does not point to an'
                     ' SSL context provider')
@@ -468,7 +472,7 @@ class HTTPBundleUploader(Uploader):
         # conn.getresponse()
 
 
-def https_remote(self, *, ssl_context_provider=None, cache_dir=None):
+def https_remote(self, *, ssl_context_provider=None, cache=None):
     '''
     Provide additional parameters for HTTPS remote accessors
 
@@ -478,8 +482,11 @@ def https_remote(self, *, ssl_context_provider=None, cache_dir=None):
         Path to a callable that provides a `ssl.SSLContext`. The format is similar to that
         for setuptools entry points: ``path.to.module:path.to.provider.callable``.
         Notably, there's no name and "extras" are not supported. optional.
-    cache_dir : str
-        File path to a cache directory
+    cache : str
+        One of three types of value:
+        1. File path to a cache directory
+        2. The literal string "mem" for an in-memory cache
+        3. A path to a callable that provides a cache
     '''
 
     if self._url_config is None:
@@ -495,8 +502,12 @@ def https_remote(self, *, ssl_context_provider=None, cache_dir=None):
     except HTTPSURLError as e:
         raise GenericUserError(str(e))
 
-    if cache_dir:
-        self._url_config.cache_dir = cache_dir
+    if cache == 'mem':
+        self._url_config.mem_cache = True
+    elif PROVIDER_PATH_RE.match(cache):
+        self._url_config.cache_func = cache
+    else:
+        self._url_config.cache_dir = cache
 
     return self._write_remote()
 

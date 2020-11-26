@@ -200,6 +200,9 @@ class _DepList(list):
 class URLConfig(AccessorConfig):
     '''
     Configuration for accessing a remote with just a URL.
+
+    Note that URLConfigs should be pickle-able since they are written a YAML file as part
+    of the `.Remote` they're apart of.
     '''
 
     def __init__(self, url):
