@@ -1,4 +1,4 @@
-from os.path import join as p
+from os.path import join as p, isfile
 
 import pytest
 import requests
@@ -47,6 +47,7 @@ def test_mem_cache_index_etag(http_bundle_server, tempdir):
     assert len(index_requests) == 1
 
 
+@pytest.mark.inttest
 def test_session_provider(http_bundle_server, tempdir):
     '''
     Test a custom session provider. We add a header to the session since that's easy to
@@ -70,7 +71,11 @@ def session_provider():
     return sess
 
 
+@pytest.mark.inttest
 def test_session_persistence_cookies(http_bundle_server, tempdir):
+    '''
+    Test that we load cookies from a persisted session
+    '''
 
     def headers(req):
         return {'Set-Cookie': 'jamba=laya'}
@@ -99,6 +104,20 @@ def test_session_persistence_cookies(http_bundle_server, tempdir):
             continue
         headers = reqs.get()['headers']
         assert headers.get('cookie') == 'jamba=laya', f'request count {rcount}'
+
+
+@pytest.mark.owm_cli_test
+def test_expand_tilde_session_file_name(http_bundle_server, owm_project):
+    '''
+    Test setting the session_file_name with a tilde in it.
+
+    Good for sharing remotes in a project
+    '''
+    session_file_name = p("~", "sessfile")
+    owm_project.sh(f'owm bundle remote add test_remote {http_bundle_server.url}/index.json'
+            f' http --session-file-name {session_file_name}')
+    owm_project.sh('owm bundle fetch example/aBundle')
+    assert isfile(p(owm_project.test_homedir, 'sessfile'))
 
 # command tests
 # - test creating with a cache dir

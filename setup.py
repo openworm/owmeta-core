@@ -100,6 +100,8 @@ setup(
             'bundle.remote.update.sftp = owmeta_core.bundle.loaders.sftp:sftp_remote [sftp]',
             'bundle.remote.add.https = owmeta_core.bundle.loaders.http:https_remote',
             'bundle.remote.update.https = owmeta_core.bundle.loaders.http:https_remote',
+            'bundle.remote.add.http = owmeta_core.bundle.loaders.http:http_remote',
+            'bundle.remote.update.http = owmeta_core.bundle.loaders.http:http_remote',
         ],
         'owmeta_core.loaders': [
             'http_uploader = owmeta_core.bundle.loaders.http:HTTPBundleUploader',

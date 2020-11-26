@@ -2,7 +2,7 @@ import http.client
 import io
 import logging
 import os
-from os.path import join as p
+from os.path import join as p, expanduser
 import ssl
 from urllib.parse import quote as urlquote, urlparse
 import hashlib
@@ -69,7 +69,7 @@ class HTTPURLConfig(URLConfig):
         if self._session is None:
             if self.session_file_name:
                 try:
-                    with open(self.session_file_name, 'rb') as session_file:
+                    with open(expanduser(self.session_file_name), 'rb') as session_file:
                         self._session = pickle.load(session_file)
                 except FileNotFoundError:
                     pass
@@ -104,9 +104,10 @@ class HTTPURLConfig(URLConfig):
         return retrieve_provider(self.session_provider)()
 
     def save_session(self):
-        with open(self.session_file_name + '.tmp', 'wb') as session_file:
+        sfname = expanduser(self.session_file_name)
+        with open(sfname + '.tmp', 'wb') as session_file:
             pickle.dump(self._session, session_file)
-        os.rename(self.session_file_name + '.tmp', self.session_file_name)
+        os.rename(sfname + '.tmp', sfname)
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -190,6 +191,7 @@ class HTTPSURLConfig(HTTPURLConfig):
 
 
 HTTPSURLConfig.register('https')
+HTTPURLConfig.register('http')
 
 
 class HTTPSURLError(Exception):
@@ -282,7 +284,7 @@ class HTTPBundleLoader(Loader):
             self._url_config.save_session()
             print("session saved!")
         except Exception:
-            L.warning('Error while attempting to save session')
+            L.warning('Error while attempting to save session', exc_info=True)
 
     def can_load(self, bundle_id, bundle_version=None):
         '''
@@ -515,6 +517,33 @@ class HTTPBundleUploader(Uploader):
         # conn.getresponse()
 
 
+def http_remote(self, *, cache=None, session_provider=None, session_file_name=None):
+    '''
+    Provide additional parameters for HTTP remote accessors
+
+    Parameters
+    ----------
+    cache : str
+        Either the string "mem" or a file path to a cache directory
+    session_provider : str
+        Path to a callable that provides a `requests.Session`. The format is similar to
+        that for setuptools entry points: ``path.to.module:path.to.provider.callable``.
+        Notably, there's no name and "extras" are not supported. optional.
+    session_file_name : str
+        Path to a file where the HTTP session can be stored
+    '''
+
+    if self._url_config is None:
+        raise GenericUserError('An HTTP URL must be specified for HTTP accessors')
+
+    if not isinstance(self._url_config, HTTPURLConfig):
+        raise GenericUserError(f'The specified URL, {self._url_config} is not an HTTP URL')
+
+    _http_urlconfig_command_helper(self, cache, session_provider, session_file_name)
+
+    return self._write_remote()
+
+
 def https_remote(self, *, ssl_context_provider=None, cache=None, session_provider=None,
         session_file_name=None):
     '''
@@ -527,10 +556,7 @@ def https_remote(self, *, ssl_context_provider=None, cache=None, session_provide
         for setuptools entry points: ``path.to.module:path.to.provider.callable``.
         Notably, there's no name and "extras" are not supported. optional.
     cache : str
-        One of two types of value:
-
-        1. File path to a cache directory
-        2. The literal string "mem" for an in-memory cache
+        Either the string "mem" or a file path to a cache directory
     session_provider : str
         Path to a callable that provides a `requests.Session`. The format is similar to
         that for setuptools entry points: ``path.to.module:path.to.provider.callable``.
@@ -552,6 +578,12 @@ def https_remote(self, *, ssl_context_provider=None, cache=None, session_provide
     except HTTPSURLError as e:
         raise GenericUserError(str(e))
 
+    _http_urlconfig_command_helper(self, cache, session_provider, session_file_name)
+
+    return self._write_remote()
+
+
+def _http_urlconfig_command_helper(self, cache, session_provider, session_file_name):
     if cache == 'mem':
         self._url_config.mem_cache = True
     else:
@@ -565,8 +597,6 @@ def https_remote(self, *, ssl_context_provider=None, cache=None, session_provide
 
     # Initialize a session to make sure the configs work.
     self._url_config._make_new_session()
-
-    return self._write_remote()
 
 
 class IndexLoadFailed(Exception):
