@@ -14,7 +14,7 @@ from cachecontrol.caches.file_cache import FileCache
 import requests
 
 from ...command_util import GenericUserError
-from ...utils import FCN, getattrs, PROVIDER_PATH_RE, provider_lookup
+from ...utils import FCN, retrieve_provider
 
 from .. import URLConfig
 from ..archive import ensure_archive, Unarchiver
@@ -29,34 +29,43 @@ L = logging.getLogger(__name__)
 class HTTPURLConfig(URLConfig):
     def __init__(self, *args,
             session_file_name=None,
+            session_provider=None,
             cache_dir=None,
             mem_cache=False,
-            cache_func=None, **kwargs):
+            **kwargs):
         '''
         Parameters
         ----------
         *args
             Passed on to URLConfig
-        cache_dir : str, optional
-            HTTP cache directory
-        mem_cache : bool, optional
-            Whether to use an in-memory cache. Superseded by `cache_dir`
-        cache_func : callable, optional
-            Function to call to get a cache. Superseded by `cache_dir` and `mem_func`
         session_file_name : str, optional
             Session file name
+        session_provider : str, optional
+            Provider path for a callable that returns a session
+        cache_dir : str, optional
+            HTTP cache directory. Supersedes `mem_cache`
+        mem_cache : bool, optional
+            Whether to use an in-memory cache. Superseded by `cache_dir`
         **kwargs
             Passed on to URLConfig
         '''
         super(HTTPURLConfig, self).__init__(*args, **kwargs)
         self.cache_dir = cache_dir
         self.session_file_name = session_file_name
-        self.cache_func = cache_func
+        self.session_provider = session_provider
         self.mem_cache = bool(mem_cache)
         self._session = None
 
     @property
     def session(self):
+        '''
+        A `requests.Session`
+
+        This will be loaded from `.session_file_name` if a value is set for that.
+        Otherwise, the session will either be obtained from the `.session_provider` or a
+        default session will be created; in either case, any response caching
+        configuration will be applied.
+        '''
         if self._session is None:
             if self.session_file_name:
                 try:
@@ -66,26 +75,36 @@ class HTTPURLConfig(URLConfig):
                     pass
 
             if self._session is None:
-                if self.cache_dir:
-                    http_cache = FileCache(self.cache_dir)
-                    self._session = CacheControl(requests.Session(), cache=http_cache)
-
-            if self._session is None:
-                if self.mem_cache:
-                    self._session = CacheControl(requests.Session())
-
-            if self._session is None:
-                if self.cache_func:
-                    self._session = CacheControl(requests.Session())
-
-            if self._session is None:
-                self._session = requests.Session()
+                self.init_session()
 
         return self._session
 
+    def init_session(self):
+        '''
+        Initialize the HTTP session. Typically you won't call this, but will just access
+        `.session`
+        '''
+        self._session = self._make_new_session()
+
+    def _make_new_session(self):
+        if self.session_provider:
+            session = self._provide_session()
+        else:
+            session = requests.Session()
+
+        if self.cache_dir:
+            http_cache = FileCache(self.cache_dir)
+            return CacheControl(session, cache=http_cache)
+        elif self.mem_cache:
+            return CacheControl(session)
+        else:
+            return session
+
+    def _provide_session(self):
+        return retrieve_provider(self.session_provider)()
+
     def save_session(self):
         with open(self.session_file_name + '.tmp', 'wb') as session_file:
-            self._session = pickle.load(session_file)
             pickle.dump(self._session, session_file)
         os.rename(self.session_file_name + '.tmp', self.session_file_name)
 
@@ -141,7 +160,7 @@ class HTTPSURLConfig(HTTPURLConfig):
 
     def _lookup_ssl_context_provider(self):
         try:
-            return provider_lookup(self.ssl_context_provider)
+            return retrieve_provider(self.ssl_context_provider)
         except ValueError:
             raise HTTPSURLError('Format of the provider path is incorrect')
         except AttributeError:
@@ -186,7 +205,7 @@ class HTTPBundleLoader(Loader):
         '''
         Parameters
         ----------
-        index_url : str or URLConfig
+        index_url : str or owmeta_core.bundle.URLConfig
             URL for the index file pointing to the bundle archives
         cachedir : str, optional
             Directory where the index and any downloaded bundle archive should be cached.
@@ -203,8 +222,13 @@ class HTTPBundleLoader(Loader):
 
         if isinstance(index_url, str):
             self.index_url = index_url
+            self._url_config = None
+        elif isinstance(index_url, HTTPURLConfig):
+            self.index_url = index_url.url
+            self._url_config = index_url
         elif isinstance(index_url, URLConfig):
             self.index_url = index_url.url
+            self._url_config = None
         else:
             raise TypeError('Expecting a string or URLConfig. Received %s' %
                     type(index_url))
@@ -248,6 +272,18 @@ class HTTPBundleLoader(Loader):
                 (ac.url.startswith('https://') or
                     ac.url.startswith('http://')))
 
+    def _save_session(self):
+        print("saving session...")
+        if not self._url_config:
+            print("no url config. not saving session")
+            return
+
+        try:
+            self._url_config.save_session()
+            print("session saved!")
+        except Exception:
+            L.warning('Error while attempting to save session')
+
     def can_load(self, bundle_id, bundle_version=None):
         '''
         Check the index for an entry for the bundle.
@@ -275,6 +311,7 @@ class HTTPBundleLoader(Loader):
         '''
         try:
             self._setup_index()
+            self._save_session()
         except IndexLoadFailed:
             L.warn('Failed to set up the index for %s', self,
                 exc_info=L.isEnabledFor(logging.DEBUG))
@@ -336,6 +373,12 @@ class HTTPBundleLoader(Loader):
         return res
 
     def load(self, bundle_id, bundle_version=None):
+        try:
+            return self._load(bundle_id, bundle_version)
+        finally:
+            self._save_session()
+
+    def _load(self, bundle_id, bundle_version=None):
         '''
         Loads a bundle by downloading an index file, looking up the bundle location, and
         then downloading the bundle
@@ -472,7 +515,8 @@ class HTTPBundleUploader(Uploader):
         # conn.getresponse()
 
 
-def https_remote(self, *, ssl_context_provider=None, cache=None):
+def https_remote(self, *, ssl_context_provider=None, cache=None, session_provider=None,
+        session_file_name=None):
     '''
     Provide additional parameters for HTTPS remote accessors
 
@@ -483,10 +527,16 @@ def https_remote(self, *, ssl_context_provider=None, cache=None):
         for setuptools entry points: ``path.to.module:path.to.provider.callable``.
         Notably, there's no name and "extras" are not supported. optional.
     cache : str
-        One of three types of value:
+        One of two types of value:
+
         1. File path to a cache directory
         2. The literal string "mem" for an in-memory cache
-        3. A path to a callable that provides a cache
+    session_provider : str
+        Path to a callable that provides a `requests.Session`. The format is similar to
+        that for setuptools entry points: ``path.to.module:path.to.provider.callable``.
+        Notably, there's no name and "extras" are not supported. optional.
+    session_file_name : str
+        Path to a file where the HTTP session can be stored
     '''
 
     if self._url_config is None:
@@ -504,10 +554,17 @@ def https_remote(self, *, ssl_context_provider=None, cache=None):
 
     if cache == 'mem':
         self._url_config.mem_cache = True
-    elif PROVIDER_PATH_RE.match(cache):
-        self._url_config.cache_func = cache
     else:
         self._url_config.cache_dir = cache
+
+    if session_file_name:
+        self._url_config.session_file_name = session_file_name
+
+    if session_provider:
+        self._url_config.session_provider = session_provider
+
+    # Initialize a session to make sure the configs work.
+    self._url_config._make_new_session()
 
     return self._write_remote()
 

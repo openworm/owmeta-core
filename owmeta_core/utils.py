@@ -62,7 +62,7 @@ def getattrs(obj, names, default=UNSET):
         return default
 
 
-def provider_lookup(provider_path):
+def retrieve_provider(provider_path):
     '''
     Look up a "provider" specified by a string.
 

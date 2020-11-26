@@ -201,8 +201,8 @@ class URLConfig(AccessorConfig):
     '''
     Configuration for accessing a remote with just a URL.
 
-    Note that URLConfigs should be pickle-able since they are written a YAML file as part
-    of the `.Remote` they're apart of.
+    Note that URLConfigs should be pickle-able since they are written to a YAML file as
+    part of the `.Remote` they're apart of.
     '''
 
     def __init__(self, url):
@@ -1153,15 +1153,15 @@ class Cache(object):
 
 def retrieve_remotes(remotes_dir, load_entry_points=True):
     '''
-    Retrieve remotes from a owmeta_core project directory
+    Retrieve remotes from a project directory or user remotes directory
 
     Parameters
     ----------
     owmdir : str
         path to the project directory
     load_entry_points : bool, optional
-        if `True`, then the entry points for `Loader` and `Uploader` implementations that
-        have been added as entry points
+        if `True`, then the entry points for `~.loaders.Loader` and `~.loaders.Uploader`
+        implementations that have been added as entry points
     '''
     if not exists(remotes_dir):
         return

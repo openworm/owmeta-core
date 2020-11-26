@@ -34,11 +34,14 @@ def tempdir():
         yield td
 
 
-class ServerData():
-    def __init__(self, server, request_queue):
-        self.server = server
+class ServerData:
+    def __init__(self, request_queue):
+        self.server = None
         self.requests = request_queue
         self.scheme = 'http'
+
+    def headers(self, handler):
+        return {}
 
     @property
     def url(self):
@@ -47,12 +50,20 @@ class ServerData():
 
 @contextmanager
 def _http_server(handler_func=None):
+    '''
+    Creates an http server.
+
+    Some behaviors can be affected by changing the server data. The server must be
+    restarted in that case. The requests queue is not cleared on a restart
+    '''
     srvdir = tempfile.mkdtemp(prefix=__name__ + '.')
     process = None
     request_queue = Queue()
     try:
-        server = make_server(request_queue,
-                handler=handler_func and handler_func(request_queue))
+        server_data = ServerData(request_queue)
+        server = make_server(server_data,
+                handler=handler_func and handler_func(server_data))
+        server_data.server = server
 
         def pfunc():
             chdir(srvdir)
@@ -60,13 +71,21 @@ def _http_server(handler_func=None):
 
         process = Process(target=pfunc)
 
-        server_data = ServerData(server, request_queue)
-
         def start():
             process.start()
             wait_for_started(server_data)
 
+        def restart():
+            nonlocal process
+            if process:
+                process.terminate()
+                process.join()
+            process = Process(target=pfunc)
+            process.start()
+            wait_for_started(server_data)
+
         server_data.start = start
+        server_data.restart = restart
         yield server_data
     finally:
         if process:
@@ -104,8 +123,8 @@ def http_bundle_server():
         bundle_data = f.read()
         bundle_hash = hashlib.sha224(bundle_data).hexdigest()
 
-    def handler(request_queue):
-        class _Handler(basic_handler(request_queue)):
+    def handler(server_data):
+        class _Handler(basic_handler(server_data)):
             def do_GET(self):
                 self.queue_reuqest()
                 if self.path == '/index.json':
@@ -131,9 +150,9 @@ def http_bundle_server():
         yield server_data
 
 
-def make_server(request_queue, handler=None):
+def make_server(server_data, handler=None):
     if not handler:
-        class _Handler(basic_handler(request_queue)):
+        class _Handler(basic_handler(server_data)):
             def do_POST(self):
                 self.handle_request(201)
         handler = _Handler
@@ -151,13 +170,18 @@ def make_server(request_queue, handler=None):
     return server
 
 
-def basic_handler(request_queue):
+def basic_handler(server_data):
     class _Handler(SimpleHTTPRequestHandler):
         def queue_reuqest(self):
-            request_queue.put(dict(
+            server_data.requests.put(dict(
                 method=self.command,
                 path=self.path,
                 headers={k.lower(): v for k, v in self.headers.items()}))
+
+        def end_headers(self):
+            for header, value in server_data.headers(self).items():
+                self.send_header(header, value)
+            super().end_headers()
 
         def handle_request(self, code):
             self.queue_reuqest()
