@@ -3,6 +3,7 @@ from os.path import join as p, exists
 from os import makedirs
 import shutil
 import subprocess
+from subprocess import CalledProcessError
 import tarfile
 
 import pytest
@@ -120,7 +121,7 @@ def test_non_interactive_install_fail_when_target_directory_not_empty(owm_projec
     open(marker, 'w').close()
 
     # Attempt another install. Should fail
-    with pytest.raises(subprocess.CalledProcessError):
+    with pytest.raises(CalledProcessError):
         owm_project.sh('owm -b bundle install abundle')
     assert exists(marker)
 
@@ -491,6 +492,20 @@ def test_owm_bundle_remote_add_and_list_in_user(shell_helper):
     print(shell_helper.sh('owm bundle remote --user add example-remote http://example.org/remote'))
     output = shell_helper.sh('owm bundle remote --user list')
     assert 'example-remote' in output
+
+
+def test_owm_bundle_update_nonexistent_remote_error(shell_helper):
+    with pytest.raises(CalledProcessError):
+        print(shell_helper.sh('owm bundle remote --user update example-remote http://example.org/remote'))
+
+
+def test_owm_bundle_update_nonexistent_remote_message(shell_helper):
+    try:
+        print(shell_helper.sh('owm bundle remote --user update example-remote http://example.org/remote',
+            stderr=subprocess.STDOUT))
+        assert False, "Should have raised CalledProcessError"
+    except CalledProcessError as e:
+        assertRegexpMatches(e.output.decode('UTF-8'), r'no remote named "example-remote"')
 
 
 # TODO: Test for bundles with extras that aren't installed

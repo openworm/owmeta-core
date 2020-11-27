@@ -150,6 +150,8 @@ class OWMBundleRemoteUpdate(_OWMBundleRemoteAddUpdate):
             will be updated according to parameters specified in sub-commands
         '''
         self._read_remote(name)
+        if not self._remote:
+            raise GenericUserError(f'There is no remote named "{name}"')
         for ac in self._remote.accessor_configs:
             if isinstance(ac, URLConfig) and ac.url == url:
                 self._url_config = ac

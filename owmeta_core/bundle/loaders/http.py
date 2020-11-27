@@ -27,6 +27,10 @@ L = logging.getLogger(__name__)
 
 
 class HTTPURLConfig(URLConfig):
+    '''
+    HTTP URL configuration
+    '''
+
     def __init__(self, *args,
             session_file_name=None,
             session_provider=None,
@@ -122,6 +126,10 @@ class HTTPURLConfig(URLConfig):
 
 
 class HTTPSURLConfig(HTTPURLConfig):
+    '''
+    HTTPS URL configuration
+    '''
+
     def __init__(self, *args, ssl_context_provider=None,
             ssl_context=None, **kwargs):
         '''
@@ -132,7 +140,7 @@ class HTTPSURLConfig(HTTPURLConfig):
         ssl_context_provider : str
             Path to a callable that provides a `ssl.SSLContext`. See `https_remote`
         ssl_context : ssl.SSLContext
-            The SSL/TLS context to use for connections with this accessor
+            The SSL/TLS context to use for uploading with this accessor
         **kwargs
             Passed on to HTTPURLConfig
         '''
@@ -275,14 +283,11 @@ class HTTPBundleLoader(Loader):
                     ac.url.startswith('http://')))
 
     def _save_session(self):
-        print("saving session...")
         if not self._url_config:
-            print("no url config. not saving session")
             return
 
         try:
             self._url_config.save_session()
-            print("session saved!")
         except Exception:
             L.warning('Error while attempting to save session', exc_info=True)
 
@@ -463,6 +468,10 @@ class HTTPBundleLoader(Loader):
 
 
 class HTTPBundleUploader(Uploader):
+    '''
+    Uploads bundles by sending bundle archives in HTTP POST requests
+    '''
+
     def __init__(self, upload_url, ssl_context=None):
         '''
         Parameters
@@ -552,9 +561,10 @@ def https_remote(self, *, ssl_context_provider=None, cache=None, session_provide
     Parameters
     ----------
     ssl_context_provider : str
-        Path to a callable that provides a `ssl.SSLContext`. The format is similar to that
-        for setuptools entry points: ``path.to.module:path.to.provider.callable``.
-        Notably, there's no name and "extras" are not supported. optional.
+        Path to a callable that provides a `ssl.SSLContext` used for bundle uploads. The
+        format is similar to that for setuptools entry points:
+        ``path.to.module:path.to.provider.callable``.  Notably, there's no name and
+        "extras" are not supported. optional.
     cache : str
         Either the string "mem" or a file path to a cache directory
     session_provider : str
