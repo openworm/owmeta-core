@@ -287,4 +287,4 @@ def test_contexts_rm_import_not_listed(owm_project):
             ctx1.save_imports()
 
     owm_project.sh(f'owm contexts rm-import {ctx1_id} {ctx2_id}')
-    assert owm_project.sh(f'owm contexts list-imports {ctx1_id}') == f''
+    assert owm_project.sh(f'owm contexts list-imports {ctx1_id}') == ''

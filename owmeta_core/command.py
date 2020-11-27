@@ -1179,7 +1179,8 @@ class OWM(object):
             else:
                 self.message('Initialized owmeta-core project at %s' % abspath(self.owmdir))
         except BaseException:
-            self._ensure_no_owmdir()
+            if not reinit:
+                self._ensure_no_owmdir()
             raise
 
     def _ensure_no_owmdir(self):

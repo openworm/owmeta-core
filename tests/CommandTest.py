@@ -91,27 +91,48 @@ class OWMTest(BaseTest):
         ''' If we fail on init, there shouldn't be a .owm leftover '''
         self.cut.repository_provider = Mock()
 
-        def failed_init(*args, **kwargs): raise _TestException('Oh noes!')
+        def failed_init(*args, **kwargs):
+            raise _TestException('Oh noes!')
+
         self.cut.repository_provider.init.side_effect = failed_init
         try:
             self.cut.init(default_context_id='http://example.org/')
             self.fail("Should have failed init")
         except _TestException:
             pass
-        self.assertFalse(exists(self.cut.owmdir), msg='owmdir does not exist')
+        self.assertFalse(exists(self.cut.owmdir), msg='owmdir should does exist')
+
+    def test_reinit_fail_no_cleanup(self):
+        ''' Test that we don't delete an existing .owm if we fail during init '''
+        self.cut.repository_provider = Mock()
+
+        self.cut.init(default_context_id='http://example.org/')
+
+        def failed_init(*args, **kwargs):
+            raise _TestException('Oh noes!')
+
+        self.cut.repository_provider.init.side_effect = failed_init
+        try:
+            self.cut.init(default_context_id='http://example.org/')
+            self.fail("Should have failed init")
+        except _TestException:
+            pass
+        self.assertTrue(exists(self.cut.owmdir), msg='owmdir should exist')
 
     def test_clone_fail_cleanup(self):
         ''' If we fail on clone, there shouldn't be a .owm leftover '''
         self.cut.repository_provider = Mock()
 
-        def failed_clone(*args, **kwargs): raise _TestException('Oh noes!')
+        def failed_clone(*args, **kwargs):
+            raise _TestException('Oh noes!')
+
         self.cut.repository_provider.clone.side_effect = failed_clone
         try:
             self.cut.clone('ignored')
             self.fail("Should have failed clone")
         except _TestException:
             pass
-        self.assertFalse(exists(self.cut.owmdir), msg='owmdir does not exist')
+        self.assertFalse(exists(self.cut.owmdir), msg='owmdir should not exist')
 
     def test_fetch_graph_with_accessor_success(self):
         m = Mock()
