@@ -5,7 +5,6 @@ from collections import OrderedDict, defaultdict
 import logging
 
 from rdflib.term import URIRef
-from rdflib.namespace import Namespace
 import six
 
 from . import BASE_CONTEXT
@@ -34,17 +33,67 @@ class FormatUtil(object):
 
 
 class Informational(object):
+    '''
+    Defines a property on a `.DataSource`
+
+    Attributes
+    ----------
+    name : str
+        The name for the property
+    description : str
+        A description of the property
+    also : tuple of Informational or list of Informational
+        Other properties which, if set, set the value for this property. If multiple such
+        "also" properties are set when the owning `DataSource` instance is defined, then
+        a `DuplicateAlsoException` will be raised.
+    default_override : object
+        An override for the default value, typically set by setting the value in a
+        `.DataSource` class dictionary. Importantly, this overrides an "also" value which
+        would normally take precedence.
+    default_value : object
+        Default value if no other value is set
+    multiple : boolean
+        If `True`, then the property can take on multiple values for the same subject
+    cls : type
+        The `~owmeta_core.property.Property` corresponding to this property
+    '''
+
     def __init__(self, name=None, display_name=None, description=None,
-                 value=None, default_value=None, identifier=None,
-                 property_type='DatatypeProperty', multiple=True,
-                 property_name=None, also=(), **property_args):
+                 default_value=None, property_type='DatatypeProperty',
+                 multiple=True, property_name=None, also=(), **property_args):
+        '''
+        Parameters
+        ----------
+        name : str, optional
+            Name for the property. If not provided here, then the name generally gets set
+            to the name to which this object is assigned
+        display_name : str, optional
+            Display name for the property. If not provided here, then the `name` will be
+            used for the display name
+        description : str, optional
+            A description of the property
+        default_value : object, optional
+            Value to use
+        property_type : 'DatatypeProperty', 'ObjectProperty', or 'UnionProperty'
+            The type of `~owmeta_core.property.Property` to create from this object.
+            Default is 'DatatypeProperty'
+        multiple : boolean, optional
+            Whether this property can have multiple values for the same object. Default is
+            `True`
+        property_name : str, optional
+            The name of the property to use for attributes. `name` will be used if a value
+            is not provided here
+        also : Informational, tuple of Informational, or list of Informational; optional
+            Other properties which, if set, will give their value to this property as well
+        **property_args
+            Additional arguments which will be passed into the class dictionary when the
+            `~owmeta_core.property.Property` corresponding to this object is created.
+        '''
         self.name = name
         self._property_name = property_name
         self._display_name = display_name
         self.default_value = default_value
         self.description = description
-        self._value = value
-        self.identifier = identifier
         self.property_type = property_type
         self.multiple = multiple
         if also and not isinstance(also, (list, tuple)):
@@ -53,10 +102,6 @@ class Informational(object):
         self.property_args = property_args
 
         self.default_override = None
-        """
-        An override for the default value, typically set by setting the value
-        in a DataSource class dictionary
-        """
 
         self.cls = None
 
@@ -68,6 +113,9 @@ class Informational(object):
 
     @property
     def display_name(self):
+        '''
+        The display name for the property.
+        '''
         return self._display_name if self._display_name is not None else self.name
 
     @display_name.setter
@@ -76,13 +124,19 @@ class Informational(object):
 
     @property
     def property_name(self):
-        return self.name if self._property_name is None else self._property_name
+        '''
+        The name of the property to use for attributes
+        '''
+        return self._property_name if self._property_name is not None else self.name
 
     @property_name.setter
     def property_name(self, v):
         self._property_name = v
 
     def copy(self):
+        '''
+        Copy to a new `Informational`
+        '''
         res = type(self)()
         for x in vars(self):
             setattr(res, x, getattr(self, x))
@@ -110,11 +164,11 @@ class DuplicateAlsoException(Exception):
 
 
 class DataSourceType(type(DataObject)):
-
     """A type for DataSources
 
     Sets up the graph with things needed for MappedClasses
     """
+
     def __init__(self, name, bases, dct):
         self.__info_fields = []
         others = []
@@ -138,7 +192,7 @@ class DataSourceType(type(DataObject)):
                     meta.name = z
                     self.__info_fields.append(meta)
 
-                    # Make the OWM property
+                    # Make the owmeta_core property
                     #
                     # We set the name for the property to the inf.name since that's how we
                     # access the info on this object, but the inf.property_name is used for
@@ -214,13 +268,11 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
 
     source = Informational(display_name='Input source',
                            description='The data source that was translated into this one',
-                           identifier=URIRef('http://openworm.org/schema/DataSource/source'),
                            property_type='ObjectProperty',
                            value_type=This)
 
     translation = Informational(display_name='Translation',
                                 description='Information about the translation process that created this object',
-                                identifier=URIRef('http://openworm.org/schema/DataSource/translation'),
                                 property_type='ObjectProperty',
                                 cascade_retract=True)
 
@@ -485,8 +537,8 @@ class BaseDataTranslator(six.with_metaclass(DataTransatorType, DataObject)):
 
 class OneOrMore(object):
     """
-    Wrapper for :class:`DataTranslator` input :class:`DataSource` types indicating that one or more of the wrapped type
-    must be provided to the translator
+    Wrapper for :class:`DataTranslator` input :class:`DataSource` types indicating that
+    one or more of the wrapped type must be provided to the translator
     """
     def __init__(self, source_type):
         self.source_type = source_type
@@ -520,7 +572,7 @@ class PersonDataTranslator(BaseDataTranslator):
 
     class_context = BASE_CONTEXT
 
-    person = ObjectProperty(multiple=True)
-    ''' A person responsible for carrying out the translation. '''
+    person = ObjectProperty(multiple=True,
+            __doc__='A person responsible for carrying out the translation.')
 
     # No translate impl is provided here since this is intended purely as a descriptive object

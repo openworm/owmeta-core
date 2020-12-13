@@ -60,6 +60,8 @@ class PropertyProperty(Contextualizable, property):
         self._cls = cls
         self._cls_thunk = cls_thunk
         self._super_init_args = args
+        if cls and cls.__doc__:
+            self.__doc__ = cls.__doc__
 
     def contextualize_augment(self, context):
         if self._cls is None:
@@ -248,7 +250,8 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
     context_carries = ('rdf_type',
                        'rdf_namespace',
                        'schema_namespace',
-                       'rdf_type_object_deferred')
+                       'rdf_type_object_deferred',
+                       'rdf_type_object')
 
     rdf_type_object_deferred = False
 
@@ -299,16 +302,16 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
                             new_key_properties.append(k)
                             break
                     else:
-                        raise Exception(("The provided 'key_properties' entry, {},"
-                                " does not appear to be a property").format(kp))
+                        raise Exception(f"The provided 'key_properties' entry, {kp},"
+                                " does not appear to be a property")
                 elif isinstance(kp, PropertyProperty):
                     for k, p in self._property_classes.items():
                         if p is kp._cls:
                             new_key_properties.append(k)
                             break
                     else:
-                        raise Exception(("The provided 'key_properties' entry, {},"
-                                " does not appear to be a property for this class").format(kp))
+                        raise Exception(f"The provided 'key_properties' entry, {kp},"
+                                " does not appear to be a property for this class")
                 elif isinstance(kp, six.string_types):
                     new_key_properties.append(kp)
                 else:
@@ -552,16 +555,8 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
     owner_properties : list of owmeta_core.dataobject_property.Property or \
             owmeta_core.custom_dataobject_property.CustomProperty
         Properties belonging to parents of this object
-    """
-    class_context = 'http://www.w3.org/2000/01/rdf-schema'
-    rdf_type = R.RDFS['Resource']
-    base_namespace = R.Namespace(BASE_SCHEMA_URL + "/")
-    base_data_namespace = R.Namespace(BASE_DATA_URL + "/")
-
-    _next_variable_int = 0
-
-    properties_are_init_args = True
-    ''' If true, then properties defined in the class body can be passed as
+    properties_are_init_args : bool
+        If true, then properties defined in the class body can be passed as
         keyword arguments to __init__. For example::
 
             >>> class A(DataObject):
@@ -571,7 +566,15 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
 
         If the arguments are written explicitly into the __init__ method
         definition, then no special processing is done.
-    '''
+    """
+    class_context = 'http://www.w3.org/2000/01/rdf-schema'
+    rdf_type = R.RDFS['Resource']
+    base_namespace = R.Namespace(BASE_SCHEMA_URL + "/")
+    base_data_namespace = R.Namespace(BASE_DATA_URL + "/")
+
+    _next_variable_int = 0
+
+    properties_are_init_args = True
 
     key_properties = None
 
@@ -1226,11 +1229,9 @@ class Package(DataObject):
     ''' Describes an idealized software package identifiable by a name and version number '''
     class_context = BASE_SCHEMA_URL
 
-    name = DatatypeProperty()
-    ''' The standard name of the package '''
+    name = DatatypeProperty(__doc__='The standard name of the package')
 
-    version = DatatypeProperty()
-    ''' The version of the package '''
+    version = DatatypeProperty(__doc__='The version of the package')
 
 
 class Module(DataObject):
@@ -1244,11 +1245,11 @@ class Module(DataObject):
     '''
     class_context = BASE_SCHEMA_URL
 
-    accessors = ObjectProperty(multiple=True, value_type=ModuleAccessor)
-    ''' Ways to get the module '''
+    accessors = ObjectProperty(multiple=True, value_type=ModuleAccessor,
+            __doc__='Ways to get the module')
 
-    package = ObjectProperty(value_type=Package)
-    ''' Package that provides the module '''
+    package = ObjectProperty(value_type=Package,
+            __doc__='Package that provides the module')
 
 
 class ClassDescription(DataObject):
@@ -1257,8 +1258,8 @@ class ClassDescription(DataObject):
     '''
     class_context = BASE_SCHEMA_URL
 
-    module = ObjectProperty(value_type=Module)
-    ''' The module the class belongs to '''
+    module = ObjectProperty(value_type=Module,
+            __doc__='The module the class belongs to')
 
 
 class RegistryEntry(DataObject):
@@ -1269,16 +1270,15 @@ class RegistryEntry(DataObject):
     '''
     class_context = BASE_SCHEMA_URL
 
-    class_description = ObjectProperty(value_type=ClassDescription)
-    ''' The description of the class '''
+    class_description = ObjectProperty(value_type=ClassDescription,
+            __doc__='The description of the class')
 
-    rdf_class = DatatypeProperty()
-    '''
+    rdf_class = DatatypeProperty(__doc__='''
     The |RDF| type for the class
 
     We use rdf_type for the type of a `DataObject` (``RegistryEntry.rdf_type`` in this
     case), so we call this `rdf_class` to avoid the conflict
-    '''
+    ''')
 
     def defined_augment(self):
         return self.class_description.has_defined_value() and self.rdf_class.has_defined_value()
@@ -1300,8 +1300,7 @@ class PythonModule(Module):
     '''
     class_context = BASE_SCHEMA_URL
 
-    name = DatatypeProperty()
-    ''' The full name of the module '''
+    name = DatatypeProperty(__doc__='The full name of the module')
 
     key_property = dict(name='name', type='direct')
 
@@ -1323,8 +1322,8 @@ class PythonClassDescription(ClassDescription):
     '''
     class_context = BASE_SCHEMA_URL
 
-    name = DatatypeProperty()
-    ''' Local name of the class (i.e., relative to the module name) '''
+    name = DatatypeProperty(
+            __doc__='Local name of the class (i.e., relative to the module name)')
 
     key_properties = (name, 'module')
 

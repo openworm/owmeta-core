@@ -692,7 +692,6 @@ class OWMContexts(object):
         context : str
             The context to list importers for
         '''
-        from .context_dataobject import ContextDataObject
         imports_ctxid = self._parent.imports_context()
         imports_ctx = self._parent._context(Context)(imports_ctxid).stored
 
@@ -786,7 +785,6 @@ class OWMRegistry(object):
                 ident = re.identifier
                 cd = re.class_description()
                 re_rdf_type = re.rdf_class()
-                display_rdf_type = re.namespace_manager.normalizeUri(re_rdf_type)
                 if not isinstance(cd, PythonClassDescription):
                     continue
                 module_do = cd.module()
