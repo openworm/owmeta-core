@@ -10,7 +10,7 @@ from owmeta_core.identifier_mixin import IdMixin
 class IdentifierMixinTest(unittest.TestCase):
 
     def setUp(self):
-        class A(IdMixin()):
+        class A(IdMixin):
             rdf_namespace = MagicMock()
 
         self.cls = A

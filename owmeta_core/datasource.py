@@ -55,7 +55,7 @@ class Informational(object):
     multiple : boolean
         If `True`, then the property can take on multiple values for the same subject
     cls : type
-        The `~owmeta_core.property.Property` corresponding to this property
+        The `~owmeta_core.dataobject_property.Property` corresponding to this property
     '''
 
     def __init__(self, name=None, display_name=None, description=None,
@@ -75,7 +75,7 @@ class Informational(object):
         default_value : object, optional
             Value to use
         property_type : 'DatatypeProperty', 'ObjectProperty', or 'UnionProperty'
-            The type of `~owmeta_core.property.Property` to create from this object.
+            The type of `~owmeta_core.dataobject_property.Property` to create from this object.
             Default is 'DatatypeProperty'
         multiple : boolean, optional
             Whether this property can have multiple values for the same object. Default is
@@ -87,7 +87,7 @@ class Informational(object):
             Other properties which, if set, will give their value to this property as well
         **property_args
             Additional arguments which will be passed into the class dictionary when the
-            `~owmeta_core.property.Property` corresponding to this object is created.
+            `~owmeta_core.dataobject_property.Property` corresponding to this object is created.
         '''
         self.name = name
         self._property_name = property_name
@@ -476,7 +476,21 @@ class DataTransatorType(type(DataObject)):
 
 
 class BaseDataTranslator(six.with_metaclass(DataTransatorType, DataObject)):
-    """ Translates from a data source to owmeta_core objects """
+    '''
+    Translates from a data source to owmeta_core objects
+
+    Attributes
+    ----------
+    input_type : type or tuple of type
+        Types of input to this `DataTranslator`. Should be sub-classes of `DataSource`
+    output_type : type or tuple of type
+        Types of output from this `DataTranslator`. Should be sub-classes of `DataSource`
+    translation_type : type
+        Type of the translation record produced as a side-effect of translating with this
+        translator
+    output_key : str
+        The "key" for outputs from this translator. See `IdentifierMixin`
+    '''
 
     class_context = BASE_CONTEXT
 

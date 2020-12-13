@@ -531,7 +531,7 @@ class ContextFilteringList(Contextualizable, set):
 
 
 class BaseDataObject(six.with_metaclass(ContextMappedClass,
-                                        IdMixin(hashfunc=hashlib.md5),
+                                        IdMixin,
                                         GraphObject,
                                         ContextualizableDataUserMixin)):
 
@@ -571,6 +571,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
     rdf_type = R.RDFS['Resource']
     base_namespace = R.Namespace(BASE_SCHEMA_URL + "/")
     base_data_namespace = R.Namespace(BASE_DATA_URL + "/")
+    hashfun = hashlib.md5
 
     _next_variable_int = 0
 
