@@ -19,6 +19,8 @@ from owmeta_core.dataobject import (DataObject,
                                     _partial_property,
                                     PythonModule,
                                     PythonClassDescription,
+                                    ClassResolutionFailed,
+                                    ModuleResolutionFailed,
                                     RegistryEntry,
                                     Module)
 from owmeta_core.context import Context, CLASS_REGISTRY_CONTEXT_KEY
@@ -579,14 +581,16 @@ class PythonClassDescriptionResolveClassTest(_DataTest):
         pmo.name(mname)
         pcddo = PythonClassDescription(ident=pcd)
         pcddo.module(pmo)
-        self.assertIsNone(pcddo.resolve_class())
+        with self.assertRaises(ClassResolutionFailed):
+            pcddo.resolve_class()
 
     def test_module_missing(self):
         cname = self.__class__.__name__
 
         pcddo = PythonClassDescription(ident=pcd)
         pcddo.name(cname)
-        self.assertIsNone(pcddo.resolve_class())
+        with self.assertRaises(ModuleResolutionFailed):
+            pcddo.resolve_class()
 
     def test_module_name_missing(self):
         cname = self.__class__.__name__
@@ -595,16 +599,31 @@ class PythonClassDescriptionResolveClassTest(_DataTest):
         pcddo = PythonClassDescription(ident=pcd)
         pcddo.module(pmo)
         pcddo.name(cname)
-        self.assertIsNone(pcddo.resolve_class())
+        with self.assertRaises(ModuleResolutionFailed):
+            pcddo.resolve_class()
 
     def test_class_not_found(self):
         cname = 'BlahBluhBooHoo'
+        mname = self.__class__.__module__
 
         pmo = PythonModule(ident=pm)
         pcddo = PythonClassDescription(ident=pcd)
+        pmo.name(mname)
         pcddo.module(pmo)
         pcddo.name(cname)
-        self.assertIsNone(pcddo.resolve_class())
+        with self.assertRaises(ClassResolutionFailed):
+            pcddo.resolve_class()
+
+    def test_import_failed(self):
+        cname = self.__class__.__name__
+
+        pmo = PythonModule(ident=pm)
+        pmo.name('sooo....not a module')
+        pcddo = PythonClassDescription(ident=pcd)
+        pcddo.module(pmo)
+        pcddo.name(cname)
+        with self.assertRaises(ModuleResolutionFailed):
+            pcddo.resolve_class()
 
 
 class KeyPropertiesTest(_DataTest):

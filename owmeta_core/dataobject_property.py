@@ -124,6 +124,9 @@ class ContextMappedPropertyClass(MappedClass, ContextualizableClass):
             L.debug('Creating rdf_object for {} in {}'.format(self, self.definition_context))
             rdto = RDFProperty.contextualize(self.definition_context)(ident=self.link)
             rdto.attach_property(RDFSSubClassOfProperty)
+            if hasattr(self, 'label'):
+                rdto.rdfs_label(self.label)
+
             for par in self.__bases__:
                 prdto = getattr(par, 'rdf_object', None)
                 if prdto is not None:

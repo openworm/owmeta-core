@@ -1336,8 +1336,15 @@ class PythonClassDescription(ClassDescription):
 
     def resolve_module(self):
         moddo = self.module()
+        if moddo is None:
+            raise ModuleResolutionFailed('No module reference')
         modname = moddo.name()
-        return IM.import_module(modname)
+        if modname is None:
+            raise ModuleResolutionFailed('No module name')
+        try:
+            return IM.import_module(modname)
+        except ImportError:
+            raise ModuleResolutionFailed('Could not import module')
 
     def resolve_class(self):
         '''
@@ -1350,15 +1357,25 @@ class PythonClassDescription(ClassDescription):
         '''
         class_name = self.name()
         if not class_name:
-            return None
-        moddo = self.module()
-        if moddo is None:
-            return None
-        modname = moddo.name()
-        if modname is None:
-            return None
-        mod = IM.import_module(modname)
-        return getattr(mod, class_name, None)
+            raise ClassResolutionFailed('No class name')
+
+        mod = self.resolve_module()
+        try:
+            return getattr(mod, class_name)
+        except AttributeError:
+            raise ClassResolutionFailed('Class not found in module')
+
+
+class ModuleResolutionFailed(Exception):
+    '''
+    Thrown when a `PythonClassDescription` can't resolve its module
+    '''
+
+
+class ClassResolutionFailed(Exception):
+    '''
+    Thrown when a `PythonClassDescription` can't resolve its class
+    '''
 
 
 # Run all of the deferred RDF object initalizations
