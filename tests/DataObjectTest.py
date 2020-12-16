@@ -449,7 +449,8 @@ class ClassRegistryMissingModuleTest(_DataTest):
     def test_warns(self):
         with captured_logging() as logs:
             list(self.context.stored(DataObject)(ident=self.ident).load())
-            self.assertRegexpMatches(logs.getvalue(), r'Did not find module this.module.does.not.exist')
+            self.assertRegexpMatches(logs.getvalue(),
+                    re.compile(r'Did not find module.*this\.module\.does\.not\.exist', re.DOTALL))
 
 
 sc = R.RDFS['subClassOf']
@@ -589,7 +590,7 @@ class PythonClassDescriptionResolveClassTest(_DataTest):
 
         pcddo = PythonClassDescription(ident=pcd)
         pcddo.name(cname)
-        with self.assertRaises(ModuleResolutionFailed):
+        with self.assertRaises(ClassResolutionFailed):
             pcddo.resolve_class()
 
     def test_module_name_missing(self):
@@ -599,8 +600,9 @@ class PythonClassDescriptionResolveClassTest(_DataTest):
         pcddo = PythonClassDescription(ident=pcd)
         pcddo.module(pmo)
         pcddo.name(cname)
-        with self.assertRaises(ModuleResolutionFailed):
+        with self.assertRaises(ClassResolutionFailed) as raised:
             pcddo.resolve_class()
+        self.assertIsInstance(raised.exception.__cause__, ModuleResolutionFailed)
 
     def test_class_not_found(self):
         cname = 'BlahBluhBooHoo'
@@ -622,8 +624,9 @@ class PythonClassDescriptionResolveClassTest(_DataTest):
         pcddo = PythonClassDescription(ident=pcd)
         pcddo.module(pmo)
         pcddo.name(cname)
-        with self.assertRaises(ModuleResolutionFailed):
+        with self.assertRaises(ClassResolutionFailed) as raised:
             pcddo.resolve_class()
+        self.assertIsInstance(raised.exception.__cause__, ModuleResolutionFailed)
 
 
 class KeyPropertiesTest(_DataTest):

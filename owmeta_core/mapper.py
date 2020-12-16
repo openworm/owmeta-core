@@ -6,7 +6,8 @@ import uuid
 import rdflib as R
 
 from .dataobject import (BaseDataObject, DataObject, RegistryEntry,
-                         PythonClassDescription, PythonModule, ClassDescription)
+                         PythonClassDescription, PythonModule, ClassDescription,
+                         ClassResolutionFailed, ModuleResolutionFailed)
 from .utils import FCN
 from .configure import Configurable
 
@@ -226,19 +227,20 @@ class Mapper(Configurable):
         c = None
 
         for cd_l in cd.load():
-            class_name = cd_l.name()
-            moddo = cd_l.module()
-            modname = moddo.name()
             try:
-                mod = IM.import_module(modname)
-            except ModuleNotFoundError:
-                L.warn('Did not find module %s', modname)
-                continue
-            c = getattr(mod, class_name, None)
+                c = cd_l.resolve_class()
+            except ClassResolutionFailed as e:
+                if isinstance(e.__cause__, ModuleResolutionFailed):
+                    L.warn('Did not find module', exc_info=True)
+                    continue
             if c is not None:
                 break
-            L.warning('Did not find class %s in %s', class_name, mod.__name__)
 
+            # Fall-back class resolution
+            class_name = cd_l.name()
+            moddo = cd_l.module()
+            mod = moddo.resolve_module()
+            L.warning('Did not find class %s in %s', class_name, mod.__name__)
             ymc = getattr(mod, '__yarom_mapped_classes__', None)
             if not ymc:
                 L.warning('No __yarom_mapped_classes__ in %s, so cannot look up %s',

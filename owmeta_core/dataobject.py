@@ -1305,6 +1305,28 @@ class PythonModule(Module):
 
     key_property = dict(name='name', type='direct')
 
+    def resolve_module(self):
+        '''
+        Load the module referenced by this object
+
+        Returns
+        -------
+        types.ModuleType
+            The module referenced by this object
+
+        Raises
+        ------
+        ModuleResolutionFailed
+            Raised if the class can't be resolved for whatever reason
+        '''
+        modname = self.name()
+        if modname is None:
+            raise ModuleResolutionFailed(f'No module name for {self}')
+        try:
+            return IM.import_module(modname)
+        except ImportError:
+            raise ModuleResolutionFailed(f'Could not import module named {modname}')
+
 
 class PIPInstall(ModuleAccessor):
     '''
@@ -1334,41 +1356,42 @@ class PythonClassDescription(ClassDescription):
         mod.name(other_cls.__module__)
         return cls(name=other_cls.__name__, module=mod)
 
-    def resolve_module(self):
-        moddo = self.module()
-        if moddo is None:
-            raise ModuleResolutionFailed('No module reference')
-        modname = moddo.name()
-        if modname is None:
-            raise ModuleResolutionFailed('No module name')
-        try:
-            return IM.import_module(modname)
-        except ImportError:
-            raise ModuleResolutionFailed('Could not import module')
-
     def resolve_class(self):
         '''
         Load the class described by this object
 
         Returns
         -------
-        type or None
-            The class or `None` if it could not be loaded
+        type
+            The class described by this object
+
+        Raises
+        ------
+        ClassResolutionFailed
+            Raised if the class can't be resolved for whatever reason
         '''
         class_name = self.name()
         if not class_name:
-            raise ClassResolutionFailed('No class name')
+            raise ClassResolutionFailed(f'No class name for {self}')
 
-        mod = self.resolve_module()
+        moddo = self.module()
+        if moddo is None:
+            raise ClassResolutionFailed(f'No module reference for {self}')
+
+        try:
+            mod = moddo.resolve_module()
+        except ModuleResolutionFailed as e:
+            raise ClassResolutionFailed('Could not resolve the module') from e
+
         try:
             return getattr(mod, class_name)
         except AttributeError:
-            raise ClassResolutionFailed('Class not found in module')
+            raise ClassResolutionFailed(f'Class named {class_name} not found in module')
 
 
 class ModuleResolutionFailed(Exception):
     '''
-    Thrown when a `PythonClassDescription` can't resolve its module
+    Thrown when a `PythonModule` can't resolve its module
     '''
 
 
