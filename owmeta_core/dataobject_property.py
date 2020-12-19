@@ -142,11 +142,16 @@ class ContextMappedPropertyClass(MappedClass, ContextualizableClass):
     def definition_context(self):
         return self.__definition_context
 
-    def declare_python_class_registry_entry(self):
-        from owmeta_core.dataobject import (RegistryEntry,
-                                            PythonClassDescription,
-                                            PythonModule)
+    def declare_class_registry_entry(self):
+        from owmeta_core.dataobject import RegistryEntry
         re = RegistryEntry.contextualize(self.context)()
+        cd = self.declare_class_description()
+
+        re.rdf_class(self.rdf_type)
+        re.class_description(cd)
+
+    def declare_class_description(self):
+        from owmeta_core.dataobject import PythonClassDescription, PythonModule
         cd = PythonClassDescription.contextualize(self.context)()
 
         mo = PythonModule.contextualize(self.context)()
@@ -154,9 +159,7 @@ class ContextMappedPropertyClass(MappedClass, ContextualizableClass):
 
         cd.module(mo)
         cd.name(self.__name__)
-
-        re.rdf_class(self.rdf_type)
-        re.class_description(cd)
+        return cd
 
     def __lt__(self, other):
         res = False

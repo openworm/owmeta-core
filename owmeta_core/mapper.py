@@ -176,19 +176,7 @@ class Mapper(Configurable):
     def declare_python_class_registry_entry(self, *classes):
         cr_ctx = self.class_registry_context
         for cls in classes:
-            self._check_is_good_class_registry(cls)
-            re = RegistryEntry.contextualize(cr_ctx)()
-            cd = PythonClassDescription.contextualize(cr_ctx)()
-
-            mo = PythonModule.contextualize(cr_ctx)()
-            mo.name(cls.__module__)
-
-            cd.module(mo)
-            cd.name(cls.__name__)
-
-            re.rdf_class(cls.rdf_type)
-            re.class_description(cd)
-            cr_ctx.add_import(cls.definition_context)
+            cr_ctx(cls).declare_class_registry_entry()
 
     def load_registry_entries(self):
         cr_ctx = self.class_registry_context.stored

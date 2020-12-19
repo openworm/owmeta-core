@@ -357,6 +357,8 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             return new_key_property
 
         if key_property is not None:
+            if self.key_properties is not None:
+                raise Exception(f"key_properties is already defined as {self.key_properties}")
             self.key_property = _process_key_property(key_property)
 
         self.__query_form = None
@@ -402,6 +404,39 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
         Runs after initialization of the rdf_type_object
         '''
         pass
+
+    def declare_class_registry_entry(self):
+        self._check_is_good_class_registry()
+        re = RegistryEntry.contextualize(self.context)()
+        cd = self.declare_class_description()
+
+        re.rdf_class(self.rdf_type)
+        re.class_description(cd)
+        self.context.add_import(self.definition_context)
+
+    def declare_class_description(self):
+        cd = PythonClassDescription.contextualize(self.context)()
+
+        mo = PythonModule.contextualize(self.context)()
+        mo.name(self.__module__)
+
+        cd.module(mo)
+        cd.name(self.__name__)
+
+        return cd
+
+    def _check_is_good_class_registry(self):
+        module = IM.import_module(self.__module__)
+        if hasattr(module, self.__name__):
+            return
+
+        ymc = getattr(module, '__yarom_mapped_classes__', None)
+        if ymc and self in ymc:
+            return
+
+        L.warning('While saving the registry entry of {}, we found that its'
+                  ' module, {}, does not have "{}" in its'
+                  ' namespace'.format(self, self.__module__, self.__name__))
 
     @property
     def query(self):
@@ -881,8 +916,6 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
 
             c = type(property_class_name, mixins + (klass,), props)
             c.__module__ = owner_class.__module__
-            if hasattr(owner_class, 'mapper') and owner_class.mapper is not None:
-                owner_class.mapper.add_class(c)
             PropertyTypes[_PropertyTypes_key] = c
         return c
 
