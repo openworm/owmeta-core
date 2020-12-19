@@ -54,6 +54,12 @@ This = object()
 """
 
 
+DATAOBJECT_PROPERTY_NAME_PREFIX = '_owm_'
+'''
+Prefix for property attribute names
+'''
+
+
 class PropertyProperty(Contextualizable, property):
     def __init__(self, cls=None, *args, cls_thunk=None):
         super(PropertyProperty, self).__init__(*args)
@@ -97,7 +103,7 @@ class PropertyProperty(Contextualizable, property):
 
 
 def mp(c, k):
-    ak = '_owm_' + k
+    ak = DATAOBJECT_PROPERTY_NAME_PREFIX + k
     if c.lazy:
         def getter(target):
             attr = getattr(target, ak, None)
@@ -650,7 +656,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
 
         for k, v in pc.items():
             if not v.lazy:
-                self.attach_property(v, name='_owm_' + k)
+                self.attach_property(v, name=DATAOBJECT_PROPERTY_NAME_PREFIX + k)
 
         if paia:
             for k, v in property_args:
@@ -697,6 +703,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
                 attr = getattr(self, k, None)
                 if attr is None:
                     raise Exception('Key property "{}" is not available on object'.format(k))
+
                 if not attr.has_defined_value():
                     return False
             return True
@@ -1233,7 +1240,7 @@ TypeDataObject.init_rdf_type_object()
 DataObject.init_rdf_type_object()
 
 
-class RDFProperty(BaseDataObject):
+class RDFProperty(DataObject):
     """ The `DataObject` corresponding to rdf:Property """
     rdf_type = R.RDF.Property
     class_context = URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns')
