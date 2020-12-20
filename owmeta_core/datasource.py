@@ -333,18 +333,10 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
         pass
 
     def defined_augment(self):
-        if self.translation.has_defined_value():
-            return True
-        return super().defined_augment()
+        return self.translation.has_defined_value()
 
     def identifier_augment(self):
-        defined_values = self.translation.defined_values
-        if defined_values:
-            try:
-                return self.make_identifier(defined_values[0].identifier.n3())
-            except IdentifierMissingException:
-                pass
-        return super().identifier_augment()
+        return self.make_identifier(self.translation.defined_values[0].identifier.n3())
 
     def __str__(self):
         return self.format_str(False)
