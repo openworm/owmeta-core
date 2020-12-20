@@ -13,6 +13,7 @@ from .context import Context
 from .dataobject import (DataObject, ObjectProperty, DatatypeProperty, UnionProperty, This,
                          CPThunk)
 from .data_trans.common_data import DS_NS, DS_DATA_NS
+from .graph_object import IdentifierMissingException
 
 L = logging.getLogger(__name__)
 
@@ -146,12 +147,10 @@ class Informational(object):
         return ("Informational(name='{}',"
                 " display_name={},"
                 " default_value={},"
-                " description={},"
-                " identifier={})").format(self.name,
+                " description={})").format(self.name,
                                           repr(self.display_name),
                                           repr(self.default_value),
-                                          repr(self.description),
-                                          repr(self.identifier))
+                                          repr(self.description))
 
     # NOTE: This guy has to come last to avoid conflict with the decorator
     @property
@@ -334,10 +333,18 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
         pass
 
     def defined_augment(self):
-        return self.translation.has_defined_value()
+        if self.translation.has_defined_value():
+            return True
+        return super().defined_augment()
 
     def identifier_augment(self):
-        return self.make_identifier(self.translation.defined_values[0].identifier.n3())
+        defined_values = self.translation.defined_values
+        if defined_values:
+            try:
+                return self.make_identifier(defined_values[0].identifier.n3())
+            except IdentifierMissingException:
+                pass
+        return super().identifier_augment()
 
     def __str__(self):
         return self.format_str(False)

@@ -27,8 +27,13 @@ class IdMixin:
         :py:class:`str` in Python 2).  Defaults to :py:func:`hashlib.sha224`
     rdf_namespace : rdflib.namespace.Namespace
         The namespace for identifiers created
+    direct_key : bool
+        Whether to make a key directly, just adding the string onto the namespace or
+        indirectly by hashing the key before joining with the namespace.
     '''
     hashfun = hashlib.sha224
+
+    direct_key = True
 
     def __init__(self, ident=None, key=None, *args, **kwargs):
         super(IdMixin, self).__init__(*args, **kwargs)
@@ -40,9 +45,9 @@ class IdMixin:
         else:
             self._id = None
 
-        self._key = None
-        if key is not None:
-            self.set_key(key)
+        self.key = key
+        self._id_key = None
+        self._generated_id = None
 
     @classmethod
     def make_identifier(cls, data):
@@ -72,29 +77,21 @@ class IdMixin:
             raise ValueError('make_identifier_direct only accepts strings')
         return URIRef(cls.rdf_namespace[quote(string)])
 
-    @property
-    def key(self):
-        '''
-        A value which, appended to the `rdf_namespace` of this object, gives this
-        object's identifier
-        '''
-        return self._key
+    def _gen_identifier(self):
+        key = self.key
+        if key is None:
+            return None
 
-    @key.setter
-    def key(self, key):
-        self.set_key(key)
+        if key == self._id_key:
+            return self._generated_id
 
-    def set_key(self, key):
-        '''
-        Sets the identifier for this object based on the given key
-
-        Equivalent to self.key = key
-        '''
-        if isinstance(key, string_types):
-            self._id = self.make_identifier_direct(key)
+        if self.direct_key:
+            self._generated_id = self.make_identifier_direct(key)
         else:
-            self._id = self.make_identifier(key)
-        self._key = str(key)
+            self._generated_id = self.make_identifier(key)
+        self._id_key = key
+
+        return self._generated_id
 
     @property
     def identifier(self):
@@ -103,10 +100,14 @@ class IdMixin:
         '''
         if self._id is not None:
             return self._id
-        elif self.defined_augment():
-            return self.identifier_augment()
         else:
-            raise IdentifierMissingException(self)
+            ident = self._gen_identifier()
+            if ident is not None:
+                return ident
+            elif self.defined_augment():
+                return self.identifier_augment()
+            else:
+                raise IdentifierMissingException(self)
 
     @identifier.setter
     def identifier(self, value):
@@ -123,7 +124,6 @@ class IdMixin:
 
         Raises
         ------
-
         `~.graph_object.IdentifierMissingException`
 
         """
@@ -131,7 +131,7 @@ class IdMixin:
 
     @property
     def defined(self):
-        if self._id is not None:
+        if self._id is not None or self.key is not None:
             return True
         else:
             return self.defined_augment()
