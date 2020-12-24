@@ -14,11 +14,15 @@ L = logging.getLogger(__name__)
 
 
 class ValidationException(Exception):
-    pass
+    '''
+    Raised for an invalid input given to `Creator`
+    '''
 
 
 class AssignmentValidationException(ValidationException):
-    pass
+    '''
+    Raised when an attempt is made to assign an inappropriate value with `Creator`
+    '''
 
 
 class Creator(object):
@@ -81,13 +85,16 @@ class Creator(object):
 
         A context can be passed in and it will be used to contextualize the OWM types
 
-
         Parameters
         ----------
         instance : dict
             The JSON object to create from
         context : owmeta_core.context.Context
             The context in which the object should be created
+
+        Raises
+        ------
+        ValidationException
         '''
         self._context = context
         try:
@@ -223,18 +230,36 @@ class Creator(object):
             raise AssignmentValidationException(sType, instance)
 
         def assign(self, obj, name, value):
+            '''
+            Assign the given value to a property with the given name on the object
+
+            Parameters
+            ----------
+            obj : object
+                The object to receive the assignment
+            name : str
+                The name on the object to assign to
+            value : object
+                The value to assign
+            '''
             raise NotImplementedError()
 
         def make_instance(self, owm_type):
+            '''
+            Make an instance of the given type
+
+            Parameters
+            ----------
+            owm_type : type
+                The type for which an instance should be made
+            '''
             raise NotImplementedError()
 
 
 class TypeCreator(object):
     '''
-    Creates OWM types from a JSON schema and produces an copy of the schema annotated with
+    Creates OWM types from a JSON schema and produces a copy of the schema annotated with
     the created types.
-
-    The annontate method i
     '''
 
     def __init__(self, name, schema, definition_base_name=''):
@@ -396,6 +421,9 @@ class TypeCreator(object):
 
 
 class DataSourceTypeCreator(TypeCreator):
+    '''
+    Creates DataSource types from a JSON Schema
+    '''
     def __init__(self, *args, context=None, **kwargs):
         super(DataSourceTypeCreator, self).__init__(*args, **kwargs)
         self.infos = dict()
@@ -459,29 +487,23 @@ def resolve_fragment(document, fragment):
     """
     Resolve a ``fragment`` within the referenced ``document``.
 
-    Arguments:
-
-        document:
-
-            The referent document
-
-        fragment (str):
-
-            a URI fragment to resolve within it
+    Parameters
+    ----------
+    document : dict or collections.abc.Sequence
+        The referent document
+    fragment : str
+        a URI fragment to resolve within it
     """
     _, fragment = fragment.split('#', 1)
-    fragment = fragment.lstrip(u"/")
-    parts = unquote(fragment).split(u"/") if fragment else []
+    fragment = fragment.lstrip("/")
+    parts = unquote(fragment).split("/") if fragment else []
 
     for part in parts:
-        part = part.replace(u"~1", u"/").replace(u"~0", u"~")
+        part = part.replace("~1", "/").replace("~0", "~")
 
         if isinstance(document, Sequence):
             # Array indexes should be turned into integers
-            try:
-                part = int(part)
-            except ValueError:
-                pass
+            part = int(part)
         try:
             document = document[part]
         except (TypeError, LookupError) as e:
