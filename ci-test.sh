@@ -2,7 +2,7 @@
 
 pt () {
     # Can we all just agree that quoting in the Bourne shell is awful? 
-    sh -c "pytest --cov=owmeta_core $*"
+    sh -c "pytest --cov=./owmeta_core $*"
 }
 
 
