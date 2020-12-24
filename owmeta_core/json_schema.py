@@ -482,17 +482,24 @@ class DataSourceTypeCreator(TypeCreator):
         return dt
 
 
-# Copied from jsonschema...don't want to handle all that shit yet.
+# Copied and modified slightly from jsonschema...
 def resolve_fragment(document, fragment):
     """
     Resolve a ``fragment`` within the referenced ``document``.
 
     Parameters
     ----------
-    document : dict or collections.abc.Sequence
-        The referent document
+    document : object
+        The referent document. Typically a `collections.abc.Mapping` (e.g., a dict) or
+        `collections.abc.Sequence`, but if fragment is ``#``, then the document is
+        returned unchanged.
     fragment : str
         a URI fragment to resolve within it
+
+    Returns
+    -------
+    object
+        The part of the document refered to
     """
     _, fragment = fragment.split('#', 1)
     fragment = fragment.lstrip("/")
@@ -502,13 +509,13 @@ def resolve_fragment(document, fragment):
         part = part.replace("~1", "/").replace("~0", "~")
 
         if isinstance(document, Sequence):
-            # Array indexes should be turned into integers
+            # Array indexes should be turned into integers. The "-" value isn't valid
+            # since we're not going to find a schema that isn't in the list
             part = int(part)
+
         try:
             document = document[part]
         except (TypeError, LookupError) as e:
-            raise Exception(
-                "Unresolvable JSON pointer: %r" % fragment
-            ) from e
+            raise Exception("Unresolvable JSON pointer: {fragment!r}") from e
 
     return document
