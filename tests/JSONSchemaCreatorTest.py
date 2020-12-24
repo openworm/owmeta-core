@@ -139,7 +139,7 @@ class DictTypeCheckTest(unittest.TestCase):
 
 
 class ObjectTypeCheck(unittest.TestCase):
-    def test_no_pow_type(self):
+    def test_no_owm_type(self):
         cut = Creator({
             'type': 'object',
         })
@@ -152,12 +152,12 @@ class ObjectTypeCheck(unittest.TestCase):
             pass
 
         class C(Creator):
-            def make_instance(self, pow_type):
+            def make_instance(self, owm_type):
                 return A()
 
         cut = C({
             'type': 'object',
-            '_pow_type': 'whatever'
+            '_owm_type': 'whatever'
         })
         self.assertIsInstance(cut.create({}), A)
 
@@ -176,7 +176,7 @@ class ObjectTypeCheck(unittest.TestCase):
 
         cut = C({
             'type': 'object',
-            '_pow_type': 'whatever'
+            '_owm_type': 'whatever'
         })
         cut.create({'duck': 'sauce'})
         self.assertTrue(called[0])
@@ -187,7 +187,7 @@ class ObjectTypeCheck(unittest.TestCase):
 
         cut = C({
             'type': 'object',
-            '_pow_type': 'whatever',
+            '_owm_type': 'whatever',
             'additionalProperties': {
                 'type': 'integer'
             }
@@ -210,7 +210,7 @@ class ObjectTypeCheck(unittest.TestCase):
 
         cut = C({
             'type': 'object',
-            '_pow_type': 'whatever',
+            '_owm_type': 'whatever',
             'additionalProperties': {
                 'type': 'integer'
             }
@@ -225,7 +225,7 @@ class ObjectTypeCheck(unittest.TestCase):
 
         cut = C({
             'type': 'object',
-            '_pow_type': 'whatever',
+            '_owm_type': 'whatever',
             'patternProperties': {
                 r'ab+': {
                     'type': 'integer'

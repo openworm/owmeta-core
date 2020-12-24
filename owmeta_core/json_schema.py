@@ -32,7 +32,7 @@ class Creator(object):
 
     def __init__(self, schema):
         '''
-        Takes a schema annotated with '_pow_type' entries indicating which types are
+        Takes a schema annotated with '_owm_type' entries indicating which types are
         expected at each position in the object and produces an instance of the root type
         described in the schema
 
@@ -76,17 +76,17 @@ class Creator(object):
 
     def create(self, instance, context=None, ident=None):
         '''
-        Creates an instance of the root POW type given a deserialized instance of the type
+        Creates an instance of the root OWM type given a deserialized instance of the type
         described in our JSON schema.
 
-        A context can be passed in and it will be used to contextualize the POW types
+        A context can be passed in and it will be used to contextualize the OWM types
 
 
         Parameters
         ----------
         instance : dict
             The JSON object to create from
-        context : PyOpenWorm.context.Context
+        context : owmeta_core.context.Context
             The context in which the object should be created
         '''
         self._context = context
@@ -97,10 +97,10 @@ class Creator(object):
             self._root_identifier = None
             self._context = None
 
-    def make_instance(self, pow_type):
+    def make_instance(self, owm_type):
         if self._context:
-            pow_type = self._context(pow_type)
-        return pow_type(ident=self.gen_ident())
+            owm_type = self._context(owm_type)
+        return owm_type(ident=self.gen_ident())
 
     def _create(self, instance, schema=None, ident=None):
         if schema is None:
@@ -163,13 +163,13 @@ class Creator(object):
                     return converted_list
                 else:
                     # The default for items is to accept all, so we short-cut here...
-                    # also means that there's POW type conversion
+                    # also means that there's OWM type conversion
                     return instance
             raise AssignmentValidationException(sType, instance)
         elif isinstance(instance, dict):
             if sType == 'object':
-                pow_type = schema.get('_pow_type')
-                if not pow_type:
+                owm_type = schema.get('_owm_type')
+                if not owm_type:
                     # If an object isn't annotated, we treat as an error -- alternatives
                     # like returning None or just 'instance' could both be surprising and
                     # not annotating an object is most likely a mistake in a TypeCreator
@@ -215,7 +215,7 @@ class Creator(object):
 
                 # res must be treated as a black-box since sub-classes have total freedom
                 # as far as what substitution they want to make
-                res = self.make_instance(pow_type)
+                res = self.make_instance(owm_type)
                 for k, v in pt_args.items():
                     self.assign(res, k, v)
                 return res
@@ -225,13 +225,13 @@ class Creator(object):
         def assign(self, obj, name, value):
             raise NotImplementedError()
 
-        def make_instance(self, pow_type):
+        def make_instance(self, owm_type):
             raise NotImplementedError()
 
 
 class TypeCreator(object):
     '''
-    Creates POW types from a JSON schema and produces an copy of the schema annotated with
+    Creates OWM types from a JSON schema and produces an copy of the schema annotated with
     the created types.
 
     The annontate method i
@@ -310,7 +310,7 @@ class TypeCreator(object):
         if annotated_definition_schemas is not None:
             annotated['definitions'] = annotated_definition_schemas
 
-        annotated['_pow_type'] = typ
+        annotated['_owm_type'] = typ
 
         if path == ():
             for schema_path, reference in self._references:
@@ -351,7 +351,7 @@ class TypeCreator(object):
 
     def create_type(self, path, schema):
         '''
-        Create the POW type.
+        Create the OWM type.
 
         At this point, the properties for the schema will already be created.
 
@@ -384,11 +384,11 @@ class TypeCreator(object):
 
     @classmethod
     def _annotate_obj(self, obj, path, repl):
-        if '_pow_type' not in repl:
+        if '_owm_type' not in repl:
             return
 
         if not path:
-            obj['_pow_type'] = repl['_pow_type']
+            obj['_owm_type'] = repl['_owm_type']
 
         subpart = obj.get(path[0])
         if subpart:
