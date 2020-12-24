@@ -1,5 +1,5 @@
-from PyOpenWorm.json_schema import (Creator,
-                                    AssignmentValidationException)
+from owmeta_core.json_schema import (Creator,
+                                     AssignmentValidationException)
 import unittest
 
 

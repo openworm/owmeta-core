@@ -1,17 +1,14 @@
-import copy
-from pprint import pprint
-import json
-from owmeta_core.context import ClassContext
-from owmeta_core.dataobject import DataObject, DatatypeProperty, ObjectProperty
-from owmeta_core.datasource import DataSource, Informational
-from owmeta_core.utils import ellipsize
-from jsonschema.validators import validator_for
+from collections.abc import Sequence
 from contextlib import contextmanager
-from collections.abc import Sequence  # noqa
+import copy
+import logging
 import re
 from urllib.parse import unquote
-from os.path import join as p
-import logging
+
+from .context import ClassContext
+from .dataobject import DataObject, DatatypeProperty, ObjectProperty
+from .datasource import DataSource, Informational
+from .utils import ellipsize
 
 L = logging.getLogger(__name__)
 
@@ -291,7 +288,6 @@ class TypeCreator(object):
             with self._processing_properties(path):
                 annotated_property_schemas = {}
                 for k, v in properties.items():
-                    prop_type = None
                     if v.get('type') == 'object':
                         prop_annnotated_schema = self._make_object(v,
                                 path=path + ('properties', k))
@@ -379,7 +375,7 @@ class TypeCreator(object):
                     defn_annnotated_schema = self._make_object(v,
                             path=path + ('definitions', k))
                 elif '$ref' in v:
-                    _handle_ref(path, v, references)
+                    self._handle_ref(path, v, references)
                 else:
                     defn_annnotated_schema = copy.deepcopy(v)
                 annotated_definition_schemas[k] = defn_annnotated_schema
@@ -491,6 +487,6 @@ def resolve_fragment(document, fragment):
         except (TypeError, LookupError) as e:
             raise Exception(
                 "Unresolvable JSON pointer: %r" % fragment
-            )
+            ) from e
 
     return document

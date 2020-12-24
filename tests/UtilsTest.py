@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import unittest
-from PyOpenWorm.utils import ellipsize
+from owmeta_core.utils import ellipsize
 
 
 class EllipsizeTest(unittest.TestCase):
