@@ -281,6 +281,10 @@ class TypeCreator(object):
         self.definition_base_name = definition_base_name
         self.schema = schema
 
+    @classmethod
+    def lookup_type(self, path):
+        pass
+
     def annotate(self):
         '''
         Returns the annotated JSON schema
@@ -427,8 +431,7 @@ class DataSourceTypeCreator(TypeCreator):
     '''
     def __init__(self, *args, context=None, **kwargs):
         super(DataSourceTypeCreator, self).__init__(*args, **kwargs)
-        self.infos = dict()
-        self.props = dict()
+        self.cdict = dict()
         if context and not isinstance(context, str):
             context = context.identifier
 
@@ -439,10 +442,7 @@ class DataSourceTypeCreator(TypeCreator):
 
     @contextmanager
     def _processing_properties(self, path):
-        if not path:
-            self.infos[path] = {}
-        else:
-            self.props[path] = {}
+        self.cdict[path] = {}
         yield
 
     def proc_prop(self, path, k, v):
@@ -450,43 +450,36 @@ class DataSourceTypeCreator(TypeCreator):
             info_type = 'DatatypeProperty'
             if v.get('type') == 'object':
                 info_type = 'ObjectProperty'
-            self.infos[path][k] = Informational(k, display_name=v.get('title'),
+            self.cdict[path][k] = Informational(k, display_name=v.get('title'),
                                      description=v.get('description'),
                                      property_type=info_type)
         else:
             info_type = DatatypeProperty
             if v.get('type') == 'object':
                 info_type = ObjectProperty
-            self.props[path][k] = info_type()
+            self.cdict[path][k] = info_type()
 
     def create_type(self, path, schema):
         doc = (schema.get('title', '') + '\n\n' +
                schema.get('description', '')).strip()
+        cdict = dict(self.cdict.get(path, dict()))
         if not path:
-            infos = self.infos.get(path, dict())
-            dt = type(DataSource)(self._extract_name(path),
-                                  (DataSource,),
-                                  dict(__doc__=doc,
-                                       __module__=__name__,
-                                       class_context=self._context,
-                                       **infos))
+            typ = DataSource
         else:
-            props = self.props.get(path, dict())
-            dt = type(DataObject)(self._extract_name(path),
-                                  (DataObject,),
-                                  dict(__doc__=doc,
-                                       __module__=__name__,
-                                       class_context=self._context,
-                                       **props))
+            typ = DataObject
+        if 'class_context' not in cdict:
+            cdict['class_context'] = self._context
+        dt = type(typ)(self._extract_name(path),
+                (typ,),
+                dict(__doc__=doc,
+                    __module__=__name__,
+                    **cdict))
         if self._context is not None:
             self._context.mapper.process_class(dt)
         return dt
 
 
-TILDE_RE = re.compile(r'~(.?)')
-
-
-# Copied and modified slightly from jsonschema...
+# Copied and modified from jsonschema...
 def resolve_fragment(document, fragment):
     """
     Resolve a ``fragment`` within the referenced ``document``.
@@ -505,13 +498,37 @@ def resolve_fragment(document, fragment):
     object
         The part of the document referred to
     """
-    global TILDE_RE
-    _, fragment = fragment.split('#', 1)
-    fragment = fragment.lstrip("/")
-    parts = unquote(fragment).split("/") if fragment else []
+    _, pointer = fragment.split('#', 1)
+
+    return resolve_json_pointer(document, unquote(pointer))
+
+
+# Copied and modified from jsonschema...
+def resolve_json_pointer(document, pointer):
+    """
+    Resolve a ``fragment`` within the referenced ``document``.
+
+    Parameters
+    ----------
+    document : object
+        The referent document. Typically a `collections.abc.Mapping` (e.g., a dict) or
+        `collections.abc.Sequence`, but if fragment is ``#``, then the document is
+        returned unchanged.
+    pointer : str
+        a JSON pointer to resolve in the document
+
+    Returns
+    -------
+    object
+        The part of the document referred to
+    """
+    if pointer == '':
+        return document
+    pointer = pointer.lstrip("/")
+    parts = pointer.split("/") if pointer else ['']
 
     for part in parts:
-        part = TILDE_RE.sub(_tilde_repl, part)
+        part = _TILDE_RE.sub(_tilde_repl, part)
 
         if isinstance(document, Sequence):
             # Array indexes should be turned into integers. The "-" value isn't valid
@@ -521,7 +538,7 @@ def resolve_fragment(document, fragment):
         try:
             document = document[part]
         except (TypeError, LookupError) as e:
-            raise LookupError(f"Unresolvable JSON pointer: {fragment!r}") from e
+            raise LookupError(f"Unresolvable JSON pointer: {pointer!r}") from e
 
     return document
 
@@ -533,4 +550,5 @@ def _tilde_repl(md):
         raise ValueError(f'Unsupported tilde escape {md[1]}')
 
 
+_TILDE_RE = re.compile(r'~(.?)')
 _TILDE_REPL_TABLE = {'1': '/', '0': '~'}
