@@ -20,7 +20,7 @@ with open(data_path, 'r') as f:
 # The context of the DataSourceTypeCreator determines the definition context for the
 # classes created *unless* the schema definitions have an "$id", in which case the value
 # of the "$id" field takes precedence
-def_ctx = ClassContext(ident='http://openworm.org/tracker-commons')
+def_ctx = ClassContext(ident='http://schema.openworm.org/tracker-commons')
 annotated_schema = DataSourceTypeCreator('WCONDataSource', context=def_ctx).annotate(schema)
 
 # The context of the Creator determines the context in which statements are made by the

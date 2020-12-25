@@ -95,6 +95,7 @@ class Creator(object):
         Raises
         ------
         ValidationException
+            Raised when there's an error with the given instance compared to the schema
         '''
         self._context = context
         try:
@@ -482,6 +483,9 @@ class DataSourceTypeCreator(TypeCreator):
         return dt
 
 
+TILDE_RE = re.compile(r'~(.?)')
+
+
 # Copied and modified slightly from jsonschema...
 def resolve_fragment(document, fragment):
     """
@@ -499,14 +503,15 @@ def resolve_fragment(document, fragment):
     Returns
     -------
     object
-        The part of the document refered to
+        The part of the document referred to
     """
+    global TILDE_RE
     _, fragment = fragment.split('#', 1)
     fragment = fragment.lstrip("/")
     parts = unquote(fragment).split("/") if fragment else []
 
     for part in parts:
-        part = part.replace("~1", "/").replace("~0", "~")
+        part = TILDE_RE.sub(_tilde_repl, part)
 
         if isinstance(document, Sequence):
             # Array indexes should be turned into integers. The "-" value isn't valid
@@ -516,6 +521,16 @@ def resolve_fragment(document, fragment):
         try:
             document = document[part]
         except (TypeError, LookupError) as e:
-            raise Exception("Unresolvable JSON pointer: {fragment!r}") from e
+            raise LookupError(f"Unresolvable JSON pointer: {fragment!r}") from e
 
     return document
+
+
+def _tilde_repl(md):
+    try:
+        return _TILDE_REPL_TABLE[md[1]]
+    except Exception:
+        raise ValueError(f'Unsupported tilde escape {md[1]}')
+
+
+_TILDE_REPL_TABLE = {'1': '/', '0': '~'}
