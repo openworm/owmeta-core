@@ -18,7 +18,8 @@ from .context_mapped_class_util import find_class_context
 
 from .graph_object import (GraphObject,
                            ComponentTripler,
-                           GraphObjectQuerier)
+                           GraphObjectQuerier,
+                           IdentifierMissingException)
 from .rdf_utils import triples_to_bgp, deserialize_rdflib_term
 from .identifier_mixin import IdMixin
 from .inverse_property import InverseProperty
@@ -300,6 +301,7 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
 
         key_properties = dct.get('key_properties')
         if key_properties is not None:
+            self.direct_key = False
             new_key_properties = []
             for kp in key_properties:
                 if isinstance(kp, PThunk):
@@ -333,7 +335,7 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             if isinstance(kp, PThunk):
                 for k, p in self._property_classes.items():
                     if p is kp.result:
-                        new_key_property = {'name': k, 'type': 'hashed'}
+                        new_key_property = k
                         break
                 else:  # no break
                     raise Exception(("The provided 'key_properties' entry, {},"
@@ -341,22 +343,14 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             elif isinstance(kp, PropertyProperty):
                 for k, p in self._property_classes.items():
                     if p is kp._cls:
-                        new_key_property = {'name': k, 'type': 'hashed'}
+                        new_key_property = k
                         break
                 else:
                     raise Exception(("The provided 'key_properties' entry, {},"
                             " does not appear to be a property for this class").format(
                                 kp))
             elif isinstance(kp, six.string_types):
-                new_key_property = {'name': kp, 'type': 'hashed'}
-            elif isinstance(kp, dict):
-                prop = kp.get('property')
-                if prop:
-                    prockp = _process_key_property(prop)
-                    prockp.update(kp)
-                    new_key_property = prockp
-                else:
-                    new_key_property = kp
+                new_key_property = kp
             else:
                 raise Exception("The provided 'key_property' entry does not appear"
                         " to be a property")
@@ -447,8 +441,7 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
     @property
     def query(self):
         '''
-        Stub. Eventually, creates a proxy that changes how some things behave
-        for purposes of querying
+        Creates a proxy that changes how some things behave for purposes of querying
         '''
         if self.__query_form is None:
             meta = type(self)
@@ -648,6 +641,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
             property_args = [(key, val) for key, val in ((k, kwargs.pop(k, None))
                                                          for k in pc)
                              if val is not None]
+        self.__key = None
         super(BaseDataObject, self).__init__(**kwargs)
         self.properties = ContextualizableList(self.context)
         self.owner_properties = ContextFilteringList(self.context)
@@ -686,19 +680,23 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
     def context(self, value):
         self.__context = value
 
-    def make_identifier_from_properties(self, names):
+    def make_key_from_properties(self, names):
         '''
-        Creates an identifier from properties
+        Creates key from properties
         '''
         sdata = ''
         for n in names:
             prop = getattr(self, n)
             val = prop.defined_values[0]
             sdata += val.identifier.n3()
-        return self.make_identifier(sdata)
+        return sdata
 
-    def defined_augment(self):
-        if self.key_properties is not None:
+    def _key_defined(self):
+        if self.__key is not None:
+            return True
+        elif self.query_mode:
+            return False
+        elif self.key_properties is not None:
             for k in self.key_properties:
                 attr = getattr(self, k, None)
                 if attr is None:
@@ -708,7 +706,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
                     return False
             return True
         elif self.key_property is not None:
-            attr = getattr(self, self.key_property.get('name'), None)
+            attr = getattr(self, self.key_property, None)
             if attr is None:
                 raise Exception('Key property "{}" is not available on object'.format(
                     self.key_property))
@@ -716,20 +714,29 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
                 return False
             return True
         else:
-            return super(BaseDataObject, self).defined_augment()
+            return False
 
-    def identifier_augment(self):
-        if self.key_properties is not None:
-            return self.make_identifier_from_properties(self.key_properties)
+    @property
+    def key(self):
+        if not self._key_defined():
+            return None
+        if self.__key is not None:
+            return self.__key
+        elif self.key_properties is not None:
+            return self.make_key_from_properties(self.key_properties)
         elif self.key_property is not None:
-            prop = getattr(self, self.key_property.get('name'))
+            prop = getattr(self, self.key_property)
             val = prop.defined_values[0]
-            if self.key_property.get('type') == 'direct':
-                return self.make_identifier_direct(str(val.value))
+            if self.direct_key:
+                return val.value
             else:
-                return self.make_identifier(val)
+                return val
         else:
-            return super(BaseDataObject, self).identifier_augment()
+            return IdentifierMissingException()
+
+    @key.setter
+    def key(self, value):
+        self.__key = value
 
     def __repr__(self):
         return '{}(ident={})'.format(self.__class__.__name__, repr(self.idl))
@@ -1343,7 +1350,8 @@ class PythonModule(Module):
 
     name = DatatypeProperty(__doc__='The full name of the module')
 
-    key_property = dict(name='name', type='direct')
+    key_property = 'name'
+    direct_key = True
 
     def resolve_module(self):
         '''

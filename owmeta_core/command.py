@@ -578,6 +578,47 @@ class OWMContexts(object):
     def __init__(self, parent):
         self._parent = parent
 
+    def serialize(self, context=None, destination=None, format='nquads', include_imports=False, whole_graph=False):
+        '''
+        Serialize the current default context or the one provided
+
+        Parameters
+        ----------
+        context : str
+            The context to save
+        destination : file or str
+            A file-like object to write the file to or a file name. If not provided, messages the result.
+        format : str
+            Serialization format (ex, 'n3', 'nquads')
+        include_imports : bool
+            If true, then include contexts imported by the provided context in the result.
+            The default is not to include imported contexts.
+        whole_graph : bool
+            Serialize all contexts from all graphs (this probably isn't what you want)
+        '''
+
+        retstr = False
+        if destination is None:
+            from six import BytesIO
+            retstr = True
+            destination = BytesIO()
+
+        if whole_graph:
+            self._parent.rdf.serialize(destination, format=format)
+        else:
+            if context is None:
+                ctx = self._parent._default_ctx
+            else:
+                ctx = Context(ident=self._parent._den3(context), conf=self._conf())
+
+            if include_imports:
+                ctx.stored.rdf_graph().serialize(destination, format=format)
+            else:
+                ctx.own_stored.rdf_graph().serialize(destination, format=format)
+
+        if retstr:
+            self._parent.message(destination.getvalue().decode(encoding='utf-8'))
+
     def edit(self, context=None, format=None, editor=None, list_formats=False):
         '''
         Edit a provided context or the current default context.
@@ -1632,47 +1673,6 @@ class OWM(object):
 
     def _make_ctx(self, ctxid=None):
         return Context.contextualize(self._context)(ident=ctxid)
-
-    def serialize(self, context=None, destination=None, format='nquads', include_imports=False, whole_graph=False):
-        '''
-        Serialize the current default context or the one provided
-
-        Parameters
-        ----------
-        context : str
-            The context to save
-        destination : file or str
-            A file-like object to write the file to or a file name. If not provided, messages the result.
-        format : str
-            Serialization format (ex, 'n3', 'nquads')
-        include_imports : bool
-            If true, then include contexts imported by the provided context in the result.
-            The default is not to include imported contexts.
-        whole_graph : bool
-            Serialize all contexts from all graphs (this probably isn't what you want)
-        '''
-
-        retstr = False
-        if destination is None:
-            from six import BytesIO
-            retstr = True
-            destination = BytesIO()
-
-        if whole_graph:
-            self.rdf.serialize(destination, format=format)
-        else:
-            if context is None:
-                ctx = self._default_ctx
-            else:
-                ctx = Context(ident=self._den3(context), conf=self._conf())
-
-            if include_imports:
-                ctx.stored.rdf_graph().serialize(destination, format=format)
-            else:
-                ctx.own_stored.rdf_graph().serialize(destination, format=format)
-
-        if retstr:
-            self.message(destination.getvalue().decode(encoding='utf-8'))
 
     def _package_path(self):
         """

@@ -24,7 +24,8 @@ reactions::
     >>> class Drug(DataObject):
     ...     name = DatatypeProperty()
     ...     drug_name = Alias(name)
-    ...     key_property = dict(property=name, type='direct')
+    ...     key_property = 'name'
+    ...     direct_key = True
 
     >>> class Experiment(DataObject):
     ...     drug = ObjectProperty(value_type=Drug)

@@ -13,6 +13,7 @@ from .context import Context
 from .dataobject import (DataObject, ObjectProperty, DatatypeProperty, UnionProperty, This,
                          CPThunk)
 from .data_trans.common_data import DS_NS, DS_DATA_NS
+from .graph_object import IdentifierMissingException
 
 L = logging.getLogger(__name__)
 
@@ -146,12 +147,10 @@ class Informational(object):
         return ("Informational(name='{}',"
                 " display_name={},"
                 " default_value={},"
-                " description={},"
-                " identifier={})").format(self.name,
+                " description={})").format(self.name,
                                           repr(self.display_name),
                                           repr(self.default_value),
-                                          repr(self.description),
-                                          repr(self.identifier))
+                                          repr(self.description))
 
     # NOTE: This guy has to come last to avoid conflict with the decorator
     @property
