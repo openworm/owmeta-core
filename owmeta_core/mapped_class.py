@@ -64,11 +64,24 @@ class MappedClass(type):
         self.__rdf_type_object = dct.get('rdf_type_object')
 
         if not getattr(self, 'unmapped', False) and not dct.get('unmapped'):
-            module = IM.import_module(self.__module__)
-            if not hasattr(module, '__yarom_mapped_classes__'):
-                module.__yarom_mapped_classes__ = [self]
-            else:
-                module.__yarom_mapped_classes__.append(self)
+            self.register_on_module()
+
+    def register_on_module(self, module=None):
+        '''
+        "Registers" this class on a module (typically the one in which the class is
+        defined) such that owmeta-core functions can locate it. This happens automatically
+        when the class is defined unless the 'unmapped' attribute is defined and set to
+        `True`.
+
+        This mechanism necessary in some cases where classes are generated dynamically or
+        in a method and aren't necessarily assigned to attributes on the module where they
+        are defined.
+        '''
+        module = module or IM.import_module(self.__module__)
+        if not hasattr(module, '__yarom_mapped_classes__'):
+            module.__yarom_mapped_classes__ = [self]
+        else:
+            module.__yarom_mapped_classes__.append(self)
 
     @property
     def base_namespace(self):

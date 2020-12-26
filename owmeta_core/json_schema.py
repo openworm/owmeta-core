@@ -282,8 +282,37 @@ class TypeCreator(object):
         self.schema = schema
 
     @classmethod
-    def lookup_type(self, path):
-        pass
+    def lookup_type(self, annotated_schema, pointer=''):
+        '''
+        Look up the type created for the object at the given JSON pointer location
+
+        Parameters
+        ----------
+        annotated_schema : dict
+            Annotated schema as returned from `annotate`
+        pointer : str, optional
+            JSON pointer to the schema/sub-schema
+
+        Returns
+        -------
+        type
+            The type at the given JSON pointer location
+
+        Raises
+        ------
+        LookupError
+            Raised when the pointer has no referent in the given document or there's type
+            associated with the referent
+        '''
+        try:
+            subschema = resolve_json_pointer(annotated_schema, pointer)
+        except Exception:
+            raise
+        else:
+            try:
+                return subschema['_owm_type']
+            except KeyError as e:
+                raise LookupError(f'No type at {pointer}') from e
 
     def annotate(self):
         '''
@@ -325,7 +354,7 @@ class TypeCreator(object):
                         prop_annnotated_schema = copy.deepcopy(v)
 
                     if '$ref' in v:
-                        self._handle_ref(path, v)
+                        self._handle_ref(path + ('properties', k), v)
                     annotated_property_schemas[k] = prop_annnotated_schema
 
                     self.proc_prop(path, k, v)
@@ -414,11 +443,13 @@ class TypeCreator(object):
 
     @classmethod
     def _annotate_obj(self, obj, path, repl):
+
         if '_owm_type' not in repl:
             return
 
         if not path:
             obj['_owm_type'] = repl['_owm_type']
+            return
 
         subpart = obj.get(path[0])
         if subpart:
@@ -429,11 +460,19 @@ class DataSourceTypeCreator(TypeCreator):
     '''
     Creates DataSource types from a JSON Schema
     '''
-    def __init__(self, *args, context=None, **kwargs):
+    def __init__(self, *args, module, context=None, **kwargs):
+        '''
+        Parameters
+        ----------
+        module : str
+            The module in which classes will be defined
+        '''
         super(DataSourceTypeCreator, self).__init__(*args, **kwargs)
         self.cdict = dict()
         if context and not isinstance(context, str):
             context = context.identifier
+
+        self.module = module
 
         if context is not None:
             self._context = ClassContext(ident=context)
@@ -460,8 +499,6 @@ class DataSourceTypeCreator(TypeCreator):
             self.cdict[path][k] = info_type()
 
     def create_type(self, path, schema):
-        doc = (schema.get('title', '') + '\n\n' +
-               schema.get('description', '')).strip()
         cdict = dict(self.cdict.get(path, dict()))
         if not path:
             typ = DataSource
@@ -469,14 +506,21 @@ class DataSourceTypeCreator(TypeCreator):
             typ = DataObject
         if 'class_context' not in cdict:
             cdict['class_context'] = self._context
-        dt = type(typ)(self._extract_name(path),
+
+        if '__doc__' not in cdict:
+            doc = (schema.get('title', '') + '\n\n' +
+                   schema.get('description', '')).strip()
+            cdict['__doc__'] = doc
+
+        if 'unmapped' not in cdict:
+            cdict['unmapped'] = True
+
+        res = type(typ)(self._extract_name(path),
                 (typ,),
-                dict(__doc__=doc,
-                    __module__=__name__,
-                    **cdict))
-        if self._context is not None:
-            self._context.mapper.process_class(dt)
-        return dt
+                dict(**cdict))
+
+        res.__module__ = self.module
+        return res
 
 
 # Copied and modified from jsonschema...
