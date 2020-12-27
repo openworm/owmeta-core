@@ -56,14 +56,6 @@ CLI_HINTS = {
                 'names': ['module']
             }
         },
-        'serialize': {
-            (METHOD_NAMED_ARG, 'destination'): {
-                'names': ['--destination', '-w']
-            },
-            (METHOD_NAMED_ARG, 'format'): {
-                'names': ['--format', '-f']
-            }
-        },
         'non_interactive': {
             'names': ['--non-interactive', '-b']
         },
@@ -108,7 +100,19 @@ CLI_HINTS = {
                 'names': ['imported'],
                 'nargs': '*'
             },
-        }
+        },
+        'serialize': {
+            (METHOD_NAMED_ARG, 'context'): {
+                'names': ['context'],
+                'nargs': '?'
+            },
+            (METHOD_NAMED_ARG, 'destination'): {
+                'names': ['--destination', '-w']
+            },
+            (METHOD_NAMED_ARG, 'format'): {
+                'names': ['--format', '-f']
+            }
+        },
     },
     'owmeta_core.commands.bundle.OWMBundleRemote': {
         'show': {

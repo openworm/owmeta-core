@@ -604,6 +604,9 @@ class OWMContexts(object):
             destination = BytesIO()
 
         if whole_graph:
+            if context is not None:
+                raise GenericUserError('Serializing the whole graph precludes selecting a'
+                        ' single context')
             self._parent.rdf.serialize(destination, format=format)
         else:
             if context is None:

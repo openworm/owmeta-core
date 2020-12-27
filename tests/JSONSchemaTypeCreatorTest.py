@@ -70,4 +70,4 @@ def test_create_with_DataObject_ref():
              'definitions': {'ref_test': {'type': 'object'}}}, module=__name__)
     annotated_schema = cut.annotate()
     typ = DataSourceTypeCreator.retrieve_type(annotated_schema, '/properties/toast')
-    assert issubclass(typ, DataObject) and typ.__name__ == 'TestRefTest'
+    assert issubclass(typ, DataObject) and typ.__name__ == 'RefTest'
