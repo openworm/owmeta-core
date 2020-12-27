@@ -609,7 +609,7 @@ class OWMContexts(object):
             if context is None:
                 ctx = self._parent._default_ctx
             else:
-                ctx = Context(ident=self._parent._den3(context), conf=self._conf())
+                ctx = Context(ident=self._parent._den3(context), conf=self._parent._conf())
 
             if include_imports:
                 ctx.stored.rdf_graph().serialize(destination, format=format)

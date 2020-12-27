@@ -59,25 +59,6 @@ class Creator(object):
         if self._root_identifier:
             return self._root_identifier + '#' + '/'.join(self._path_stack)
 
-    def assign(self, obj, key, val):
-        '''
-        Assigns values to properties on the created objects. If the `obj` does not already
-        have a property for the given `key`, then it will be created. This is how
-        ``additionalProperties`` and ``patternProperties`` are supported.
-        '''
-        if not hasattr(obj, key):
-            typ = type(obj)
-            if isinstance(val, (str, float, bool, int)) or \
-                    isinstance(val, list) and val and \
-                    isinstance(val[0], (str, float, bool, int)):
-                typ.DatatypeProperty(key, owner=obj)
-            elif isinstance(val, dict):
-                L.warning("Received an object of unknown type: %s", ellipsize(str(val), 40))
-                typ.DatatypeProperty(key, owner=obj)
-            else:
-                typ.ObjectProperty(key, value_type=type(val), owner=obj)
-        getattr(obj, key)(val)
-
     def create(self, instance, context=None, ident=None):
         '''
         Creates an instance of the root OWM type given a deserialized instance of the type
@@ -105,12 +86,20 @@ class Creator(object):
             self._root_identifier = None
             self._context = None
 
-    def make_instance(self, owm_type):
-        if self._context:
-            owm_type = self._context(owm_type)
-        return owm_type(ident=self.gen_ident())
+    def fill_in(self, target, instance, context=None, ident=None):
+        '''
+        "Fill-in" an already existing target object with JSON matching a
+        schema
+        '''
+        self._context = context
+        try:
+            return self._create(instance, ident=ident, target=target)
+        finally:
+            del self._path_stack[:]
+            self._root_identifier = None
+            self._context = None
 
-    def _create(self, instance, schema=None, ident=None):
+    def _create(self, instance, schema=None, ident=None, target=None):
         if schema is None:
             schema = self.schema
 
@@ -221,9 +210,13 @@ class Creator(object):
 
                     raise AssignmentValidationException(sType, instance, k, v)
 
-                # res must be treated as a black-box since sub-classes have total freedom
-                # as far as what substitution they want to make
-                res = self.make_instance(owm_type)
+                if target is not None:
+                    res = target
+                else:
+                    # res must be treated as a black-box since sub-classes have total freedom
+                    # as far as what substitution they want to make
+                    res = self.make_instance(owm_type)
+
                 for k, v in pt_args.items():
                     self.assign(res, k, v)
                 return res
@@ -257,6 +250,38 @@ class Creator(object):
             raise NotImplementedError()
 
 
+class DataObjectCreator(Creator):
+    def assign(self, obj, key, val):
+        '''
+        Assigns values to properties on the created objects. If the `obj` does not already
+        have a property for the given `key`, then it will be created. This is how
+        ``additionalProperties`` and ``patternProperties`` are supported.
+        '''
+        if not hasattr(obj, key):
+            typ = type(obj)
+            if isinstance(val, (str, float, bool, int)) or \
+                    isinstance(val, list) and val and \
+                    isinstance(val[0], (str, float, bool, int)):
+                typ.DatatypeProperty(key, owner=obj)
+            elif isinstance(val, dict):
+                L.warning("Received an object of unknown type: %s", ellipsize(str(val), 40))
+                typ.DatatypeProperty(key, owner=obj)
+            else:
+                typ.ObjectProperty(key, value_type=type(val), owner=obj)
+        getattr(obj, key)(val)
+
+    def make_instance(self, owm_type):
+        if self._context:
+            owm_type = self._context(owm_type)
+        return owm_type(ident=self.gen_ident())
+
+    def fill_in(self, target, instance, context=None, ident=None):
+        if ident is None and target.defined:
+            ident = target.identifier
+
+        super().fill_in(target, instance, context, ident)
+
+
 class TypeCreator(object):
     '''
     Creates OWM types from a JSON schema and produces a copy of the schema annotated with
@@ -282,7 +307,7 @@ class TypeCreator(object):
         self.schema = schema
 
     @classmethod
-    def lookup_type(self, annotated_schema, pointer=''):
+    def retrieve_type(self, annotated_schema, pointer=''):
         '''
         Look up the type created for the object at the given JSON pointer location
 
@@ -325,8 +350,20 @@ class TypeCreator(object):
         if self._references is not None:
             self._references.append((path, v['$ref']))
 
-    def _extract_name(self, path):
+    def extract_name(self, path):
+        '''
+        Generates a class name from the path to the sub-schema
+
+        Parameters
+        ----------
+        path : tuple
+            Path to the sub-schema
+        '''
         s = self.base_name
+
+        if len(path) > 0 and path[0] == 'definitions':
+            s = self.definition_base_name
+
         for idx, p in enumerate(path):
             if idx % 2 == 1:
                 s += self._camelify(p.capitalize())
@@ -500,10 +537,7 @@ class DataSourceTypeCreator(TypeCreator):
 
     def create_type(self, path, schema):
         cdict = dict(self.cdict.get(path, dict()))
-        if not path:
-            typ = DataSource
-        else:
-            typ = DataObject
+        bases = self.select_base_types(path, schema)
         if 'class_context' not in cdict:
             cdict['class_context'] = self._context
 
@@ -515,12 +549,29 @@ class DataSourceTypeCreator(TypeCreator):
         if 'unmapped' not in cdict:
             cdict['unmapped'] = True
 
-        res = type(typ)(self._extract_name(path),
-                (typ,),
+        res = type(self.extract_name(path),
+                bases,
                 dict(**cdict))
 
         res.__module__ = self.module
         return res
+
+    def select_base_types(self, path, schema):
+        '''
+        Returns the base types for `create_type`
+
+        Parameters
+        ----------
+        path : tuple
+            The path to the sub-schema
+        schema : dict
+            The sub-schema at the path location
+        '''
+        if not path:
+            typ = DataSource
+        else:
+            typ = DataObject
+        return (typ,)
 
 
 # Copied and modified from jsonschema...
