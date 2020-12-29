@@ -764,7 +764,7 @@ class ObjectProperty(InversePropertyMixin,
     def set(self, v):
         if not isinstance(v, GraphObject):
             raise Exception(
-                "An ObjectProperty only accepts GraphObject instances. Got a " +
+                f"ObjectProperty {self!r} only accepts GraphObject instances. Got a " +
                 str(type(v)) + " a.k.a. " +
                 " or ".join(str(x) for x in type(v).__bases__))
         return super(ObjectProperty, self).set(v)

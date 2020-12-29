@@ -25,7 +25,7 @@ class AssignmentValidationException(ValidationException):
     '''
 
 
-class Creator(object):
+class Creator:
     '''
     Creates objects based on a JSON schema augmented with type annotations as would be
     produced by :py:class:`TypeCreator`
@@ -45,21 +45,23 @@ class Creator(object):
         schema : dict
             The annotated schema
         '''
-        self._path_stack = []
+        self.path_stack = []
         self._root_identifier = None
         self.schema = schema
 
     @contextmanager
     def _pushing(self, path_component):
-        self._path_stack.append(path_component)
-        yield
-        self._path_stack.pop()
+        self.path_stack.append(path_component)
+        try:
+            yield
+        finally:
+            self.path_stack.pop()
 
     def gen_ident(self):
         if self._root_identifier:
-            return self._root_identifier + '#' + '/'.join(self._path_stack)
+            return self._root_identifier + '#' + '/'.join(str(x) for x in self.path_stack)
 
-    def create(self, instance, context=None, ident=None):
+    def create(self, instance, ident=None):
         '''
         Creates an instance of the root OWM type given a deserialized instance of the type
         described in our JSON schema.
@@ -78,26 +80,22 @@ class Creator(object):
         ValidationException
             Raised when there's an error with the given instance compared to the schema
         '''
-        self._context = context
         try:
             return self._create(instance, ident=ident)
         finally:
-            del self._path_stack[:]
+            del self.path_stack[:]
             self._root_identifier = None
-            self._context = None
 
-    def fill_in(self, target, instance, context=None, ident=None):
+    def fill_in(self, target, instance, ident=None):
         '''
         "Fill-in" an already existing target object with JSON matching a
         schema
         '''
-        self._context = context
         try:
             return self._create(instance, ident=ident, target=target)
         finally:
-            del self._path_stack[:]
+            del self.path_stack[:]
             self._root_identifier = None
-            self._context = None
 
     def _create(self, instance, schema=None, ident=None, target=None):
         if schema is None:
@@ -123,46 +121,59 @@ class Creator(object):
                 try:
                     return self._create(instance, opt)
                 except AssignmentValidationException:
-                    pass
+                    L.debug('oneOf option mismatch', exc_info=True)
+            raise AssignmentValidationException(schema, instance)
 
         if instance is None:
             default = schema.get('default', None)
             # If the default is None, then it'll just fail below
             if default is not None:
                 return self._create(default, schema)
+            return None
+
+        # TODO: Support allOf -- just added sufficient to process WCON schema for now
+        # (2020/12/28)
 
         sType = schema.get('type')
+
+        if sType is None:
+            # At this point, we should have gotten all of the options other than a type,
+            # so if we don't have a type, then we default to a "True" schema
+            # interpretation
+            return instance
+
         if isinstance(instance, str):
             if sType == 'string':
                 return instance
-            raise AssignmentValidationException(sType, instance)
+            raise AssignmentValidationException(schema, instance)
         elif isinstance(instance, bool):
             # remember bool is a subtype of int, so boolean has to precede int
             if sType == 'boolean':
                 return instance
-            raise AssignmentValidationException(sType, instance)
+            raise AssignmentValidationException(schema, instance)
         elif isinstance(instance, int):
             if sType in ('integer', 'number'):
                 return instance
-            raise AssignmentValidationException(sType, instance)
+            raise AssignmentValidationException(schema, instance)
         elif isinstance(instance, float):
             if sType == 'number':
                 return instance
-            raise AssignmentValidationException(sType, instance)
+            raise AssignmentValidationException(schema, instance)
         elif isinstance(instance, list):
             if sType == 'array':
                 item_schema = schema.get('items')
                 if item_schema:
-                    converted_list = list()
+                    converted_list = self.begin_sequence(schema)
                     for idx, elt in enumerate(instance):
                         with self._pushing(idx):
-                            converted_list.append(self._create(elt, item_schema))
+                            converted_list = self.add_to_sequence(
+                                    schema, converted_list, idx, self._create(elt, item_schema))
                     return converted_list
                 else:
                     # The default for items is to accept all, so we short-cut here...
                     # also means that there's OWM type conversion
                     return instance
-            raise AssignmentValidationException(sType, instance)
+            raise AssignmentValidationException(schema, instance)
         elif isinstance(instance, dict):
             if sType == 'object':
                 owm_type = schema.get('_owm_type')
@@ -171,7 +182,7 @@ class Creator(object):
                     # like returning None or just 'instance' could both be surprising and
                     # not annotating an object is most likely a mistake in a TypeCreator
                     # sub-class.
-                    raise AssignmentValidationException(sType, instance)
+                    raise AssignmentValidationException(schema, instance)
 
                 pt_args = dict()
                 for k, v in instance.items():
@@ -208,7 +219,7 @@ class Creator(object):
                             pt_args[k] = self._create(v, addprops)
                         continue
 
-                    raise AssignmentValidationException(sType, instance, k, v)
+                    raise AssignmentValidationException(schema, instance, k, v)
 
                 if target is not None:
                     res = target
@@ -220,37 +231,63 @@ class Creator(object):
                 for k, v in pt_args.items():
                     self.assign(res, k, v)
                 return res
+            raise AssignmentValidationException(schema, instance)
         else:
-            raise AssignmentValidationException(sType, instance)
+            raise AssignmentValidationException(schema, instance)
 
-        def assign(self, obj, name, value):
-            '''
-            Assign the given value to a property with the given name on the object
+    def begin_sequence(self, schema):
+        return list()
 
-            Parameters
-            ----------
-            obj : object
-                The object to receive the assignment
-            name : str
-                The name on the object to assign to
-            value : object
-                The value to assign
-            '''
-            raise NotImplementedError()
+    def add_to_sequence(self, schema, sequence, index, item):
+        sequence.append(item)
+        return sequence
 
-        def make_instance(self, owm_type):
-            '''
-            Make an instance of the given type
+    def assign(self, obj, name, value):
+        '''
+        Assign the given value to a property with the given name on the object
 
-            Parameters
-            ----------
-            owm_type : type
-                The type for which an instance should be made
-            '''
-            raise NotImplementedError()
+        Parameters
+        ----------
+        obj : object
+            The object to receive the assignment
+        name : str
+            The name on the object to assign to
+        value : object
+            The value to assign
+        '''
+        raise NotImplementedError()
+
+    def make_instance(self, owm_type):
+        '''
+        Make an instance of the given type
+
+        Parameters
+        ----------
+        owm_type : type
+            The type for which an instance should be made
+        '''
+        raise NotImplementedError()
 
 
 class DataObjectCreator(Creator):
+    def create(self, instance, context=None, ident=None):
+        '''
+        Parameters
+        ----------
+        instance : dict
+            The JSON object to create from
+        context : owmeta_core.context.Context, optional
+            The context in which the object should be created
+        ident : str, optional
+            The base identifier for created objects. Identifiers for attached objects will
+            be generated based on this identifier by default.
+        '''
+        self.context = context
+        try:
+            return super().create(instance, ident=ident)
+        finally:
+            self.context = None
+
     def assign(self, obj, key, val):
         '''
         Assigns values to properties on the created objects. If the `obj` does not already
@@ -267,19 +304,29 @@ class DataObjectCreator(Creator):
                 L.warning("Received an object of unknown type: %s", ellipsize(str(val), 40))
                 typ.DatatypeProperty(key, owner=obj)
             else:
-                typ.ObjectProperty(key, value_type=type(val), owner=obj)
+                if val is not None:
+                    value_type = type(val)
+                else:
+                    value_type = None
+                typ.ObjectProperty(key, value_type=value_type, owner=obj)
         getattr(obj, key)(val)
 
     def make_instance(self, owm_type):
-        if self._context:
-            owm_type = self._context(owm_type)
+        if self.context:
+            owm_type = self.context(owm_type)
         return owm_type(ident=self.gen_ident())
 
     def fill_in(self, target, instance, context=None, ident=None):
         if ident is None and target.defined:
             ident = target.identifier
 
-        super().fill_in(target, instance, context, ident)
+        if context is None:
+            context = target.context
+        self.context = context
+        try:
+            super().fill_in(target, instance, ident)
+        finally:
+            self.context = None
 
 
 class TypeCreator(object):
@@ -461,7 +508,6 @@ class TypeCreator(object):
         raise NotImplementedError()
 
     def _process_definitions(self, schema, path, references=None):
-        # TODO: Actually use definition_base_name
         annotated_definition_schemas = None
         definitions = schema.get('definitions', None)
         if definitions:
