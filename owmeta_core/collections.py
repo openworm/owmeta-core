@@ -56,19 +56,19 @@ class Container(BaseDataObject):
         if prop is None:
             return None
         item_to_return = None
-        extra_items = []
+        extra_items = None
         for item in prop.get():
             if item_to_return is None:
                 item_to_return = item
+            elif extra_items is None:
+                extra_items = [item_to_return, item]
             else:
                 extra_items.append(item)
         if extra_items:
             # Unlike regular Property access, there's generally not a presumption that
             # one of many values can be selected arbitrarily. Also, an iteration that
             # sometimes does what you expect and sometimes doesn't is really frustrating.
-            raise ContainerValueConflict(
-                    f'More than one item is declared at index {index}.'
-                    f' Suppressed items: {extra_items}')
+            raise ContainerValueConflict(index, extra_items)
         return item_to_return
 
     def __getattr__(self, name):
@@ -104,7 +104,10 @@ class Container(BaseDataObject):
 
 
 class ContainerValueConflict(Exception):
-    pass
+    def __init__(self, index, items):
+        super().__init__(f'More than one item is declared at index {index}.')
+        self.index = index
+        self.items = items
 
 
 class ContainerMembershipProperty(UnionPropertyType):

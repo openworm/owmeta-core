@@ -52,8 +52,19 @@ class _ContainerTestBase(object):
         nums._1(4)
         self.context.save()
         nums0 = self.context.stored(self.container_type)(ident="http://example.org/fav-numbers")
-        with self.assertRaises(ContainerValueConflict):
+        with self.assertRaisesRegex(ContainerValueConflict, r'\b1\b'):
             nums0[1]
+
+    def test_container_value_conflict_items(self):
+        nums = self.context(self.container_type)(ident="http://example.org/fav-numbers")
+        nums._1(8)
+        self.context.save()
+        nums._1(4)
+        self.context.save()
+        nums0 = self.context.stored(self.container_type)(ident="http://example.org/fav-numbers")
+        with self.assertRaises(ContainerValueConflict) as raised:
+            nums0[1]
+        assert set(raised.exception.items) == set([8, 4])
 
     def test_auto_prop_sameas(self):
         nums = self.cut
