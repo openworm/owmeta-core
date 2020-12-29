@@ -465,7 +465,7 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             o.rdf_type_property(o)
         elif isinstance(o, RDFProperty):
             RDFProperty.init_rdf_type_object()
-            o.rdf_type_property(RDFProperty.rdf_type_object)
+            o.rdf_type_property.set(self.rdf_type_object)
         else:
             o.rdf_type_property.set(self.rdf_type_object)
         return o
@@ -1157,6 +1157,7 @@ class RDFTypeProperty(SP.ObjectProperty):
     multiple = True
     lazy = False
     rdf_object_deferred = True
+    rdf_type_object_deferred = True
 
 
 class RDFSClass(BaseDataObject):
@@ -1189,6 +1190,7 @@ class RDFSSubClassOfProperty(SP.ObjectProperty):
     multiple = True
     lazy = False
     rdf_object_deferred = True
+    rdf_type_object_deferred = True
 
 
 class TypeDataObject(BaseDataObject):
@@ -1203,6 +1205,7 @@ class RDFSSubPropertyOfProperty(SP.ObjectProperty):
     multiple = True
     lazy = True
     rdf_object_deferred = True
+    rdf_type_object_deferred = True
 
 
 class RDFSCommentProperty(SP.DatatypeProperty):
@@ -1216,6 +1219,7 @@ class RDFSCommentProperty(SP.DatatypeProperty):
     multiple = True
     lazy = True
     rdf_object_deferred = True
+    rdf_type_object_deferred = True
 
 
 class RDFSLabelProperty(SP.DatatypeProperty):
@@ -1229,6 +1233,7 @@ class RDFSLabelProperty(SP.DatatypeProperty):
     multiple = True
     lazy = True
     rdf_object_deferred = True
+    rdf_type_object_deferred = True
 
 
 class DataObject(BaseDataObject):
@@ -1247,7 +1252,7 @@ TypeDataObject.init_rdf_type_object()
 DataObject.init_rdf_type_object()
 
 
-class RDFProperty(DataObject):
+class RDFProperty(BaseDataObject):
     """ The `DataObject` corresponding to rdf:Property """
     rdf_type = R.RDF.Property
     class_context = URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns')
@@ -1460,3 +1465,12 @@ RDFSSubClassOfProperty.init_rdf_object()
 RDFSSubPropertyOfProperty.init_rdf_object()
 RDFSCommentProperty.init_rdf_object()
 RDFSLabelProperty.init_rdf_object()
+SP.Property.init_rdf_type_object()
+SP.DatatypeProperty.init_rdf_type_object()
+SP.ObjectProperty.init_rdf_type_object()
+SP.UnionProperty.init_rdf_type_object()
+RDFTypeProperty.init_rdf_type_object()
+RDFSSubClassOfProperty.init_rdf_type_object()
+RDFSSubPropertyOfProperty.init_rdf_type_object()
+RDFSCommentProperty.init_rdf_type_object()
+RDFSLabelProperty.init_rdf_type_object()

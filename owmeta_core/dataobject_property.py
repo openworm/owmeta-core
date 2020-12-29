@@ -35,8 +35,9 @@ L = logging.getLogger(__name__)
 class ContextMappedPropertyClass(MappedClass, ContextualizableClass):
 
     rdf_object_deferred = False
+    rdf_type_object_deferred = False
 
-    context_carries = ('rdf_object_deferred', 'link', 'linkName')
+    context_carries = ('rdf_object_deferred', 'rdf_type_object_deferred', 'link', 'linkName', 'rdf_type_class')
 
     def __init__(self, name, bases, dct):
         super(ContextMappedPropertyClass, self).__init__(name, bases, dct)
@@ -62,15 +63,20 @@ class ContextMappedPropertyClass(MappedClass, ContextualizableClass):
         if not hasattr(self, 'base_namespace') or self.base_namespace is None:
             self.base_namespace = find_base_namespace(dct, bases)
 
+        self.rdf_type_class = dct.get('rdf_type_class')
         self.__rdf_object = dct.get('rdf_object')
         self.__rdf_object_callback = dct.get('rdf_object_callback')
 
         self.rdf_object_deferred = dct.get('rdf_object_deferred', False)
+        self.rdf_type_object_deferred = dct.get('rdf_type_object_deferred', False)
 
         # We have to deferr initializing our rdf_object since initialization depends on
         # RDFSSubClassOfProperty being initialized
         if not self.rdf_object_deferred:
             self.init_rdf_object()
+
+        if not self.rdf_type_object_deferred:
+            self.init_rdf_type_object()
 
         if not getattr(self, 'unmapped', False) and not dct.get('unmapped'):
             module = import_module(self.__module__)
@@ -115,28 +121,39 @@ class ContextMappedPropertyClass(MappedClass, ContextualizableClass):
     def init_rdf_object(self):
         # Properties created in a DataObject sub-class definition will have their
         # rdf_object created for them, obviating this procedure.
-        if self.rdf_object is None or self.rdf_object.identifier != self.link:
-            from .dataobject import RDFSSubClassOfProperty, RDFProperty
+        if (getattr(self, 'link', None) is not None and
+                (self.rdf_object is None or
+                    self.rdf_object.identifier != self.link)):
+            from .dataobject import RDFProperty
             if self.definition_context is None:
                 L.info("The class {0} has no context for PropertyDataObject(ident={1})".format(
                     self, self.link))
                 return
             L.debug('Creating rdf_object for {} in {}'.format(self, self.definition_context))
             rdto = RDFProperty.contextualize(self.definition_context)(ident=self.link)
-            rdto.attach_property(RDFSSubClassOfProperty)
             if hasattr(self, 'label'):
                 rdto.rdfs_label(self.label)
 
-            for par in self.__bases__:
-                prdto = getattr(par, 'rdf_object', None)
-                if prdto is not None:
-                    if rdto.identifier == prdto.identifier:
-                        L.warning('Subclass declared without a distinct link: %s', self)
-                        continue
-                    rdto.rdfs_subclassof_property.set(prdto)
             self.rdf_object = rdto
 
-    init_rdf_type_object = init_rdf_object
+    def init_rdf_type_object(self):
+        '''
+        Sometimes, we actually use Property sub-classes *as* rdf:Property classes (e.g.,
+        rdfs:ContainerMembershipProperty). The 'rdf_type' attribute has to be defined on
+        this class if we're going to use it as a class.
+
+        Here's where we can create the objects that describe the property classes.
+        '''
+        from .dataobject import RDFProperty
+
+        rdf_type = getattr(self, 'rdf_type', None)
+        if (rdf_type is not None and
+                getattr(self, 'rdf_object', None) is None and
+                getattr(self, 'rdf_type_class', None) is None):
+            self.rdf_type_class = type(self.__name__,
+                    (RDFProperty,),
+                    dict(rdf_type=rdf_type,
+                         class_context=self.definition_context))
 
     @property
     def definition_context(self):
@@ -211,7 +228,7 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
 
     class_context = RDF_CONTEXT
     link = None
-    linkName = "property"
+    linkName = None
     cascade_retract = False
     base_namespace = R.Namespace(BASE_SCHEMA_URL + '/')
     base_data_namespace = R.Namespace(BASE_DATA_URL + '/')
@@ -223,6 +240,7 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
     '''
 
     rdf_object_deferred = True
+    rdf_type_object_deferred = True
 
     def __init__(self, owner, **kwargs):
         super(Property, self).__init__(**kwargs)
@@ -749,6 +767,7 @@ class ObjectProperty(InversePropertyMixin,
                      Property):
 
     rdf_object_deferred = True
+    rdf_type_object_deferred = True
 
     def __init__(self, resolver, *args, **kwargs):
         super(ObjectProperty, self).__init__(*args, **kwargs)
@@ -790,6 +809,7 @@ class ObjectProperty(InversePropertyMixin,
 class DatatypeProperty(DatatypePropertyMixin, PropertyCountMixin, Property):
 
     rdf_object_deferred = True
+    rdf_type_object_deferred = True
 
     def get(self):
         r = super(DatatypeProperty, self).get()
@@ -824,6 +844,7 @@ class UnionProperty(InversePropertyMixin,
                     Property):
 
     rdf_object_deferred = True
+    rdf_type_object_deferred = True
 
     """ A Property that can handle either DataObjects or basic types """
     def get(self):

@@ -111,9 +111,9 @@ class ContainerValueConflict(Exception):
 
 
 class ContainerMembershipProperty(UnionPropertyType):
-    link = RDFS.member
     class_context = RDFS_CONTEXT
     owner_type = BaseDataObject
+    rdf_type = RDFS.ContainerMembershipProperty
 
     def __init__(self, index, **kwargs):
         super().__init__(**kwargs)
@@ -124,6 +124,10 @@ class ContainerMembershipProperty(UnionPropertyType):
         except KeyError as e:
             raise ValueError('Expected an integer > 0') from e
         self.linkName = name
+        # We need to add the (..., rdf:type, rdfs:ContainerMembershipProperty) triples to
+        # do proper entailment, ultimately of the rdfs:subPropertyOf(rdfs:member)
+        # relationship.
+        type(self).rdf_type_class.contextualize(self.context)(ident=self.link)
 
     @property
     def index(self):
