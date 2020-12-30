@@ -5,7 +5,7 @@ import rdflib
 
 from .graph_object import (GraphObjectQuerier,
                            ZeroOrMoreTQLayer)
-from .rdf_go_modifiers import SubClassModifier
+from .rdf_go_modifiers import SubClassModifier, SubPropertyOfModifier
 
 L = logging.getLogger(__name__)
 
@@ -20,6 +20,13 @@ def zomifier(target_type):
     def helper(rdf_type):
         if target_type == rdf_type:
             return SubClassModifier(rdf_type)
+    return helper
+
+
+def rdfs_subpropertyof_zom(super_property):
+    def helper(triple):
+        if triple[1] == super_property:
+            return SubPropertyOfModifier(super_property)
     return helper
 
 
