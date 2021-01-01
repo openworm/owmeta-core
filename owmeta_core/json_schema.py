@@ -6,11 +6,17 @@ import re
 from urllib.parse import unquote
 
 from .context import ClassContext
-from .dataobject import DataObject, DatatypeProperty, ObjectProperty
+from .dataobject import DataObject, DatatypeProperty, ObjectProperty, UnionProperty
 from .datasource import DataSource, Informational
 from .utils import ellipsize
 
 L = logging.getLogger(__name__)
+
+
+class SchemaException(Exception):
+    '''
+    Raised for an invalid input given to `TypeCreator`
+    '''
 
 
 class ValidationException(Exception):
@@ -437,6 +443,9 @@ class TypeCreator(object):
                     else:
                         prop_annnotated_schema = copy.deepcopy(v)
 
+                    # TODO: Handle oneOf here -- this happens to not matter for schemas we
+                    # care about, but we should make this work in general
+
                     if '$ref' in v:
                         self._handle_ref(path + ('properties', k), v)
                     annotated_property_schemas[k] = prop_annnotated_schema
@@ -477,9 +486,9 @@ class TypeCreator(object):
                                         "data_data": {"type": "string"}
                                      }}}}
 
-        `proc_prop` would be called as ``.proc_path((), 'data', {'type': 'object', ...})``
+        `proc_prop` would be called as ``.proc_prop((), 'data', {'type': 'object', ...})``
         for ``data``, but for ``data_data``, it would be called like
-        ``.proc_path(('properties', 'data'), 'data_data', {'type': 'string'})``
+        ``.proc_prop(('properties', 'data'), 'data_data', {'type': 'string'})``
 
         Parameters
         ----------
@@ -569,17 +578,44 @@ class DataSourceTypeCreator(TypeCreator):
 
     def proc_prop(self, path, k, v):
         if not path:
-            info_type = 'DatatypeProperty'
-            if v.get('type') == 'object':
-                info_type = 'ObjectProperty'
+            property_type_string = self.determine_property_type(path, k, v)
             self.cdict[path][k] = Informational(k, display_name=v.get('title'),
                                      description=v.get('description'),
-                                     property_type=info_type)
+                                     property_type=property_type_string)
         else:
-            info_type = DatatypeProperty
-            if v.get('type') == 'object':
-                info_type = ObjectProperty
-            self.cdict[path][k] = info_type()
+            property_type_string = self.determine_property_type(path, k, v)
+            property_type = _DO_PROPERTY_TYPES[property_type_string]
+            self.cdict[path][k] = property_type()
+
+    def determine_property_type(self, path, k, v):
+        '''
+        Determine the type of property created by `proc_prop`
+        '''
+        res = 'DatatypeProperty'
+        if v.get('type') == 'object':
+            res = 'ObjectProperty'
+        else:
+            oneOf = v.get('oneOf')
+            if oneOf:
+                # TODO: find out if all options are objects or not. If they are, then
+                # ObjectProperty. If some are, then UnionProperty, otherwise default
+                # to DataTypeProperty
+                types = set()
+                for schema in oneOf:
+                    types.add(self.determine_property_type(path, k, schema))
+                if len(types) > 1:
+                    res = 'UnionProperty'
+                else:
+                    try:
+                        res = types.pop()
+                    except KeyError:
+                        raise SchemaException('oneOf must be non-empty', path, k, v)
+            else:
+                ref = v.get('$ref')
+                if ref:
+                    res = self.determine_property_type(path, k, resolve_fragment(self.schema, ref))
+
+        return res
 
     def create_type(self, path, schema):
         cdict = dict(self.cdict.get(path, dict()))
@@ -618,6 +654,11 @@ class DataSourceTypeCreator(TypeCreator):
         else:
             typ = DataObject
         return (typ,)
+
+
+_DO_PROPERTY_TYPES = {'DatatypeProperty': DatatypeProperty,
+                      'ObjectProperty': ObjectProperty,
+                      'UnionProperty': UnionProperty}
 
 
 # Copied and modified from jsonschema...
