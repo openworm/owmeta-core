@@ -600,6 +600,15 @@ class ContainerMembershipIsMemberTQLayer(TQLayer):
                     for t in self.next.triples((None, RDF.type, RDFS.ContainerMembershipProperty), context))
         return chain(*iters)
 
+    def triples_choices(self, query_triple, context=None):
+        iters = [self.next.triples_choices(query_triple, context)]
+        if (query_triple[1] == RDFS.subPropertyOf and
+                (query_triple[2] == RDFS.member or
+                    (isinstance(query_triple[2], list) and RDFS.member in query_triple[2]))):
+            iters.append((t[0], RDFS.subPropertyOf, RDFS.member)
+                    for t in self.next.triples((None, RDF.type, RDFS.ContainerMembershipProperty), context))
+        return chain(*iters)
+
 
 _default_tq_layers_list = [
     RangeTQLayer,
