@@ -234,8 +234,7 @@ class OWMSource(object):
         """
         from .datasource import DataSource
         from .dataobject import TypeDataObject, RDFSSubClassOfProperty
-        from .graph_object import ZeroOrMoreTQLayer
-        from .rdf_query_util import rdfs_subclasof_zom_creator
+        from .rdf_query_modifers import ZeroOrMoreTQLayer, rdfs_subclasof_zom_creator
         conf = self._parent._conf()
         ctx = self._parent._default_ctx
         rdfto = ctx.stored(DataSource.rdf_type_object)
@@ -356,8 +355,7 @@ class OWMTranslator(object):
         """
         from .datasource import DataTranslator
         from .dataobject import TypeDataObject, RDFSSubClassOfProperty
-        from .graph_object import ZeroOrMoreTQLayer
-        from .rdf_query_util import rdfs_subclasof_zom_creator
+        from .rdf_query_modifers import ZeroOrMoreTQLayer, rdfs_subclasof_zom_creator
         conf = self._parent._conf()
         ctx = self._parent._default_ctx
         rdfto = ctx.stored(DataTranslator.rdf_type_object)

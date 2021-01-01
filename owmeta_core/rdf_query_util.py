@@ -3,9 +3,8 @@ import logging
 
 import rdflib
 
-from .graph_object import (GraphObjectQuerier,
-                           ZeroOrMoreTQLayer)
-from .rdf_go_modifiers import SubClassModifier, SubPropertyOfModifier
+from .graph_object import GraphObjectQuerier
+from .rdf_query_modifiers import ZeroOrMoreTQLayer, rdfs_subclasof_zom_creator
 
 L = logging.getLogger(__name__)
 
@@ -14,36 +13,6 @@ def goq_hop_scorer(hop):
     if hop[1] == rdflib.RDF.type:
         return 1
     return 0
-
-
-def rdfs_subclasof_zom_creator(target_type):
-    '''
-    Creates a function used by `ZeroOrMoreTQLayer` to determine if a query needs to be
-    augmented to retrieve sub-classes of a *given* RDF type
-    '''
-    def helper(triple):
-        if target_type == triple[2] is not None and triple[1] == rdflib.RDF.type:
-            return SubClassModifier(triple[2])
-    return helper
-
-
-def rdfs_subpropertyof_zom(super_property):
-    '''
-    Argument to `ZeroOrMoreTQLayer`. Adds sub-properties of the given property to triple
-    queries
-    '''
-    def helper(triple):
-        if triple[1] == super_property:
-            return SubPropertyOfModifier(super_property)
-    return helper
-
-
-def rdfs_subclassof_zom(triple):
-    '''
-    Argument to `ZeroOrMoreTQLayer`. Adds sub-classes to triple queries for an rdf:type
-    '''
-    if triple[2] is not None and triple[1] == rdflib.RDF.type:
-        return SubClassModifier(triple[2])
 
 
 def load_base(graph, idents, target_type, context, resolver):

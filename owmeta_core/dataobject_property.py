@@ -15,20 +15,18 @@ from .contextualize import (Contextualizable, ContextualizableClass,
                             contextualize_helper,
                             decontextualize_helper)
 from .context_mapped_class_util import find_class_context, find_base_namespace
-from .graph_object import (GraphObject,
-                           GraphObjectQuerier,
-                           ZeroOrMoreTQLayer,
-                           ContainerMembershipIsMemberTQLayer)
+from .graph_object import GraphObject, GraphObjectQuerier
 from .inverse_property import InversePropertyMixin
 from .mapped_class import MappedClass
 from .property_mixins import (DatatypePropertyMixin,
                               UnionPropertyMixin)
 from .property_value import PropertyValue
 from .rdf_utils import deserialize_rdflib_term
-from .rdf_query_util import (goq_hop_scorer,
-                             load_base,
-                             rdfs_subpropertyof_zom,
-                             rdfs_subclassof_zom)
+from .rdf_query_modifiers import (rdfs_subpropertyof_zom,
+                                  rdfs_subclassof_zom,
+                                  ZeroOrMoreTQLayer,
+                                  ContainerMembershipIsMemberTQLayer)
+from .rdf_query_util import goq_hop_scorer, load_base
 from .statement import Statement
 from .variable import Variable
 
