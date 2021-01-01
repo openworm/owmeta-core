@@ -117,4 +117,4 @@ class UnionPropertyMixin(object):
                     the_type = self.resolver.type_resolver(types)
                     L.debug("the_type = {}".format(the_type))
 
-                yield self.resolver.id2ob(ident, the_type)
+                yield self.resolver.id2ob(ident, the_type, context=self.owner.context)

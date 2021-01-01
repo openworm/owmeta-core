@@ -17,15 +17,18 @@ from .contextualize import (Contextualizable, ContextualizableClass,
 from .context_mapped_class_util import find_class_context, find_base_namespace
 from .graph_object import (GraphObject,
                            GraphObjectQuerier,
-                           ZeroOrMoreTQLayer)
+                           ZeroOrMoreTQLayer2,
+                           ContainerMembershipIsMemberTQLayer)
 from .inverse_property import InversePropertyMixin
 from .mapped_class import MappedClass
 from .property_mixins import (DatatypePropertyMixin,
                               UnionPropertyMixin)
 from .property_value import PropertyValue
 from .rdf_utils import deserialize_rdflib_term
-from .rdf_query_util import goq_hop_scorer, load_base
-from .rdf_go_modifiers import SubClassModifier
+from .rdf_query_util import (goq_hop_scorer,
+                             load_base,
+                             rdfs_subpropertyof_zom,
+                             rdfs_subclassof_zom)
 from .statement import Statement
 from .variable import Variable
 
@@ -364,19 +367,18 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
             return ()
         results = None
         owner = self.owner
+
+        g = ZeroOrMoreTQLayer2(rdfs_subclassof_zom, self.rdf)
+        g = ContainerMembershipIsMemberTQLayer(g)
+        g = ZeroOrMoreTQLayer2(rdfs_subpropertyof_zom(R.RDFS.member), g)
         if owner.defined:
             results = set()
             ident = owner.identifier
-            for s, p, o in self.rdf.triples((ident, self.link, None)):
+            for s, p, o in g.triples((ident, self.link, None)):
                 results.add(o)
         else:
             v = Variable("var" + str(id(self)))
             self._insert_value(v)
-
-            def _zomifier(rdf_type):
-                if rdf_type and getattr(self, 'value_rdf_type', None) == rdf_type:
-                    return SubClassModifier(rdf_type)
-            g = ZeroOrMoreTQLayer(_zomifier, self.rdf)
             results = GraphObjectQuerier(v, g, parallel=False,
                                          hop_scorer=goq_hop_scorer)()
             self._remove_value(v)
@@ -862,6 +864,14 @@ class UnionProperty(InversePropertyMixin,
         if isinstance(x, PropertyValue):
             return self.resolver.deserializer(x.identifier) if x is not None else x
         return x
+
+    @property
+    def statements(self):
+        for x in self.get():
+            yield Statement(self.owner,
+                    self,
+                    x,
+                    self.context)
 
 
 def _property_to_string(self):

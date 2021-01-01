@@ -5,7 +5,7 @@ import rdflib
 
 from .graph_object import (GraphObjectQuerier,
                            ZeroOrMoreTQLayer)
-from .rdf_go_modifiers import SubClassModifier, SubPropertyOfModifier
+from .rdf_go_modifiers import SubClassModifier2, SubClassModifier, SubPropertyOfModifier
 
 L = logging.getLogger(__name__)
 
@@ -24,10 +24,22 @@ def zomifier(target_type):
 
 
 def rdfs_subpropertyof_zom(super_property):
+    '''
+    Argument to `ZeroOrMoreTQLayer2`. Adds sub-properties of the given property to triple
+    queries
+    '''
     def helper(triple):
         if triple[1] == super_property:
             return SubPropertyOfModifier(super_property)
     return helper
+
+
+def rdfs_subclassof_zom(triple):
+    '''
+    Argument to `ZeroOrMoreTQLayer2`. Adds sub-classes to triple queries for an rdf:type
+    '''
+    if triple[2] is not None and triple[1] == rdflib.RDF.type:
+        return SubClassModifier2(triple[2])
 
 
 def load_base(graph, idents, target_type, context, resolver):

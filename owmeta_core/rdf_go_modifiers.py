@@ -40,10 +40,19 @@ class ZeroOrMore2(object):
                                        repr(self.direction))
 
 
+class SubClassModifier2(ZeroOrMore2):
+
+    def __init__(self, rdf_type):
+        super().__init__(rdf_type, R.RDFS.subClassOf, 2, UP)
+
+    def __repr__(self):
+        return FCN(type(self)) + '(' + repr(self.identifier) + ')'
+
+
 class SubPropertyOfModifier(ZeroOrMore2):
 
     def __init__(self, rdf_property):
-        super(SubPropertyOfModifier, self).__init__(rdf_property, R.RDFS.subPropertyOf, 1, direction=UP)
+        super().__init__(rdf_property, R.RDFS.subPropertyOf, 1, direction=UP)
 
     def __repr__(self):
         return FCN(type(self)) + '(' + repr(self.identifier) + ')'
