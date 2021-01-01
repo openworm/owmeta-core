@@ -1,5 +1,4 @@
 from __future__ import print_function
-import warnings
 import logging
 from itertools import chain
 
@@ -93,7 +92,7 @@ class GraphObjectChecker(object):
     Checks the graph of defined GraphObjects for
     '''
 
-    def __init__(self, query_object, graph, parallel=False, sort_first=False):
+    def __init__(self, query_object, graph, sort_first=False):
         self.query_object = query_object
         self.graph = graph
 
@@ -108,7 +107,7 @@ class GraphObjectChecker(object):
 
 
 class GraphObjectValidator(object):
-    def __init__(self, query_object, graph, parallel=False):
+    def __init__(self, query_object, graph):
         self.query_object = query_object
         self.graph = graph
 
@@ -168,7 +167,7 @@ class GraphObjectQuerier(object):
     are not supported and will be ignored without error.
     """
 
-    def __init__(self, q, graph, parallel=False, hop_scorer=None):
+    def __init__(self, q, graph, hop_scorer=None):
         """
         Call the GraphObjectQuerier object to perform the query.
 
@@ -198,8 +197,6 @@ class GraphObjectQuerier(object):
         self.query_object = q
         L.debug('GOQ graph %s', graph)
         self.graph = default_tq_layers(graph)
-        if parallel:
-            warnings.warn('Parallel execution is not supported')
         self.results = dict()
         self.triples_cache = dict()
         self.hop_scorer = hop_scorer

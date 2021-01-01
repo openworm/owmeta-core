@@ -768,8 +768,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
             super(BaseDataObject, self).__setattr__(name, val)
 
     def count(self):
-        return len(GraphObjectQuerier(self, self.rdf, parallel=False,
-                                      hop_scorer=goq_hop_scorer)())
+        return len(GraphObjectQuerier(self, self.rdf, hop_scorer=goq_hop_scorer)())
 
     def load_terms(self, graph=None):
         '''

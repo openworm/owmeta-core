@@ -78,7 +78,7 @@ def load_terms(graph, start, target_type):
 
     L.debug("load: start %s target_type %s", start, target_type)
     g = ZeroOrMoreTQLayer(rdfs_subclasof_zom_creator(target_type), graph)
-    return GraphObjectQuerier(start, g, parallel=False, hop_scorer=goq_hop_scorer)()
+    return GraphObjectQuerier(start, g, hop_scorer=goq_hop_scorer)()
 
 
 def load(graph, start, target_type, *args):

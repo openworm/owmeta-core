@@ -377,8 +377,7 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
         else:
             v = Variable("var" + str(id(self)))
             self._insert_value(v)
-            results = GraphObjectQuerier(v, g, parallel=False,
-                                         hop_scorer=goq_hop_scorer)()
+            results = GraphObjectQuerier(v, g, hop_scorer=goq_hop_scorer)()
             self._remove_value(v)
         return results
 
