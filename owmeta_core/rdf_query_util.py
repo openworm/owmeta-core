@@ -5,7 +5,7 @@ import rdflib
 
 from .graph_object import (GraphObjectQuerier,
                            ZeroOrMoreTQLayer)
-from .rdf_go_modifiers import SubClassModifier2, SubClassModifier, SubPropertyOfModifier
+from .rdf_go_modifiers import SubClassModifier, SubPropertyOfModifier
 
 L = logging.getLogger(__name__)
 
@@ -16,16 +16,20 @@ def goq_hop_scorer(hop):
     return 0
 
 
-def zomifier(target_type):
-    def helper(rdf_type):
-        if target_type == rdf_type:
-            return SubClassModifier(rdf_type)
+def rdfs_subclasof_zom_creator(target_type):
+    '''
+    Creates a function used by `ZeroOrMoreTQLayer` to determine if a query needs to be
+    augmented to retrieve sub-classes of a *given* RDF type
+    '''
+    def helper(triple):
+        if target_type == triple[2] is not None and triple[1] == rdflib.RDF.type:
+            return SubClassModifier(triple[2])
     return helper
 
 
 def rdfs_subpropertyof_zom(super_property):
     '''
-    Argument to `ZeroOrMoreTQLayer2`. Adds sub-properties of the given property to triple
+    Argument to `ZeroOrMoreTQLayer`. Adds sub-properties of the given property to triple
     queries
     '''
     def helper(triple):
@@ -36,10 +40,10 @@ def rdfs_subpropertyof_zom(super_property):
 
 def rdfs_subclassof_zom(triple):
     '''
-    Argument to `ZeroOrMoreTQLayer2`. Adds sub-classes to triple queries for an rdf:type
+    Argument to `ZeroOrMoreTQLayer`. Adds sub-classes to triple queries for an rdf:type
     '''
     if triple[2] is not None and triple[1] == rdflib.RDF.type:
-        return SubClassModifier2(triple[2])
+        return SubClassModifier(triple[2])
 
 
 def load_base(graph, idents, target_type, context, resolver):
@@ -104,7 +108,7 @@ def load_terms(graph, start, target_type):
     '''
 
     L.debug("load: start %s target_type %s", start, target_type)
-    g = ZeroOrMoreTQLayer(zomifier(target_type), graph)
+    g = ZeroOrMoreTQLayer(rdfs_subclasof_zom_creator(target_type), graph)
     return GraphObjectQuerier(start, g, parallel=False, hop_scorer=goq_hop_scorer)()
 
 

@@ -235,7 +235,7 @@ class OWMSource(object):
         from .datasource import DataSource
         from .dataobject import TypeDataObject, RDFSSubClassOfProperty
         from .graph_object import ZeroOrMoreTQLayer
-        from .rdf_query_util import zomifier
+        from .rdf_query_util import rdfs_subclasof_zom_creator
         conf = self._parent._conf()
         ctx = self._parent._default_ctx
         rdfto = ctx.stored(DataSource.rdf_type_object)
@@ -243,7 +243,7 @@ class OWMSource(object):
         sc.attach_property(RDFSSubClassOfProperty)
         sc.rdfs_subclassof_property(rdfto)
         nm = conf['rdf.graph'].namespace_manager
-        g = ZeroOrMoreTQLayer(zomifier(DataSource.rdf_type), ctx.stored.rdf_graph())
+        g = ZeroOrMoreTQLayer(rdfs_subclasof_zom_creator(DataSource.rdf_type), ctx.stored.rdf_graph())
         for x in sc.load(graph=g):
             if full:
                 yield x.identifier
@@ -357,7 +357,7 @@ class OWMTranslator(object):
         from .datasource import DataTranslator
         from .dataobject import TypeDataObject, RDFSSubClassOfProperty
         from .graph_object import ZeroOrMoreTQLayer
-        from .rdf_query_util import zomifier
+        from .rdf_query_util import rdfs_subclasof_zom_creator
         conf = self._parent._conf()
         ctx = self._parent._default_ctx
         rdfto = ctx.stored(DataTranslator.rdf_type_object)
@@ -365,7 +365,7 @@ class OWMTranslator(object):
         sc.attach_property(RDFSSubClassOfProperty)
         sc.rdfs_subclassof_property(rdfto)
         nm = conf['rdf.graph'].namespace_manager
-        g = ZeroOrMoreTQLayer(zomifier(DataTranslator.rdf_type), ctx.stored.rdf_graph())
+        g = ZeroOrMoreTQLayer(rdfs_subclasof_zom_creator(DataTranslator.rdf_type), ctx.stored.rdf_graph())
         for x in sc.load(graph=g):
             if full:
                 yield x.identifier

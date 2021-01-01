@@ -17,7 +17,7 @@ from .contextualize import (Contextualizable, ContextualizableClass,
 from .context_mapped_class_util import find_class_context, find_base_namespace
 from .graph_object import (GraphObject,
                            GraphObjectQuerier,
-                           ZeroOrMoreTQLayer2,
+                           ZeroOrMoreTQLayer,
                            ContainerMembershipIsMemberTQLayer)
 from .inverse_property import InversePropertyMixin
 from .mapped_class import MappedClass
@@ -368,9 +368,9 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
         results = None
         owner = self.owner
 
-        g = ZeroOrMoreTQLayer2(rdfs_subclassof_zom, self.rdf)
+        g = ZeroOrMoreTQLayer(rdfs_subclassof_zom, self.rdf)
         g = ContainerMembershipIsMemberTQLayer(g)
-        g = ZeroOrMoreTQLayer2(rdfs_subpropertyof_zom(R.RDFS.member), g)
+        g = ZeroOrMoreTQLayer(rdfs_subpropertyof_zom(R.RDFS.member), g)
         if owner.defined:
             results = set()
             ident = owner.identifier

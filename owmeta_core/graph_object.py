@@ -424,91 +424,6 @@ class RangeTQLayer(TQLayer):
 
 
 class ZeroOrMoreTQLayer(TQLayer):
-    '''
-    Deprecated
-    '''
-
-    def __init__(self, transformer, *args):
-        '''
-        Parameters
-        ----------
-        transformer : `callable`
-            Returns an object describing the relationship or `None`.
-            If an object is returned it must have `predicate`, `identifier`, and
-            `direction` attributes.
-            - `identifier` is the identifier to start from
-            - `predicate` is the predicate to traverse
-            - `direction` is the direction of traversal: Either
-              `~owmeta_core.rdf_utils.DOWN` for subject -> object or `~owmeta_core.rdf_utils.UP`
-              for object -> subject
-        *args : other arguments
-            Go to `TQLayer` init
-        '''
-        super(ZeroOrMoreTQLayer, self).__init__(*args)
-        self._tf = transformer
-
-    def triples(self, query_triple, context=None):
-        i, match = self._find_match(query_triple)
-        if not match:
-            return self.next.triples(query_triple, context)
-        qx = list(query_triple)
-        qx[i] = list(transitive_subjects(self.next,
-                                         match.identifier,
-                                         match.predicate,
-                                         context,
-                                         match.direction))
-        return self._zom_result_helper(qx, match, i, context)
-
-    def _zom_result_helper(self, qx, match, i, context):
-        qx = tuple(qx)
-        zomses = dict()
-        direction = DOWN if match.direction is UP else DOWN
-        predicate = match.predicate
-        L.debug('ZeroOrMoreTQLayer: start %s zoms %s', match, qx[i])
-        for tr in self.next.triples_choices(qx, context):
-            zoms = zomses.get(tr[i])
-            if zoms is None:
-                zoms = [sub for sub in transitive_subjects(self.next, tr[i], predicate, context, direction)]
-                zomses[tr[i]] = zoms
-            for z in zoms:
-                yield tuple(x if x is not tr[i] else z for x in tr)
-
-    def triples_choices(self, query_triple, context=None):
-        i, match = self._find_match(query_triple)
-        if not match:
-            return self.next.triples_choices(query_triple, context)
-        qx = list(query_triple)
-        iters = []
-        # XXX: We should, maybe, apply some stats or heuristics here to determine which list to iterate over.
-        for sub in transitive_subjects(self.next,
-                                       match.identifier,
-                                       match.predicate,
-                                       context,
-                                       match.direction):
-            qx[i] = sub
-            iters.append(self.next.triples_choices(tuple(qx), context))
-        ch = chain(*iters)
-        return ch
-
-    def __contains__(self, query_triple):
-        try:
-            next(self.triples(query_triple))
-            return True
-        except StopIteration:
-            return False
-
-    def _find_match(self, query_triple):
-        match = None
-        for i, x in enumerate(query_triple):
-            match = self._tf(x)
-            if match:
-                break
-        else: # no break
-            return None, None
-        return i, match
-
-
-class ZeroOrMoreTQLayer2(TQLayer):
     def __init__(self, transformer, *args):
         '''
         Parameters
@@ -526,7 +441,7 @@ class ZeroOrMoreTQLayer2(TQLayer):
         *args : other arguments
             Go to `TQLayer` init
         '''
-        super(ZeroOrMoreTQLayer2, self).__init__(*args)
+        super(ZeroOrMoreTQLayer, self).__init__(*args)
         self._tf = transformer
 
     def triples(self, query_triple, context=None):
