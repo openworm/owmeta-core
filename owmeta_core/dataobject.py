@@ -479,6 +479,13 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
         """ Unlike self.context, definition_context isn't meant to be overriden """
         return self.__context
 
+    def __setattr__(self, key, value):
+        if isinstance(value, PThunk):
+            c = value(self, key)
+            self._property_classes[key] = c
+            value = mp(c, key)
+        super().__setattr__(key, value)
+
 
 class _QueryMixin(object):
     '''
@@ -1149,6 +1156,7 @@ class _Resolver(RDFTypeResolver):
 
 
 class RDFTypeProperty(SP.ObjectProperty):
+    ''' Corresponds to the rdf:type predidcate '''
     class_context = RDF_CONTEXT
     link = R.RDF['type']
     linkName = "rdf_type_property"
@@ -1161,7 +1169,7 @@ class RDFTypeProperty(SP.ObjectProperty):
 
 
 class RDFSClass(BaseDataObject):
-    """ The GraphObject corresponding to rdfs:Class """
+    ''' The GraphObject corresponding to rdfs:Class '''
 
     # XXX: This class may be changed from a singleton later to facilitate
     #      dumping and reloading the object graph
@@ -1182,6 +1190,7 @@ class RDFSClass(BaseDataObject):
 
 
 class RDFSSubClassOfProperty(SP.ObjectProperty):
+    ''' Corresponds to the rdfs:subClassOf predidcate '''
     class_context = 'http://www.w3.org/2000/01/rdf-schema'
     link = R.RDFS.subClassOf
     linkName = 'rdfs_subclassof_property'
@@ -1199,6 +1208,7 @@ class TypeDataObject(BaseDataObject):
 
 
 class RDFSSubPropertyOfProperty(SP.ObjectProperty):
+    ''' Corresponds to the rdfs:subPropertyOf predidcate '''
     class_context = 'http://www.w3.org/2000/01/rdf-schema'
     link = R.RDFS['subPropertyOf']
     linkName = 'rdfs_subpropertyof'
@@ -1209,9 +1219,7 @@ class RDFSSubPropertyOfProperty(SP.ObjectProperty):
 
 
 class RDFSCommentProperty(SP.DatatypeProperty):
-    '''
-    Corresponds to the rdfs:comment predicate
-    '''
+    ''' Corresponds to the rdfs:comment predicate '''
     class_context = 'http://www.w3.org/2000/01/rdf-schema'
     link = R.RDFS['comment']
     linkName = 'rdfs_comment'
@@ -1223,9 +1231,7 @@ class RDFSCommentProperty(SP.DatatypeProperty):
 
 
 class RDFSLabelProperty(SP.DatatypeProperty):
-    '''
-    Corresponds to the rdfs:label predicate
-    '''
+    ''' Corresponds to the rdfs:label predicate '''
     class_context = 'http://www.w3.org/2000/01/rdf-schema'
     link = R.RDFS['label']
     linkName = 'rdfs_label'
@@ -1234,6 +1240,20 @@ class RDFSLabelProperty(SP.DatatypeProperty):
     lazy = True
     rdf_object_deferred = True
     rdf_type_object_deferred = True
+
+
+class RDFSMemberProperty(SP.UnionProperty):
+    ''' Corresponds to the rdfs:member predicate '''
+    class_context = 'http://www.w3.org/2000/01/rdf-schema'
+    multiple = True
+    owner_type = BaseDataObject
+    link = R.RDFS.member
+    link_name = 'rdfs_member'
+    rdf_object_deferred = True
+    rdf_type_object_deferred = True
+
+
+BaseDataObject.rdfs_member = CPThunk(RDFSMemberProperty)
 
 
 class DataObject(BaseDataObject):
@@ -1464,13 +1484,9 @@ RDFTypeProperty.init_rdf_object()
 RDFSSubClassOfProperty.init_rdf_object()
 RDFSSubPropertyOfProperty.init_rdf_object()
 RDFSCommentProperty.init_rdf_object()
+RDFSMemberProperty.init_rdf_object()
 RDFSLabelProperty.init_rdf_object()
 SP.Property.init_rdf_type_object()
 SP.DatatypeProperty.init_rdf_type_object()
 SP.ObjectProperty.init_rdf_type_object()
 SP.UnionProperty.init_rdf_type_object()
-RDFTypeProperty.init_rdf_type_object()
-RDFSSubClassOfProperty.init_rdf_type_object()
-RDFSSubPropertyOfProperty.init_rdf_type_object()
-RDFSCommentProperty.init_rdf_type_object()
-RDFSLabelProperty.init_rdf_type_object()
