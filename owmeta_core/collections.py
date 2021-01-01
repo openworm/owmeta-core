@@ -60,6 +60,8 @@ class Container(BaseDataObject):
         for item in prop.get():
             if item_to_return is None:
                 item_to_return = item
+            elif item_to_return == item:
+                pass
             elif extra_items is None:
                 extra_items = [item_to_return, item]
             else:
@@ -105,7 +107,7 @@ class Container(BaseDataObject):
 
 class ContainerValueConflict(Exception):
     def __init__(self, index, items):
-        super().__init__(f'More than one item is declared at index {index}.')
+        super().__init__(f'More than one item is declared at index {index}. Items: {items!r}')
         self.index = index
         self.items = items
 
