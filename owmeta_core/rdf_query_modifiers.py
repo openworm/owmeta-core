@@ -76,9 +76,19 @@ def rdfs_subclassof_zom(triple):
 
 
 class TQLayer(object):
+    '''
+    Triple Query Layer. Wraps a graph or another `TQLayer` to do something to the
+    `triples` and `triples_choices` query or the result of the query.
+    '''
     _NADA = object()
 
     def __init__(self, nxt=None):
+        '''
+        Parameters
+        ----------
+        nxt : TQLayer or rdflib.graph.Graph
+            The "next" or "lower" layer that this layer modifies
+        '''
         self.next = nxt
 
     def triples(self, qt, context=None):
@@ -87,10 +97,18 @@ class TQLayer(object):
     def triples_choices(self, qt, context=None):
         return self.next.triples_choices(qt)
 
-    def __contains__(self, x):
-        return x in self.next
+    def __contains__(self, qt):
+        '''
+        This should be overridden -- the default implementation just asks the next layer
+        if it contains the triple.
+        '''
+        return qt in self.next
 
     def __getattr__(self, attr):
+        '''
+        By default, if this layer doesn't have the given attribute, then the attribute
+        will be looked up on the next layer.
+        '''
         res = getattr(super(TQLayer, self), attr, TQLayer._NADA)
         if res is TQLayer._NADA:
             return getattr(self.next, attr)
@@ -103,6 +121,10 @@ class TQLayer(object):
 
 
 class TerminalTQLayer(object):
+    '''
+    A TQLayer that has no "next". May be useful to create a layer that stands in place of
+    a `~rdflib.graph.Graph`.
+    '''
 
     @property
     def next(self):
@@ -120,6 +142,12 @@ class TerminalTQLayer(object):
 
 
 class RangeTQLayer(TQLayer):
+    '''
+    A layer that understands ranges in the object position of a triple.
+
+    If the next layer has the `supports_range_queries` attribute set to `True`, then the
+    range is passed down as-is
+    '''
 
     def triples(self, query_triple, context=None):
         if isinstance(query_triple[2], InRange):
