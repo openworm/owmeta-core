@@ -87,7 +87,9 @@ def transitive_lookup(graph, start, predicate, context=None, direction=DOWN, see
         The direction in which to traverse
     seen : set of rdflib.term.Identifier
         A set of terms which have already been "seen" by the algorithm. Useful for
-        repeated calls to `transitive_lookup`. Optional
+        repeated calls to `transitive_lookup`. Note: if the `start` is in `seen`, queries
+        from `start` will still be done, but any items in the result of *those* queries
+        will not be queried for if in `seen`. Optional
 
     Returns
     -------

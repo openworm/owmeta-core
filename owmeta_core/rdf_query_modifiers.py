@@ -81,7 +81,10 @@ def rdfs_subclassof_subclassof_zom_creator(rdf_type):
         Argument to `ZeroOrMoreTQLayer`. Adds sub-classes to triple queries for an
         rdfs:subClassOf
         '''
-        if triple[2] is not None and rdf_type == triple[2] and triple[1] == R.RDFS.subClassOf:
+        if (triple[1] == R.RDFS.subClassOf and
+                triple[2] is not None and
+                (rdf_type == triple[2] or
+                    (isinstance(triple[2], list) and rdf_type in triple[2]))):
             return SubClassModifier(triple[2])
     return helper
 
@@ -262,7 +265,8 @@ class ZeroOrMoreTQLayer(TQLayer):
                                                    match_id,
                                                    match.predicate,
                                                    context,
-                                                   match.direction))
+                                                   match.direction,
+                                                   matches))
             qx[match.index] = list(matches)
             iters.append(self.next.triples_choices(tuple(qx), context))
         else:
