@@ -96,7 +96,6 @@ def transitive_lookup(graph, start, predicate, context=None, direction=DOWN, see
     set of rdflib.term.Identifier
         resources in the transitive closure of `predicate` from `start`
     '''
-    # TODO: Move this to rdf_query_util -- makes more sense there.
     if seen:
         res = seen
     else:
