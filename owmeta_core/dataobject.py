@@ -388,7 +388,6 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
                     self, self.rdf_type))
             L.debug('Creating rdf_type_object for {} in {}'.format(self, self.definition_context))
             rdto = TypeDataObject.contextualize(self.definition_context)(ident=self.rdf_type)
-            rdto.attach_property(RDFSSubClassOfProperty)
             for par in self.__bases__:
                 prdto = getattr(par, 'rdf_type_object', None)
                 if prdto is not None:
@@ -1203,6 +1202,7 @@ class RDFSSubClassOfProperty(SP.ObjectProperty):
 
 class TypeDataObject(BaseDataObject):
     class_context = URIRef(BASE_SCHEMA_URL)
+    rdfs_subclassof_property = CPThunk(RDFSSubClassOfProperty)
     rdf_type_object_deferred = True
 
 

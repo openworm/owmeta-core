@@ -45,7 +45,7 @@ class SubPropertyOfModifier(ZeroOrMore):
         return FCN(type(self)) + '(' + repr(self.identifier) + ')'
 
 
-def rdfs_subclasof_zom_creator(target_type):
+def rdfs_subclassof_zom_creator(target_type):
     '''
     Creates a function used by `ZeroOrMoreTQLayer` to determine if a query needs to be
     augmented to retrieve sub-classes of a *given* RDF type
@@ -73,6 +73,17 @@ def rdfs_subclassof_zom(triple):
     '''
     if triple[2] is not None and triple[1] == R.RDF.type:
         return SubClassModifier(triple[2])
+
+
+def rdfs_subclassof_subclassof_zom_creator(rdf_type):
+    def helper(triple):
+        '''
+        Argument to `ZeroOrMoreTQLayer`. Adds sub-classes to triple queries for an
+        rdfs:subClassOf
+        '''
+        if triple[2] is not None and rdf_type == triple[2] and triple[1] == R.RDFS.subClassOf:
+            return SubClassModifier(triple[2])
+    return helper
 
 
 class TQLayer(object):
@@ -240,14 +251,29 @@ class ZeroOrMoreTQLayer(TQLayer):
         qx = list(query_triple)
         iters = []
         # XXX: We should, maybe, apply some stats or heuristics here to determine which list to iterate over.
-        matches = set(transitive_subjects(self.next,
-                                          match.identifier,
-                                          match.predicate,
-                                          context,
-                                          match.direction))
-        for sub in matches:
-            qx[match.index] = sub
+        if isinstance(match.identifier, list):
+            assert isinstance(qx[match.index], list), ('If there is more than one'
+            ' matching identifier, the list in the query triple must be in the same'
+            ' position')
+
+            matches = set(qx[match.index])
+            for match_id in match.identifier:
+                matches |= set(transitive_subjects(self.next,
+                                                   match_id,
+                                                   match.predicate,
+                                                   context,
+                                                   match.direction))
+            qx[match.index] = list(matches)
             iters.append(self.next.triples_choices(tuple(qx), context))
+        else:
+            matches = set(transitive_subjects(self.next,
+                                              match.identifier,
+                                              match.predicate,
+                                              context,
+                                              match.direction))
+            for sub in matches:
+                qx[match.index] = sub
+                iters.append(self.next.triples_choices(tuple(qx), context))
         return self._zom_result_helper(chain(*iters), match, context, matches)
 
     def __contains__(self, query_triple):

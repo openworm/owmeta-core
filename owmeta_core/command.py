@@ -233,16 +233,17 @@ class OWMSource(object):
             Whether to (attempt to) shorten the source URIs by using the namespace manager
         """
         from .datasource import DataSource
-        from .dataobject import TypeDataObject, RDFSSubClassOfProperty
-        from .rdf_query_modifiers import ZeroOrMoreTQLayer, rdfs_subclasof_zom_creator
+        from .dataobject import TypeDataObject
+        from .rdf_query_modifiers import (ZeroOrMoreTQLayer,
+                                          rdfs_subclassof_subclassof_zom_creator)
         conf = self._parent._conf()
         ctx = self._parent._default_ctx
         rdfto = ctx.stored(DataSource.rdf_type_object)
         sc = ctx.stored(TypeDataObject)()
-        sc.attach_property(RDFSSubClassOfProperty)
         sc.rdfs_subclassof_property(rdfto)
         nm = conf['rdf.graph'].namespace_manager
-        g = ZeroOrMoreTQLayer(rdfs_subclasof_zom_creator(DataSource.rdf_type), ctx.stored.rdf_graph())
+        zom_matcher = rdfs_subclassof_subclassof_zom_creator(DataSource.rdf_type)
+        g = ZeroOrMoreTQLayer(zom_matcher, ctx.stored.rdf_graph())
         for x in sc.load(graph=g):
             if full:
                 yield x.identifier
@@ -354,16 +355,17 @@ class OWMTranslator(object):
             Whether to (attempt to) shorten the translator URIs by using the namespace manager
         """
         from .datasource import DataTranslator
-        from .dataobject import TypeDataObject, RDFSSubClassOfProperty
-        from .rdf_query_modifiers import ZeroOrMoreTQLayer, rdfs_subclasof_zom_creator
+        from .dataobject import TypeDataObject
+        from .rdf_query_modifiers import (ZeroOrMoreTQLayer,
+                                          rdfs_subclassof_subclassof_zom_creator)
         conf = self._parent._conf()
         ctx = self._parent._default_ctx
         rdfto = ctx.stored(DataTranslator.rdf_type_object)
         sc = ctx.stored(TypeDataObject)()
-        sc.attach_property(RDFSSubClassOfProperty)
         sc.rdfs_subclassof_property(rdfto)
         nm = conf['rdf.graph'].namespace_manager
-        g = ZeroOrMoreTQLayer(rdfs_subclasof_zom_creator(DataTranslator.rdf_type), ctx.stored.rdf_graph())
+        zom_matcher = rdfs_subclassof_subclassof_zom_creator(DataTranslator.rdf_type)
+        g = ZeroOrMoreTQLayer(zom_matcher, ctx.stored.rdf_graph())
         for x in sc.load(graph=g):
             if full:
                 yield x.identifier

@@ -4,7 +4,8 @@ import logging
 import rdflib
 
 from .graph_object import GraphObjectQuerier
-from .rdf_query_modifiers import ZeroOrMoreTQLayer, rdfs_subclasof_zom_creator
+from .rdf_query_modifiers import (ZeroOrMoreTQLayer,
+                                  rdfs_subclassof_zom_creator)
 
 L = logging.getLogger(__name__)
 
@@ -77,8 +78,8 @@ def load_terms(graph, start, target_type):
     '''
 
     L.debug("load: start %s target_type %s", start, target_type)
-    g = ZeroOrMoreTQLayer(rdfs_subclasof_zom_creator(target_type), graph)
-    return GraphObjectQuerier(start, g, hop_scorer=goq_hop_scorer)()
+    graph = ZeroOrMoreTQLayer(rdfs_subclassof_zom_creator(target_type), graph)
+    return GraphObjectQuerier(start, graph, hop_scorer=goq_hop_scorer)()
 
 
 def load(graph, start, target_type, *args):
@@ -96,7 +97,6 @@ def load(graph, start, target_type, *args):
     '''
 
     idents = load_terms(graph, start, target_type)
-
     return load_base(graph, idents, target_type, *args)
 
 

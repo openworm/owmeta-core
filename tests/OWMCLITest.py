@@ -7,7 +7,9 @@ import os
 import re
 import transaction
 from pytest import mark
+import subprocess as SP
 
+from owmeta_core import BASE_CONTEXT
 from owmeta_core.command import OWM
 from owmeta_core.context import Context, IMPORTS_CONTEXT_KEY, DEFAULT_CONTEXT_KEY
 from owmeta_core.context_common import CONTEXT_IMPORTS
@@ -134,6 +136,24 @@ def test_translator_list(owm_project):
     )
 
 
+@mark.core_bundle_version(1)
+@mark.core_bundle
+def test_translator_list_kinds(owm_project, core_bundle):
+    owm = owm_project.owm()
+    deps = [{'id': 'openworm/owmeta-core', 'version': 1}]
+    owm.config.set('dependencies', json.dumps(deps))
+
+    with owm.connect() as conn:
+        with transaction.manager:
+            # Create data sources
+            defctx = conn(Context)(ident=owm_project.default_context_id)
+            defctx.add_import(BASE_CONTEXT)
+            defctx.save_imports()
+
+    output = owm_project.sh('owm translator list-kinds').strip().split('\n')
+    assert set(output) == set(['<http://schema.openworm.org/2020/07/CSVDataTranslator>'])
+
+
 def test_translate_data_source_loader(owm_project):
     owm = owm_project.owm()
     with owm.connect() as conn:
@@ -207,6 +227,30 @@ def test_source_list(owm_project, core_bundle):
 
     assertRegexpMatches(owm_project.sh('owm source list'),
             '<http://example.org/lfds>')
+
+
+@mark.core_bundle_version(1)
+@mark.core_bundle
+def test_source_list_kinds(owm_project, core_bundle):
+    owm = owm_project.owm()
+    deps = [{'id': 'openworm/owmeta-core', 'version': 1}]
+    owm.config.set('dependencies', json.dumps(deps))
+    with owm.connect() as conn:
+        with transaction.manager:
+            # Create data sources
+            defctx = conn(Context)(ident=owm_project.default_context_id)
+            defctx.add_import(BASE_CONTEXT)
+            defctx.save_imports()
+
+    output = owm_project.sh('owm source list-kinds', stderr=SP.STDOUT).strip().split('\n')
+    assert set(output) == set([
+        '<http://schema.openworm.org/2020/07/data_sources/LocalFileDataSource>',
+        '<http://schema.openworm.org/2020/07/data_sources/CSVDataSource>',
+        '<http://schema.openworm.org/2020/07/data_sources/CSVHTTPFileDataSource>',
+        '<http://schema.openworm.org/2020/07/data_sources/XLSXHTTPFileDataSource>',
+        '<http://schema.openworm.org/2020/07/data_sources/FileDataSource>',
+        '<http://schema.openworm.org/2020/07/data_sources/DataObjectContextDataSource>',
+        '<http://schema.openworm.org/2020/07/data_sources/HTTPFileDataSource>'])
 
 
 def test_registry_list(owm_project):
