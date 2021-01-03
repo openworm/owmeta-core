@@ -19,6 +19,7 @@ services:
 before_install:
 - pip install --upgrade pip
 - pip install coveralls
+- if [ ! "$DEPLOY" ] ; then pip install twine ; fi
 - pip uninstall pytest --yes
 - pip install pytest>=3.4.0
 
