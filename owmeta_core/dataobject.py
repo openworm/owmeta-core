@@ -578,8 +578,6 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
     """
     An object which can be mapped to an RDF graph
 
-    Most classes should be derived from `.DataObject` rather than `.BaseDataObject`
-
     Attributes
     -----------
     rdf_type : rdflib.term.URIRef
@@ -1253,6 +1251,8 @@ class RDFSMemberProperty(SP.UnionProperty):
 
 
 BaseDataObject.rdfs_member = CPThunk(RDFSMemberProperty)
+BaseDataObject.rdfs_label = CPThunk(RDFSLabelProperty)
+BaseDataObject.rdfs_comment = CPThunk(RDFSCommentProperty)
 
 
 class DataObject(BaseDataObject):
@@ -1260,8 +1260,6 @@ class DataObject(BaseDataObject):
     An object that can be mapped to an RDF graph
     '''
     class_context = BASE_SCHEMA_URL
-    rdfs_comment = CPThunk(RDFSCommentProperty)
-    rdfs_label = CPThunk(RDFSLabelProperty)
     rdf_type_object_deferred = True
 
 

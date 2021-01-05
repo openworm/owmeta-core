@@ -172,8 +172,8 @@ def oid(identifier_or_rdf_type=None, rdf_type=None, context=None, base_type=None
 
     if cls is None:
         if base_type is None:
-            from .dataobject import DataObject
-            cls = DataObject
+            from .dataobject import BaseDataObject
+            cls = BaseDataObject
         else:
             cls = base_type
     L.debug("oid: making a {} with ident {}".format(cls, identifier))

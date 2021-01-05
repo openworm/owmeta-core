@@ -7,6 +7,7 @@ from .DataTestTemplate import _DataTest
 from owmeta_core.statement import Statement
 from owmeta_core.property_value import PropertyValue
 from owmeta_core.dataobject import DataObject
+from owmeta_core.dataobject_property import DatatypeProperty
 from owmeta_core.context import Context
 
 
@@ -200,3 +201,13 @@ class DataobjectPropertyTest(_DataTest):
         stmts = list(Context('http://example.org/ctx/')(do).birds.statements)
         assert stmts == [Statement(do, do.birds, PropertyValue(R.Literal(4)), ctx),
                          Statement(do, do.birds, PropertyValue(R.Literal(5)), self.context)]
+
+    def test_label(self):
+        class TestProperty(DatatypeProperty):
+            class_context = 'http://example.org/test-context'
+            link = 'http://example.org/property'
+            label = 'Test Property'
+        TestProperty.init_rdf_object()
+        rdfo = TestProperty.rdf_object
+
+        assert 'Test Property' in rdfo.rdfs_label()

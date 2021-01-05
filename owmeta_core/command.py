@@ -1130,10 +1130,10 @@ class OWM(object):
         object : str
             The other object you want to say something about
         '''
-        from owmeta_core.dataobject import DataObject
+        from owmeta_core.dataobject import BaseDataObject
         import transaction
         dctx = self._default_ctx
-        query = dctx.stored(DataObject)(ident=self._den3(subject))
+        query = dctx.stored(BaseDataObject)(ident=self._den3(subject))
         with transaction.manager:
             for ob in query.load():
                 getattr(dctx(ob), property)(object)
