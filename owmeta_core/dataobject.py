@@ -409,6 +409,8 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
         re = RegistryEntry.contextualize(self.context)()
         cd = self.declare_class_description()
 
+        self.context.add_import(type(cd).definition_context)
+
         re.rdf_class(self.rdf_type)
         re.class_description(cd)
         self.context.add_import(self.definition_context)
@@ -1170,8 +1172,7 @@ class RDFSClass(BaseDataObject):
     # XXX: This class may be changed from a singleton later to facilitate
     #      dumping and reloading the object graph
     rdf_type = R.RDFS['Class']
-    class_context = 'http://www.w3.org/2000/01/rdf-schema'
-    definition_context = ClassContext('http://www.w3.org/2000/01/rdf-schema')
+    class_context = ClassContext('http://www.w3.org/2000/01/rdf-schema')
     base_namespace = R.Namespace('http://www.w3.org/2000/01/rdf-schema#')
 
     instance = None

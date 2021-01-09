@@ -172,6 +172,7 @@ class Mapper(Configurable):
     def save(self):
         self.declare_python_class_registry_entry(*self._rdf_type_table.values())
         self.class_registry_context.save()
+        self.class_registry_context.save_imports()
 
     def declare_python_class_registry_entry(self, *classes):
         cr_ctx = self.class_registry_context
