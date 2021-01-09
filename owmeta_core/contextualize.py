@@ -321,7 +321,7 @@ class ContextualizableClass(type):
             if hasattr(self, cc):
                 kwargs[cc] = getattr(self, cc)
 
-        res = _H(self.__name__, (self,), dict(class_context=context.identifier, **kwargs))
+        res = _H(self.__name__, (self,), dict(class_context=self.definition_context, **kwargs))
         res.__module__ = self.__module__
         return res
 
