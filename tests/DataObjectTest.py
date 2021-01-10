@@ -23,7 +23,7 @@ from owmeta_core.dataobject import (DataObject,
                                     ModuleResolutionFailed,
                                     RegistryEntry,
                                     Module)
-from owmeta_core.context import Context, CLASS_REGISTRY_CONTEXT_KEY
+from owmeta_core.context import Context, CLASS_REGISTRY_CONTEXT_KEY, IMPORTS_CONTEXT_KEY
 from owmeta_core.rdf_query_util import get_most_specific_rdf_type
 from owmeta_core.utils import FCN
 
@@ -275,6 +275,7 @@ class ClassRegistryTest(_DataTest):
 
     def setUp(self):
         super(ClassRegistryTest, self).setUp()
+        self.conf[IMPORTS_CONTEXT_KEY] = 'http://example.org/imports'
         self.mapper.process_classes(DataObject, PythonClassDescription, Module, PythonModule, RegistryEntry)
         mod = import_module('tests.DataObjectTest')
         try:
@@ -326,11 +327,9 @@ class ClassRegistryTest(_DataTest):
 
         self.context.add_import(BASE_CONTEXT)
         m = self.context(Context)(ident='http://example.org/ctx', imported=(self.context,))
-        im = self.context(Context)(ident='http://example.org/ctxim', imported=(self.context,))
-        co = self.context(Context)(ident='http://example.org/ctxb', imported=(m, im))
         m(A)(ident='http://example.org/anA')
-        co.save_imports(im)
-        co.save_context(inline_imports=True)
+        m.save_imports()
+        m.save_context(inline_imports=True)
 
         o = list(m.stored(DataObject)(ident='http://example.org/anA').load())
         self.assertIsInstance(o[0], A)
@@ -431,7 +430,7 @@ class ClassRegistryMissingModuleTest(_DataTest):
             ctx.add(tr)
         trips = [(tdo, sc, DataObject.rdf_type),
                  (pm, rdftype, PythonModule.rdf_type),
-                 (pm, PythonModule.name.link, R.Literal('this.module.does.not.exist')),
+                 (pm, PythonModule.name.link, R.Literal('fakerandom.module.does.not.exist')),
                  (pcd, PythonClassDescription.name.link, R.Literal('TDO')),
                  (pcd, rdftype, PythonClassDescription.rdf_type),
                  (pcd, PythonClassDescription.module.link, pm),
@@ -450,7 +449,7 @@ class ClassRegistryMissingModuleTest(_DataTest):
         with captured_logging() as logs:
             list(self.context.stored(DataObject)(ident=self.ident).load())
             self.assertRegexpMatches(logs.getvalue(),
-                    re.compile(r'Did not find module.*this\.module\.does\.not\.exist', re.DOTALL))
+                    re.compile(r'Did not find module.*fakerandom\.module\.does\.not\.exist', re.DOTALL))
 
 
 sc = R.RDFS['subClassOf']
@@ -768,46 +767,20 @@ class GMSRTTest(unittest.TestCase):
 
     def test_no_context_no_bases_return_types0(self):
         t1 = R.URIRef('http://example.org/t1')
-        self.assertEqual(t1, get_most_specific_rdf_type(types={t1}))
+        self.assertEqual(t1, get_most_specific_rdf_type(None, types={t1}))
 
     def test_no_context_return_types0(self):
         t1 = R.URIRef('http://example.org/t1')
-        self.assertEqual(t1, get_most_specific_rdf_type(types={t1}, base=t1))
+        self.assertEqual(t1, get_most_specific_rdf_type(None, types={t1}, base=t1))
 
     def test_no_context_no_types_return_bases0(self):
         t1 = R.URIRef('http://example.org/t1')
-        self.assertEqual(t1, get_most_specific_rdf_type(types=set(), base=t1))
+        self.assertEqual(t1, get_most_specific_rdf_type(None, types=set(), base=t1))
 
     def test_no_context_no_types_no_bases_no_mst(self):
-        self.assertIsNone(get_most_specific_rdf_type(types=set()))
+        self.assertIsNone(get_most_specific_rdf_type(R.Graph(), types=set()))
 
     def test_no_context_many_types_no_bases_no_mst(self):
         t1 = R.URIRef('http://example.org/t1')
         t2 = R.URIRef('http://example.org/t2')
-        self.assertIsNone(get_most_specific_rdf_type(types={t1, t2}))
-
-    def test_no_context_one_type_different_bases_no_mst(self):
-        t1 = R.URIRef('http://example.org/t1')
-        t2 = R.URIRef('http://example.org/t2')
-        self.assertIsNone(get_most_specific_rdf_type(types={t1}, base=t2))
-
-    def test_context_with_no_mapper_or_bases(self):
-        ctx = Mock()
-        ctx.mapper = None
-        self.assertIsNone(get_most_specific_rdf_type(types=set(), context=ctx))
-
-    def test_context_with_no_mapper_and_bases_context_doesnt_know(self):
-        ctx = Mock()
-        ctx.resolve_class.return_value = None
-        ctx.mapper = None
-        self.assertIsNone(get_most_specific_rdf_type(types=set(), context=ctx))
-
-    def test_context_with_mapper_and_bases_context_doesnt_know(self):
-        ctx = Mock()
-        ctx.resolve_class.return_value = None
-        t1 = Mock()
-        t2 = Mock()
-        t1.rdf_type = R.URIRef('http://example.org/t1')
-        t2.rdf_type = R.URIRef('http://example.org/t2')
-        ctx.mapper.base_classes.values.return_value = {t1, t2}
-        self.assertIsNone(get_most_specific_rdf_type(types=set(), context=ctx))
+        self.assertIsNone(get_most_specific_rdf_type(R.Graph(), types={t1, t2}))

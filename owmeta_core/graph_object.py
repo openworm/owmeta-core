@@ -258,7 +258,7 @@ class GraphObjectQuerier(object):
         join_args = []
         goal = None
         for hop in sorted(path_table.keys(), key=self.score):
-            L.debug("HOP %s", str(hop))
+            L.debug("query_path_resolver: hop %s", hop)
             goal = hop[3]
             self._qpr_helper(path_table[hop], hop, join_args)
         if len(join_args) == 1:
@@ -277,12 +277,14 @@ class GraphObjectQuerier(object):
     def _qpr_helper(self, sub, search_triple, join_args):
         seen = set()
         try:
+            L.debug("_qpr_helper: sub %s, search_triple %s", sub, search_triple)
             idx = search_triple.index(None)
             other_idx = 0 if (idx == 2) else 2
             qx = None
 
             if isinstance(search_triple[other_idx], Variable):
                 sub_results = list(self.query_path_resolver(sub))
+                L.debug("_qpr_helper: sub_results %s", sub_results)
 
                 if idx == 2:
                     qx = (sub_results, search_triple[1], None)
@@ -296,6 +298,7 @@ class GraphObjectQuerier(object):
             else:
                 # join_args is assumed to be sorted such that it the most selective query was executed first, so we
                 # should be able to profitably call triples_choices to reduce the size of our branch
+                L.debug("_qpr_helper: joining...")
                 if join_args:
                     # We use the last-added join_arg. It should be the smallest at this point
                     last_join = join_args[-1]
@@ -312,7 +315,8 @@ class GraphObjectQuerier(object):
                     qx = search_triple[:3]
                     trips = self.triples(qx)
             seen = set(y[idx] for y in trips)
-            L.debug("Done with {} {}".format(qx, len(seen)))
+            if L.isEnabledFor(logging.DEBUG):
+                L.debug("_qpr_helper: Done with search_triple %s -> qx %s with %d seen", search_triple, qx, len(seen))
         finally:
             join_args.append(seen)
 

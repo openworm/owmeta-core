@@ -220,7 +220,7 @@ class Mapper(Configurable):
                 c = cd_l.resolve_class()
             except ClassResolutionFailed as e:
                 if isinstance(e.__cause__, ModuleResolutionFailed):
-                    L.warn('Did not find module', exc_info=True)
+                    L.warn('_resolve_class: Did not find module', exc_info=True)
                     continue
             if c is not None:
                 break
@@ -229,23 +229,23 @@ class Mapper(Configurable):
             class_name = cd_l.name()
             moddo = cd_l.module()
             mod = moddo.resolve_module()
-            L.warning('Did not find class %s in %s', class_name, mod.__name__)
+            L.warning('_resolve_class: Did not find class %s in %s', class_name, mod.__name__)
             ymc = getattr(mod, '__yarom_mapped_classes__', None)
             if not ymc:
-                L.warning('No __yarom_mapped_classes__ in %s, so cannot look up %s',
+                L.warning('_resolve_class: No __yarom_mapped_classes__ in %s, so cannot look up %s',
                         mod.__name__, class_name)
                 continue
 
             matching_classes = tuple(mc for mc in ymc
                                      if mc.__name__ == class_name)
             if not matching_classes:
-                L.warning('Did not find class %s in %s.__yarom_mapped_classes__',
+                L.warning('_resolve_class: Did not find class %s in %s.__yarom_mapped_classes__',
                         class_name, mod.__name__)
                 continue
 
             c = matching_classes[0]
             if len(matching_classes) > 1:
-                L.warning('More than one class has the same name in'
+                L.warning('_resolve_class: More than one class has the same name in'
                         ' __yarom_mapped_classes__ for %s, so we are picking'
                         ' the first one as the resolved class among %s',
                         mod, matching_classes)

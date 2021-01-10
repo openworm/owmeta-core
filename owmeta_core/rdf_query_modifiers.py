@@ -218,38 +218,20 @@ class ZeroOrMoreTQLayer(TQLayer):
         if not match:
             return self.next.triples(query_triple, context)
         qx = list(query_triple)
-        matches = list(transitive_subjects(self.next,
-                                         match.identifier,
-                                         match.predicate,
-                                         context,
-                                         match.direction))
-        qx[match.index] = matches
+        if match.identifier is not None:
+            matches = list(transitive_subjects(self.next,
+                                             match.identifier,
+                                             match.predicate,
+                                             context,
+                                             match.direction))
+            qx[match.index] = matches
         results = self.next.triples_choices(tuple(qx), context)
         return self._zom_result_helper(results, match, context, set(matches))
-
-    def _zom_result_helper(self, results, match, context, limit):
-        zomses = dict()
-        direction = DOWN if match.direction is UP else DOWN
-        predicate = match.predicate
-        index = match.index
-        L.debug('ZeroOrMoreTQLayer: start %s', match)
-        # The results from the original query are augmented here to "entail" results in
-        # the "reverse" direction that are implied by the "forward" direction. For
-        # instance, if I request everything with a type that's rdfs:Resource, I'll get all
-        # type statements we have subclass relationships for with the modified query, but
-        # I'll be missing the inferred types. We rectify that below
-        #
-        for tr in results:
-            zoms = zomses.get(tr[index])
-            if zoms is None:
-                zoms = set(transitive_subjects(self.next, tr[index], predicate, context, direction)) & limit
-                zomses[tr[index]] = zoms
-            for z in zoms:
-                yield tuple(x if x is not tr[index] else z for x in tr)
 
     def triples_choices(self, query_triple, context=None):
         match = self._tf(query_triple)
         if not match:
+            L.debug('No match %s', query_triple)
             return self.next.triples_choices(query_triple, context)
         qx = list(query_triple)
         iters = []
@@ -269,7 +251,7 @@ class ZeroOrMoreTQLayer(TQLayer):
                                                    matches))
             qx[match.index] = list(matches)
             iters.append(self.next.triples_choices(tuple(qx), context))
-        else:
+        elif match.identifier is not None:
             matches = set(transitive_subjects(self.next,
                                               match.identifier,
                                               match.predicate,
@@ -278,7 +260,33 @@ class ZeroOrMoreTQLayer(TQLayer):
             for sub in matches:
                 qx[match.index] = sub
                 iters.append(self.next.triples_choices(tuple(qx), context))
+        else:
+            matches = None
+            iters.append(self.next.triples_choices(query_triple, context))
         return self._zom_result_helper(chain(*iters), match, context, matches)
+
+    def _zom_result_helper(self, results, match, context, limit):
+        zomses = dict()
+        direction = DOWN if match.direction is UP else DOWN
+        predicate = match.predicate
+        index = match.index
+        L.debug('ZeroOrMoreTQLayer: start %s', match)
+        # The results from the original query are augmented here to "entail" results in
+        # the "reverse" direction that are implied by the "forward" direction. For
+        # instance, if I request everything with a type that's rdfs:Resource, I'll get all
+        # type statements we have subclass relationships for with the modified query, but
+        # I'll be missing the inferred types. We rectify that below
+        #
+        for tr in results:
+            zoms = zomses.get(tr[index])
+            if zoms is None:
+                if limit:
+                    zoms = set(transitive_subjects(self.next, tr[index], predicate, context, direction)) & limit
+                else:
+                    zoms = set(transitive_subjects(self.next, tr[index], predicate, context, direction))
+                zomses[tr[index]] = zoms
+            for z in zoms:
+                yield tuple(x if x is not tr[index] else z for x in tr)
 
     def __contains__(self, query_triple):
         try:

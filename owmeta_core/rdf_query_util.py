@@ -38,6 +38,8 @@ def load_base(graph, idents, target_type, context, resolver):
         return
 
     grouped_types = dict()
+    # We don't use a subclassof ZOM layer for this query since we are going to get the
+    # "most specific" type, which will have to be one declared explicitly
     for ident, _, rdf_type in graph.triples_choices((list(idents),
                                                      rdflib.RDF['type'],
                                                      None)):
@@ -50,7 +52,7 @@ def load_base(graph, idents, target_type, context, resolver):
     hit = False
     for ident, types in grouped_types.items():
         hit = True
-        the_type = get_most_specific_rdf_type(types, context, base=target_type)
+        the_type = get_most_specific_rdf_type(graph, types, base=target_type)
         if the_type is None:
             raise Exception(f'Could not recover a type for {ident}')
         yield resolver.id2ob(ident, the_type, context)
@@ -77,7 +79,7 @@ def load_terms(graph, start, target_type):
         URI of the target type. Any result will be a sub-class of this type
     '''
 
-    L.debug("load: start %s target_type %s", start, target_type)
+    L.debug("load: start %s, target_type %s, graph %s", start, target_type, graph)
     graph = ZeroOrMoreTQLayer(rdfs_subclassof_zom_creator(target_type), graph)
     return GraphObjectQuerier(start, graph, hop_scorer=goq_hop_scorer)()
 
@@ -100,7 +102,7 @@ def load(graph, start, target_type, *args):
     return load_base(graph, idents, target_type, *args)
 
 
-def get_most_specific_rdf_type(types, context=None, base=None):
+def get_most_specific_rdf_type_ex(types, context=None, base=None):
     """ Gets the most specific rdf_type.
 
     Returns the URI corresponding to the lowest in the DataObject class
@@ -132,9 +134,51 @@ def get_most_specific_rdf_type(types, context=None, base=None):
     if len(most_specific_types) == 1:
         return most_specific_types[0].rdf_type
     else:
+        L.warning('No most-specific type could be determined among %s'
+                  ' constrained to subclasses of %r', types, base)
+        return None
+
+
+def get_most_specific_rdf_type(graph, types, base=None):
+    '''
+    Find the rdf type that isn't a sub-class of any other
+    '''
+    if len(types) == 1 and (not base or (base,) == tuple(types)):
+        return tuple(types)[0]
+
+    if not types and base:
+        return base
+
+    most_specific_types = _gmsrt_helper(graph, types)
+
+    if len(most_specific_types) == 1:
+        return most_specific_types.pop()
+    else:
         L.warning(('No most-specific type could be determined among {}'
                    ' constrained to subclasses of {}').format(types, repr(base)))
         return None
+
+
+def _gmsrt_helper(graph, start):
+    res = set(start)
+    border = set(start)
+    while len(res) > 1:
+        new_border = set()
+        itr = graph.triples_choices((list(border), rdflib.RDFS.subClassOf, None))
+        hit = False
+        for t in itr:
+            if isinstance(t[0], tuple):
+                t = t[0]
+            o = t[2]
+            s = t[0]
+            if o != s:
+                res.discard(o)
+                hit = True
+                new_border.add(o)
+        if not hit:
+            break
+        border = new_border
+    return res
 
 
 def oid(identifier_or_rdf_type=None, rdf_type=None, context=None, base_type=None):
@@ -170,6 +214,14 @@ def oid(identifier_or_rdf_type=None, rdf_type=None, context=None, base_type=None
     if context is not None:
         cls = context.resolve_class(rdf_type)
 
+    if cls is None and context is not None:
+        for types in _superclass_iter(context.rdf_graph(), rdf_type):
+            for typ in types:
+                cls = context.resolve_class(typ)
+                if cls is not None:
+                    break
+            if cls is not None:
+                break
     if cls is None:
         if base_type is None:
             from .dataobject import BaseDataObject
@@ -190,3 +242,25 @@ def oid(identifier_or_rdf_type=None, rdf_type=None, context=None, base_type=None
     else:
         o = cls.query()
     return o
+
+
+def _superclass_iter(graph, start):
+    '''
+    Generate up the super-classes of this type
+    '''
+    border = set([start])
+    seen = set([start])
+    while True:
+        new_border = set()
+
+        for t in graph.triples_choices((list(border), rdflib.RDFS.subClassOf, None)):
+            if t[2] not in seen:
+                new_border.add(t[2])
+                seen.add(t[2])
+
+        if border == new_border:
+            break
+        if not new_border:
+            break
+        yield new_border
+        border = new_border
