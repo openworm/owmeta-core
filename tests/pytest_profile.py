@@ -4,6 +4,7 @@ from __future__ import absolute_import
 from __future__ import print_function
 import pstats
 import cProfile
+import json
 import os
 from os.path import join as p
 import pytest
@@ -61,8 +62,14 @@ def pytest_unconfigure(config):
         return
 
     os.makedirs('.prof', exist_ok=True)
+    summary = {'cumulative_time': {},
+               'total_time': {}}
     for fp in function_profile_list:
         fp.profile.dump_stats(p('.prof', fp.function_name))
+        for k in summary:
+            summary[k][fp.function_name] = getattr(fp, k)
+    with open(p('.prof', 'summary'), 'w') as f:
+        json.dump(summary, f, indent=4)
 
 
 class FunctionProfile(object):

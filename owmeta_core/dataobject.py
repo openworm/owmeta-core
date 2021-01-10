@@ -517,11 +517,6 @@ def contextualized_data_object(context, obj):
         for p in cprop:
             res.add_attr_override(p.linkName, p)
 
-        ops = res.owner_properties
-        new_ops = []
-        for p in ops:
-            if p.context == context:
-                new_ops.append(p)
         ctxd_owner_props = res.owner_properties.contextualize(context)
         res.add_attr_override('owner_properties', ctxd_owner_props)
     return res
