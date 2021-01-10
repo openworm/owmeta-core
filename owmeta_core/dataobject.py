@@ -242,9 +242,6 @@ def UnionProperty(*args, **kwargs):
     return APThunk('UnionProperty', args, kwargs)
 
 
-TypeDataObject = ()
-
-
 def _get_rdf_type_property():
     return RDFTypeProperty
 
@@ -384,10 +381,10 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
     def init_rdf_type_object(self):
         if self.rdf_type_object is None or self.rdf_type_object.identifier != self.rdf_type:
             if self.definition_context is None:
-                raise Exception("The class {0} has no context for TypeDataObject(ident={1})".format(
+                raise Exception("The class {0} has no context for RDFSClass(ident={1})".format(
                     self, self.rdf_type))
             L.debug('Creating rdf_type_object for {} in {}'.format(self, self.definition_context))
-            rdto = TypeDataObject.contextualize(self.definition_context)(ident=self.rdf_type)
+            rdto = RDFSClass.contextualize(self.definition_context)(ident=self.rdf_type)
             for par in self.__bases__:
                 prdto = getattr(par, 'rdf_type_object', None)
                 if prdto is not None:
@@ -460,8 +457,8 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
         if no_type_decl:
             return o
 
-        if isinstance(o, TypeDataObject) or isinstance(o, RDFSClass):
-            o.rdf_type_property(RDFSClass.instance)
+        if isinstance(o, RDFSClass) and o.idl == R.RDFS.Class:
+            o.rdf_type_property.set(o)
         elif isinstance(o, RDFProperty):
             RDFProperty.init_rdf_type_object()
             o.rdf_type_property.set(self.rdf_type_object)
@@ -1172,13 +1169,7 @@ class RDFSClass(BaseDataObject):
     rdf_type = R.RDFS['Class']
     class_context = ClassContext('http://www.w3.org/2000/01/rdf-schema')
     base_namespace = R.Namespace('http://www.w3.org/2000/01/rdf-schema#')
-
-    instance = None
-    defined = True
     rdf_type_object_deferred = True
-
-
-RDFSClass.instance = RDFSClass(ident=R.RDFS["Class"])
 
 
 class RDFSSubClassOfProperty(SP.ObjectProperty):
@@ -1195,12 +1186,6 @@ class RDFSSubClassOfProperty(SP.ObjectProperty):
 
 
 RDFSClass.rdfs_subclassof_property = CPThunk(RDFSSubClassOfProperty)
-
-
-class TypeDataObject(BaseDataObject):
-    class_context = URIRef(BASE_SCHEMA_URL)
-    rdfs_subclassof_property = CPThunk(RDFSSubClassOfProperty)
-    rdf_type_object_deferred = True
 
 
 class RDFSSubPropertyOfProperty(SP.ObjectProperty):
@@ -1262,17 +1247,18 @@ class DataObject(BaseDataObject):
     rdf_type_object_deferred = True
 
 
-BaseDataObject.init_rdf_type_object()
-RDFSClass.init_rdf_type_object()
-TypeDataObject.init_rdf_type_object()
-DataObject.init_rdf_type_object()
-
-
 class RDFProperty(BaseDataObject):
     """ The `DataObject` corresponding to rdf:Property """
     rdf_type = R.RDF.Property
     class_context = URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns')
     rdfs_subpropertyof = CPThunk(RDFSSubPropertyOfProperty)
+    rdf_type_object_deferred = True
+
+
+RDFSClass.init_rdf_type_object()
+BaseDataObject.init_rdf_type_object()
+DataObject.init_rdf_type_object()
+RDFProperty.init_rdf_type_object()
 
 
 RDFSSubPropertyOfProperty.value_type = RDFProperty

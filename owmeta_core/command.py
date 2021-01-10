@@ -233,13 +233,13 @@ class OWMSource(object):
             Whether to (attempt to) shorten the source URIs by using the namespace manager
         """
         from .datasource import DataSource
-        from .dataobject import TypeDataObject
+        from .dataobject import RDFSClass
         from .rdf_query_modifiers import (ZeroOrMoreTQLayer,
                                           rdfs_subclassof_subclassof_zom_creator)
         conf = self._parent._conf()
         ctx = self._parent._default_ctx
         rdfto = ctx.stored(DataSource.rdf_type_object)
-        sc = ctx.stored(TypeDataObject)()
+        sc = ctx.stored(RDFSClass)()
         sc.rdfs_subclassof_property(rdfto)
         nm = conf['rdf.graph'].namespace_manager
         zom_matcher = rdfs_subclassof_subclassof_zom_creator(DataSource.rdf_type)
@@ -355,13 +355,13 @@ class OWMTranslator(object):
             Whether to (attempt to) shorten the translator URIs by using the namespace manager
         """
         from .datasource import DataTranslator
-        from .dataobject import TypeDataObject
+        from .dataobject import RDFSClass
         from .rdf_query_modifiers import (ZeroOrMoreTQLayer,
                                           rdfs_subclassof_subclassof_zom_creator)
         conf = self._parent._conf()
         ctx = self._parent._default_ctx
         rdfto = ctx.stored(DataTranslator.rdf_type_object)
-        sc = ctx.stored(TypeDataObject)()
+        sc = ctx.stored(RDFSClass)()
         sc.rdfs_subclassof_property(rdfto)
         nm = conf['rdf.graph'].namespace_manager
         zom_matcher = rdfs_subclassof_subclassof_zom_creator(DataTranslator.rdf_type)
@@ -409,12 +409,12 @@ class OWMTypes(object):
             Types to remove
         '''
         import transaction
-        from .dataobject import TypeDataObject, RegistryEntry
+        from .dataobject import RDFSClass, RegistryEntry
         with transaction.manager:
             for class_id in type:
                 uri = self._parent._den3(class_id)
                 ctx = self._parent._default_ctx.stored
-                tdo = ctx.stored(TypeDataObject)(ident=uri)
+                tdo = ctx.stored(RDFSClass)(ident=uri)
                 ctx(tdo).retract()
 
                 crctx = self._parent.connect().mapper.class_registry_context
