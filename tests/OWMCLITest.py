@@ -7,7 +7,6 @@ import os
 import re
 import transaction
 from pytest import mark
-import subprocess as SP
 
 from owmeta_core import BASE_CONTEXT
 from owmeta_core.command import OWM
@@ -242,7 +241,7 @@ def test_source_list_kinds(owm_project, core_bundle):
             defctx.add_import(BASE_CONTEXT)
             defctx.save_imports()
 
-    output = owm_project.sh('owm source list-kinds', stderr=SP.STDOUT).strip().split('\n')
+    output = owm_project.sh('owm source list-kinds').strip().split('\n')
     assert set(output) == set([
         '<http://schema.openworm.org/2020/07/data_sources/LocalFileDataSource>',
         '<http://schema.openworm.org/2020/07/data_sources/CSVDataSource>',
