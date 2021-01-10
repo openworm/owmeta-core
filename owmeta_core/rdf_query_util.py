@@ -9,7 +9,6 @@ from .rdf_query_modifiers import (ZeroOrMoreTQLayer,
 
 L = logging.getLogger(__name__)
 
-
 def goq_hop_scorer(hop):
     if hop[1] == rdflib.RDF.type:
         return 1
@@ -222,13 +221,13 @@ def oid(identifier_or_rdf_type=None, rdf_type=None, context=None, base_type=None
                     break
             if cls is not None:
                 break
+
     if cls is None:
         if base_type is None:
             from .dataobject import BaseDataObject
             cls = BaseDataObject
         else:
             cls = base_type
-    L.debug("oid: making a {} with ident {}".format(cls, identifier))
 
     # if its our class name, then make our own object
     # if there's a part after that, that's the property name

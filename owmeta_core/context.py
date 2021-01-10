@@ -156,6 +156,8 @@ class Context(six.with_metaclass(ContextMeta,
         self._change_counter = 0
         self._triples_saved = 0
 
+        self._stored_context = None
+
     @property
     def mapper(self):
         if self.__mapper is None:
@@ -405,7 +407,7 @@ class Context(six.with_metaclass(ContextMeta,
         for x in self._statements:
             yield x.to_triple()
 
-    def contextualize(self, context):
+    def contextualize_augment(self, context):
         '''
         Returns a contextualized proxy of this context
 
@@ -414,7 +416,9 @@ class Context(six.with_metaclass(ContextMeta,
         context : .Context
             The context to contextualize this context with
         '''
-        return ContextualizingProxy(context, self)
+        res = ContextualizingProxy(context, self)
+        res.add_attr_override('_stored_context', None)
+        return res
 
     @property
     def rdf_object(self):
@@ -612,11 +616,13 @@ class Context(six.with_metaclass(ContextMeta,
         rdf_graph
         load_graph_from_configured_store : Defines the principal graph for this context
         '''
-        return QueryContext(
-                mapper=self.mapper,
-                graph=self.load_graph_from_configured_store(),
-                ident=self.identifier,
-                conf=self.conf)
+        if self._stored_context is None:
+            self._stored_context = QueryContext(
+                    mapper=self.mapper,
+                    graph=self.load_graph_from_configured_store(),
+                    ident=self.identifier,
+                    conf=self.conf)
+        return self._stored_context
 
     @property
     def own_stored(self):

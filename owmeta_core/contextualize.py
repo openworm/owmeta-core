@@ -184,8 +184,8 @@ class ContextualizingProxy(wrapt.ObjectProxy):
         if name == 'context':
             return super(ContextualizingProxy, self).__getattribute__('_self_context')
 
-        override = super(ContextualizingProxy, self).__getattribute__('_self_overrides').get(name, None)
-        if override is not None:
+        override = super(ContextualizingProxy, self).__getattribute__('_self_overrides').get(name, UNSET)
+        if override is not UNSET:
             return override
         wrapped = None
         if name not in ('__wrapped__', '__factory__', '__class__'):
@@ -245,6 +245,9 @@ class ContextualizingProxy(wrapt.ObjectProxy):
             setattr(get_wrapped(self), name, value)
             object.__setattr__(self, name, value)
         else:
+            if name in self._self_overrides:
+                self._self_overrides[name] = value
+                return
             # Added compared to wrapt.
             mro = type(self).mro()
             for x in mro:

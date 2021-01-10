@@ -121,6 +121,43 @@ class ContextTest(_DataTest):
         ctxda = ctx(A)(ident='anA')
         self.assertIsNone(ctxda.decontextualize().context)
 
+    def test_contextualize_diff_stored(self):
+        conf1 = Data({IMPORTS_CONTEXT_KEY: 'http://example.org/imports_1'})
+        conf2 = Data({IMPORTS_CONTEXT_KEY: 'http://example.org/imports_2'})
+
+        conf1.init()
+        conf2.init()
+
+        class A(DataObject):
+            pass
+
+        ctx1 = Context(ident='http://example.net/context_1', conf=conf1)
+        ctx2 = Context(ident='http://example.net/context_1', conf=conf2)
+
+        ctx3_1 = Context(ident='http://example.net/context_3', conf=conf1)
+        ctx3_1.add_import(ctx1)
+
+        ctx3_2 = Context(ident='http://example.net/context_3', conf=conf2)
+        ctx3_2.add_import(ctx2)
+
+        ctx1(A)(ident='http://example.com/ob1')
+        ctx2(A)(ident='http://example.com/ob2')
+
+        ctx1.save()
+        ctx2.save()
+        ctx3_1.save_imports()
+        ctx3_2.save_imports()
+
+        ctx3 = Context(ident='http://example.net/context_3')
+
+        ctx3_1_stored = ctx1(ctx3).stored
+        ctx3_2_stored = ctx2(ctx3).stored
+        ctx2(ctx3).stored
+        a1 = list(ctx3_1_stored(A)().load())[0]
+        a2 = list(ctx3_2_stored(A)().load())[0]
+        assert str(a1.identifier) == 'http://example.com/ob1'
+        assert str(a2.identifier) == 'http://example.com/ob2'
+
     def test_init_imports(self):
         ctx = Context(ident='http://example.com/context_1')
         self.assertEqual(len(list(ctx.imports)), 0)

@@ -336,11 +336,12 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
         return tuple(self._values_helper())
 
     def _values_helper(self):
+        context = self.context
         for x in self._v:
-            if x.context == self.context:
+            if x.context == context:
                 # XXX: decontextualzing default context here??
-                if self.context is not None:
-                    yield self.context(x.object)
+                if context is not None:
+                    yield context(x.object)
                 elif isinstance(x.object, Contextualizable):
                     yield x.object.decontextualize()
                 else:
