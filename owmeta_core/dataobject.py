@@ -242,7 +242,7 @@ def UnionProperty(*args, **kwargs):
     return APThunk('UnionProperty', args, kwargs)
 
 
-TypeDataObject = None
+TypeDataObject = ()
 
 
 def _get_rdf_type_property():
@@ -460,10 +460,8 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
         if no_type_decl:
             return o
 
-        if isinstance(o, TypeDataObject):
-            o.rdf_type_property(RDFSClass())
-        elif isinstance(o, RDFSClass):
-            o.rdf_type_property(o)
+        if isinstance(o, TypeDataObject) or isinstance(o, RDFSClass):
+            o.rdf_type_property(RDFSClass.instance)
         elif isinstance(o, RDFProperty):
             RDFProperty.init_rdf_type_object()
             o.rdf_type_property.set(self.rdf_type_object)
@@ -1177,13 +1175,10 @@ class RDFSClass(BaseDataObject):
 
     instance = None
     defined = True
-    identifier = R.RDFS["Class"]
     rdf_type_object_deferred = True
 
-    def __new__(cls, *args, **kwargs):
-        if cls.instance is None:
-            cls.instance = super(RDFSClass, cls).__new__(cls)
-        return cls.instance
+
+RDFSClass.instance = RDFSClass(ident=R.RDFS["Class"])
 
 
 class RDFSSubClassOfProperty(SP.ObjectProperty):
@@ -1197,6 +1192,9 @@ class RDFSSubClassOfProperty(SP.ObjectProperty):
     lazy = False
     rdf_object_deferred = True
     rdf_type_object_deferred = True
+
+
+RDFSClass.rdfs_subclassof_property = CPThunk(RDFSSubClassOfProperty)
 
 
 class TypeDataObject(BaseDataObject):
