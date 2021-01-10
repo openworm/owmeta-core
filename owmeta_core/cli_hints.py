@@ -92,6 +92,15 @@ CLI_HINTS = {
                 'nargs': '?'
             },
         },
+        'add_import': {
+            (METHOD_NAMED_ARG, 'importer'): {
+                'names': ['importer'],
+            },
+            (METHOD_NAMED_ARG, 'imported'): {
+                'names': ['imported'],
+                'nargs': '*'
+            },
+        },
         'rm_import': {
             (METHOD_NAMED_ARG, 'importer'): {
                 'names': ['importer'],

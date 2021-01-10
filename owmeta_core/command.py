@@ -743,6 +743,25 @@ class OWMContexts(object):
         for t in g.triples((None, CONTEXT_IMPORTS, URIRef(context))):
             yield t[0]
 
+    def add_import(self, importer, imported):
+        '''
+        Add an import to the imports graph
+
+        Parameters
+        ----------
+        importer : str
+            The importing context
+        imported : list str
+            The imported context
+        '''
+        import transaction
+
+        importer_ctx = self._parent._context(Context)(importer)
+        for imp in imported:
+            importer_ctx.add_import(Context(imp))
+        with transaction.manager:
+            importer_ctx.save_imports()
+
     def rm_import(self, importer, imported):
         '''
         Remove an import statement
