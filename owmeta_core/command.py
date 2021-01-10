@@ -701,12 +701,21 @@ class OWMContexts(object):
                     g.remove((None, None, None))
                     parser.parse(create_input_source(source), g)
 
-    def list(self):
+    def list(self, include_dependencies=False):
         '''
         List the set of contexts in the graph
+
+        Parameters
+        ----------
+        include_dependencies : bool
+            If set, then contexts from dependencies will be included
         '''
-        for c in self._parent.own_rdf.contexts():
-            yield c.identifier
+        if include_dependencies:
+            for c in self._parent.rdf.contexts():
+                yield c.identifier
+        else:
+            for c in self._parent.own_rdf.contexts():
+                yield c.identifier
 
     def list_changed(self):
         '''
@@ -1392,7 +1401,6 @@ class OWM(object):
                 dat['rdf.source'] = 'default'
                 dat['rdf.store'] = store_name
                 dat['rdf.store_conf'] = store_conf
-
                 self._bundle_dep_mgr = BundleDependencyManager(bundles_directory=bundles_directory,
                                                                remotes_directory=remotes_directory,
                                                                remotes=project_remotes,
