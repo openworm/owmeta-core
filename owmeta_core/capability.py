@@ -46,7 +46,7 @@ class _Singleton(type):
 
 class Capability(six.with_metaclass(_Singleton)):
     '''
-    A capability
+    A capability.
     '''
     def __str__(self):
         return FCN(type(self))
@@ -55,13 +55,15 @@ class Capability(six.with_metaclass(_Singleton)):
 class Provider(object):
     '''
     A capability provider.
+
+    In general, providers should do any general setup in their initializer, and setup for
+    any source passed into `provides_to` method if, in fact, the provider does provide the
+    needed capabilities
     '''
     def provides(self, cap, obj):
         '''
         Returns a provider of the given capability if it's one this provider provides;
         otherwise, returns None.
-
-        By default, the
 
         Parameters
         ----------
@@ -82,8 +84,13 @@ class Provider(object):
         Returns a `Provider` if the provider provides a capability to the given object;
         otherwise, returns `None`.
 
-        The default implementation always returns `None`. Implementers of `Provider` should
-        check they can actually provide the capability for the given object.
+        The default implementation always returns `None`. Implementers of `Provider`
+        should check they can actually provide the capability for the given object rather
+        than just that they *might* be able to.
+
+        It's best to do setup for providing the capability before exiting this method
+        rather than, for instance, in the methods of the returned provider when the
+        `Capable` is trying to use it.
 
         Returns
         -------

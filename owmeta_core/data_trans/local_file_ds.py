@@ -1,7 +1,5 @@
 from os.path import join
 
-from rdflib.namespace import Namespace
-
 from .. import BASE_CONTEXT
 from ..datasource import Informational
 from ..capability import Capable, NoProviderGiven

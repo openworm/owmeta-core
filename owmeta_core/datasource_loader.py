@@ -13,7 +13,7 @@ from os.path import exists, isdir, join as pth_join, isabs, realpath
 
 class DataSourceDirLoader(object):
     '''
-    Loads a data files for a DataSource
+    Loads data files for a DataSource
 
     The loader is expected to organize files for each data source within the given
     base directory.
@@ -21,8 +21,7 @@ class DataSourceDirLoader(object):
     .. automethod:: __call__
     '''
     def __init__(self, base_directory=None):
-        if base_directory:
-            self.base_directory = base_directory
+        self.base_directory = base_directory
         self.directory_key = FCN(type(self))
 
     def __call__(self, data_source):
