@@ -1,12 +1,9 @@
 from collections import namedtuple
 from contextlib import contextmanager
-from http.server import HTTPServer, SimpleHTTPRequestHandler
 import hashlib
 import json
 import logging
-from multiprocessing import Process, Queue
 from subprocess import check_output, CalledProcessError
-from os import chdir
 import os
 from os.path import join as p, exists, split as split_path, isdir, isabs
 from textwrap import dedent
@@ -22,10 +19,12 @@ from owmeta_core.command import DEFAULT_OWM_DIR, OWM
 from pytest import fixture
 from rdflib.term import URIRef
 from rdflib.graph import ConjunctiveGraph
-import requests
 
 
 L = logging.getLogger(__name__)
+
+os.environ['HTTPS_PYTEST_FIXTURES_CERT'] = p('tests', 'cert.pem')
+os.environ['HTTPS_PYTEST_FIXTURES_KEY'] = p('tests', 'key.pem')
 
 
 @fixture
@@ -34,97 +33,14 @@ def tempdir():
         yield td
 
 
-class ServerData:
-    def __init__(self, request_queue):
-        self.server = None
-        self.requests = request_queue
-        self.scheme = 'http'
-
-    def headers(self, handler):
-        return {}
-
-    @property
-    def url(self):
-        return self.scheme + '://{}:{}'.format(*self.server.server_address)
-
-
-@contextmanager
-def _http_server(handler_func=None):
-    '''
-    Creates an http server.
-
-    Some behaviors can be affected by changing the server data. The server must be
-    restarted in that case. The requests queue is not cleared on a restart
-    '''
-    srvdir = tempfile.mkdtemp(prefix=__name__ + '.')
-    process = None
-    request_queue = Queue()
-    try:
-        server_data = ServerData(request_queue)
-        server = make_server(server_data,
-                handler=handler_func and handler_func(server_data))
-        server_data.server = server
-
-        def pfunc():
-            chdir(srvdir)
-            server.serve_forever()
-
-        process = Process(target=pfunc)
-
-        def start():
-            process.start()
-            wait_for_started(server_data)
-
-        def restart():
-            nonlocal process
-            if process:
-                process.terminate()
-                process.join()
-            process = Process(target=pfunc)
-            process.start()
-            wait_for_started(server_data)
-
-        server_data.start = start
-        server_data.restart = restart
-        yield server_data
-    finally:
-        if process:
-            process.terminate()
-            process.join()
-        shutil.rmtree(srvdir)
-
-
 @fixture
-def https_server():
-    import ssl
-    with _http_server() as server_data:
-        server_data.server.socket = \
-                ssl.wrap_socket(server_data.server.socket,
-                        certfile=p('tests', 'cert.pem'),
-                        keyfile=p('tests', 'key.pem'),
-                        server_side=True)
-        server_data.start()
-        server_data.ssl_context = ssl.SSLContext()
-        server_data.ssl_context.load_verify_locations(p('tests', 'cert.pem'))
-        server_data.scheme = 'https'
-        yield server_data
-
-
-@fixture
-def http_server():
-    with _http_server() as server_data:
-        server_data.start()
-        yield server_data
-
-
-@fixture
-def http_bundle_server():
+def http_bundle_server(http_server):
     with open(p('tests', 'test_data', 'example_bundle.tar.xz'), 'rb') as f:
         bundle_data = f.read()
         bundle_hash = hashlib.sha224(bundle_data).hexdigest()
 
     def handler(server_data):
-        class _Handler(basic_handler(server_data)):
+        class _Handler(server_data.basic_handler):
             def do_GET(self):
                 self.queue_reuqest()
                 if self.path == '/index.json':
@@ -145,62 +61,9 @@ def http_bundle_server():
                     self.wfile.write(bundle_data)
         return _Handler
 
-    with _http_server(handler) as server_data:
-        server_data.start()
-        yield server_data
+    http_server.make_server(handler)
 
-
-def make_server(server_data, handler=None):
-    if not handler:
-        class _Handler(basic_handler(server_data)):
-            def do_POST(self):
-                self.handle_request(201)
-        handler = _Handler
-
-    port = 8000
-    while True:
-        try:
-            server = HTTPServer(('127.0.0.1', port), handler)
-            break
-        except OSError as e:
-            if e.errno != 98:
-                raise
-            port += 1
-
-    return server
-
-
-def basic_handler(server_data):
-    class _Handler(SimpleHTTPRequestHandler):
-        def queue_reuqest(self):
-            server_data.requests.put(dict(
-                method=self.command,
-                path=self.path,
-                headers={k.lower(): v for k, v in self.headers.items()}))
-
-        def end_headers(self):
-            for header, value in server_data.headers(self).items():
-                self.send_header(header, value)
-            super().end_headers()
-
-        def handle_request(self, code):
-            self.queue_reuqest()
-            self.send_response(code)
-            self.end_headers()
-
-    return _Handler
-
-
-def wait_for_started(server_data, max_tries=10):
-    done = False
-    tries = 0
-    while not done and tries < max_tries:
-        tries += 1
-        try:
-            requests.head(server_data.url)
-            done = True
-        except Exception:
-            L.info("Unable to connect to the bundle server. Trying again.", exc_info=True)
+    yield http_server
 
 
 @fixture
