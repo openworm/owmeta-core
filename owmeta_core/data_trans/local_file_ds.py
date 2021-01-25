@@ -32,7 +32,8 @@ class LocalFileDataSource(Capable, FileDataSource):
         return join(self.basedir(), self.file_name.one())
 
     def accept_capability_provider(self, cap, provider):
-        self._base_path_provider = provider
+        if isinstance(cap, FilePathCapability):
+            self._base_path_provider = provider
 
     def basedir(self):
         return self._base_path_provider.file_path()
