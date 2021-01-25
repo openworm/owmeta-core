@@ -40,7 +40,7 @@ class CacheDirectoryProvider(Provider):
     Provides the `CacheDirectoryCapability`
     '''
 
-    provided_capabilities = [FilePathCapability()]
+    provided_capabilities = [CacheDirectoryCapability()]
 
     def clear(self):
         '''

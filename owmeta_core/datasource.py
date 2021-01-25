@@ -543,6 +543,7 @@ class BaseDataTranslator(six.with_metaclass(DataTransatorType, DataObject)):
                                                            ident=self.output_identifier,
                                                            key=self.output_key, **kwargs)
         for s in sources:
+            # XXX: Why are we calling contextualize here? Seems redundant?
             res.contextualize(self.context).source(s)
 
         return res
