@@ -195,25 +195,11 @@ def provide(ob, provs):
         The providers available
     '''
     if is_capable(ob):
-        unsafe_provide(ob, provs)
-
-
-def unsafe_provide(ob, provs):
-    '''
-    Provide capabilities to `ob` out of `provs`
-
-    Parameters
-    ----------
-    ob : Capable
-        An object needs capabilities
-    provs : list of Provider
-        The providers available
-    '''
-    for cap in ob.needed_capabilities:
-        provider = get_provider(ob, cap, provs)
-        if not provider:
-            raise NoProviderAvailable(cap, ob)
-        ob.accept_capability_provider(cap, provider)
+        for cap in ob.needed_capabilities:
+            provider = get_provider(ob, cap, provs)
+            if not provider:
+                raise NoProviderAvailable(cap, ob)
+            ob.accept_capability_provider(cap, provider)
 
 
 def get_provider(ob, cap, provs):
