@@ -91,7 +91,7 @@ class DataSourceDirLoader(object):
 
     @base_directory.setter
     def base_directory(self, base_directory):
-        self.__base_directory = realpath(base_directory)
+        self.__base_directory = realpath(base_directory) if base_directory else None
 
     def load(self, data_source):
         '''

@@ -62,7 +62,7 @@ def http_bundle_server(http_server):
         return _Handler
 
     http_server.make_server(handler)
-
+    http_server.restart()
     yield http_server
 
 
