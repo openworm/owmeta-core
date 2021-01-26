@@ -548,9 +548,17 @@ class TypeCreator(object):
             self._annotate_obj(subpart, path[1:], repl)
 
 
-class DataSourceTypeCreator(TypeCreator):
+class DataObjectTypeCreator(TypeCreator):
     '''
-    Creates DataSource types from a JSON Schema
+    Creates DataObject types from a JSON Schema
+
+    Attributes
+    ----------
+    cdict : dict
+        Map from paths in the schema to the dictionaries that will be passed into the
+        class definition. The path is the same as passed into create_type
+    module : str
+        The module in which classes will be defined
     '''
     def __init__(self, *args, module, context=None, **kwargs):
         '''
@@ -558,8 +566,10 @@ class DataSourceTypeCreator(TypeCreator):
         ----------
         module : str
             The module in which classes will be defined
+        context : owmeta_core.context.Context or str
+            The class context in which the various types will be declared
         '''
-        super(DataSourceTypeCreator, self).__init__(*args, **kwargs)
+        super(DataObjectTypeCreator, self).__init__(*args, **kwargs)
         self.cdict = dict()
         if context and not isinstance(context, str):
             context = context.identifier
@@ -577,15 +587,9 @@ class DataSourceTypeCreator(TypeCreator):
         yield
 
     def proc_prop(self, path, k, v):
-        if not path:
-            property_type_string = self.determine_property_type(path, k, v)
-            self.cdict[path][k] = Informational(k, display_name=v.get('title'),
-                                     description=v.get('description'),
-                                     property_type=property_type_string)
-        else:
-            property_type_string = self.determine_property_type(path, k, v)
-            property_type = _DO_PROPERTY_TYPES[property_type_string]
-            self.cdict[path][k] = property_type()
+        property_type_string = self.determine_property_type(path, k, v)
+        property_type = _DO_PROPERTY_TYPES[property_type_string]
+        self.cdict[path][k] = property_type()
 
     def determine_property_type(self, path, k, v):
         '''
@@ -649,11 +653,37 @@ class DataSourceTypeCreator(TypeCreator):
         schema : dict
             The sub-schema at the path location
         '''
+        return (DataObject,)
+
+
+class DataSourceTypeCreator(DataObjectTypeCreator):
+    '''
+    Creates DataSource types from a JSON Schema
+    '''
+
+    def proc_prop(self, path, k, v):
         if not path:
-            typ = DataSource
+            property_type_string = self.determine_property_type(path, k, v)
+            self.cdict[path][k] = Informational(k, display_name=v.get('title'),
+                                     description=v.get('description'),
+                                     property_type=property_type_string)
         else:
-            typ = DataObject
-        return (typ,)
+            super().proc_prop(path, k, v)
+
+    def select_base_types(self, path, schema):
+        '''
+        Returns the base types for `create_type`
+
+        Parameters
+        ----------
+        path : tuple
+            The path to the sub-schema
+        schema : dict
+            The sub-schema at the path location
+        '''
+        if not path:
+            return (DataSource,)
+        return super().select_base_types(path, schema)
 
 
 _DO_PROPERTY_TYPES = {'DatatypeProperty': DatatypeProperty,

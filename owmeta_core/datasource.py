@@ -13,7 +13,6 @@ from .context import Context
 from .dataobject import (DataObject, ObjectProperty, DatatypeProperty, UnionProperty, This,
                          CPThunk)
 from .data_trans.common_data import DS_NS, DS_DATA_NS
-from .graph_object import IdentifierMissingException
 
 L = logging.getLogger(__name__)
 
