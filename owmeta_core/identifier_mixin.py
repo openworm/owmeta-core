@@ -35,7 +35,7 @@ class IdMixin:
 
     direct_key = True
 
-    def __init__(self, ident=None, key=None, *args, **kwargs):
+    def __init__(self, ident=None, key=None, *args, direct_key=None, **kwargs):
         super(IdMixin, self).__init__(*args, **kwargs)
         if key is not None and ident is not None:
             raise Exception("Only one of 'key' or 'ident' can be given to Context")
@@ -44,6 +44,9 @@ class IdMixin:
             self._id = URIRef(ident)
         else:
             self._id = None
+
+        if direct_key is not None:
+            self.direct_key = bool(direct_key)
 
         self.key = key
         self._id_key = None
