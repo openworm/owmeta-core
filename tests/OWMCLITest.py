@@ -135,7 +135,7 @@ def test_translator_list(owm_project):
     )
 
 
-@mark.core_bundle_version(1)
+@mark.bundle_version('openworm/owmeta-core', 1)
 @mark.core_bundle
 def test_translator_list_kinds(owm_project, core_bundle):
     owm = owm_project.owm()
@@ -199,7 +199,7 @@ def test_translate_data_source_loader(owm_project):
     )
 
 
-@mark.core_bundle_version(1)
+@mark.bundle_version('openworm/owmeta-core', 1)
 @mark.core_bundle
 def test_source_list(owm_project, core_bundle):
     owm = owm_project.owm()
@@ -228,7 +228,7 @@ def test_source_list(owm_project, core_bundle):
             '<http://example.org/lfds>')
 
 
-@mark.core_bundle_version(1)
+@mark.bundle_version('openworm/owmeta-core', 1)
 @mark.core_bundle
 def test_source_list_kinds(owm_project, core_bundle):
     owm = owm_project.owm()

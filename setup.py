@@ -107,6 +107,9 @@ setup(
             'http_uploader = owmeta_core.bundle.loaders.http:HTTPBundleUploader',
             'http_loader = owmeta_core.bundle.loaders.http:HTTPBundleLoader',
             'sftp_uploader = owmeta_core.bundle.loaders.sftp:DumbSFTPUploader [sftp]',
+        ],
+        'pytest11': [
+            'owmeta_core_fixtures = owmeta_core.test_fixtures'
         ]
     },
     package_data={'owmeta_core': ['default.conf']},

@@ -126,7 +126,7 @@ def test_non_interactive_install_fail_when_target_directory_not_empty(owm_projec
     assert exists(marker)
 
 
-@pytest.mark.core_bundle_version(1)
+@mark.bundle_version('openworm/owmeta-core', 1)
 @pytest.mark.core_bundle
 def test_install_class_registry_load(owm_project, core_bundle):
     from tests.test_modules.owmbundletest01 import Person

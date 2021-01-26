@@ -1,4 +1,3 @@
-from collections import namedtuple
 from contextlib import contextmanager
 import hashlib
 import json
@@ -11,9 +10,7 @@ import shutil
 import shlex
 import tempfile
 
-from owmeta_core.bundle import (Descriptor, Installer, find_bundle_directory,
-                                AccessorConfig, Remote, Fetcher)
-from owmeta_core.bundle.loaders import Loader
+from owmeta_core.bundle import Descriptor, Installer, Fetcher
 from owmeta_core.bundle.archive import Archiver
 from owmeta_core.command import DEFAULT_OWM_DIR, OWM
 from pytest import fixture
@@ -69,50 +66,6 @@ def http_bundle_server(http_server):
 @fixture
 def owm_project_with_customizations(request):
     return contextmanager(_owm_project_helper(request))
-
-
-@fixture
-def core_bundle(request):
-    CoreBundle = namedtuple('CoreBundle', ('id', 'version', 'source_directory', 'remote'))
-    version_mark = request.node.get_closest_marker('core_bundle_version')
-    if not version_mark:
-        raise Exception('Must specify a version of the core bundle')
-    version = version_mark.args[0]
-    source_directory = find_bundle_directory('bundles', 'openworm/owmeta-core', version)
-
-    class TestAC(AccessorConfig):
-        def __eq__(self, other):
-            return other is self
-
-        def __hash__(self):
-            return object.__hash__(self)
-
-    class TestBundleLoader(Loader):
-        def __init__(self, ac):
-            pass
-
-        def bundle_versions(self):
-            return [1]
-
-        @classmethod
-        def can_load_from(cls, ac):
-            if isinstance(ac, TestAC):
-                return True
-            return False
-
-        def can_load(self, ident, version): return True
-
-        def load(self, ident, version):
-            shutil.copytree(source_directory, self.base_directory)
-
-    TestBundleLoader.register()
-    remote = Remote('test', (TestAC(),))
-
-    yield CoreBundle(
-            'openworm/owmeta-core',
-            version,
-            source_directory,
-            remote)
 
 
 def _owm_project_helper(request):
