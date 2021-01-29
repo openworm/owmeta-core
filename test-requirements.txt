@@ -3,3 +3,4 @@ pytest-cov>=2.5.1
 discover==0.4.0
 pytest-parallel
 http-server-pytest-fixtures
+owmeta-pytest-plugin

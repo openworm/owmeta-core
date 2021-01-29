@@ -30,13 +30,6 @@ def excludes(base):
 setup(
     name='owmeta-core',
     zip_safe=False,
-    setup_requires=['pytest-runner'],
-    tests_require=[
-        'pytest>=3.4.0',
-        'pytest-cov>=2.5.1',
-        'discover==0.4.0',
-        'pytest-parallel'
-    ],
     install_requires=[
         'bibtexparser~=1.1.0',
         'BTrees>=4.0.8',
@@ -108,9 +101,6 @@ setup(
             'http_loader = owmeta_core.bundle.loaders.http:HTTPBundleLoader',
             'sftp_uploader = owmeta_core.bundle.loaders.sftp:DumbSFTPUploader [sftp]',
         ],
-        'pytest11': [
-            'owmeta_core_fixtures = owmeta_core.test_fixtures'
-        ]
     },
     package_data={'owmeta_core': ['default.conf']},
     classifiers=[
