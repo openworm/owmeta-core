@@ -387,15 +387,16 @@ def test_deploy_sftp(owm_project_with_customizations, custom_bundle):
             def verify():
                 try:
                     SFTPClient.from_transport().__enter__().put.assert_called()
+                    print('PASSED')
                 except AssertionError:
-                    print("FAILED")
+                    print('FAILED')
             atexit.register(verify)
             ''') as owm_project:
         with custom_bundle(desc, bundles_directory=p(owm_project.test_homedir, '.owmeta', 'bundles')):
             owm_project.sh('owm bundle remote add the-source sftp://example.org/this/doesnt/matter')
             owm_project.apply_customizations()
             output = owm_project.sh('owm bundle deploy test/main')
-            assert 'FAILED' not in output
+            assert 'PASSED' in output
 
 
 def test_load_from_class_registry_from_conjunctive(custom_bundle):
