@@ -12,7 +12,6 @@ from rdflib.graph import ConjunctiveGraph
 
 from owmeta_core.context import Context
 from owmeta_core.contextualize import Contextualizable
-from owmeta_core.agg_store import UnsupportedAggregateOperation
 from owmeta_core.bundle import (Bundle, BundleNotFound, Descriptor, DependencyDescriptor,
                                 _RemoteHandlerMixin, make_include_func, NoRemoteAvailable,
                                 BUNDLE_INDEXED_DB_NAME, DEFAULT_BUNDLES_DIRECTORY)
@@ -398,16 +397,16 @@ def test_remote_handler_mixin_selected_configured_remotes():
     assert remote is not None
 
 
-def test_bundle_contextualize_non_contextualizable(bundle):
-    cut = Bundle(bundle.descriptor.id, version=bundle.descriptor.version,
-            bundles_directory=bundle.bundles_directory)
+def test_bundle_contextualize_non_contextualizable(test_bundle):
+    cut = Bundle(test_bundle.descriptor.id, version=test_bundle.descriptor.version,
+            bundles_directory=test_bundle.bundles_directory)
     token = object()
     assert cut(token) == token
 
 
-def test_bundle_contextualize(bundle):
-    with Bundle(bundle.descriptor.id, version=bundle.descriptor.version,
-            bundles_directory=bundle.bundles_directory) as cut:
+def test_bundle_contextualize(test_bundle):
+    with Bundle(test_bundle.descriptor.id, version=test_bundle.descriptor.version,
+            bundles_directory=test_bundle.bundles_directory) as cut:
         ctxble = Mock(spec=Contextualizable)
         cut(ctxble)
         ctxble.contextualize.assert_called_with(ContextWithNoId())

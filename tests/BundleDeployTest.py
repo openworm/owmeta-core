@@ -1,13 +1,8 @@
 import os
 from os.path import join as p
-import io
 import json
-import tempfile
-import shutil
 import tarfile
 
-import rdflib
-from rdflib import ConjunctiveGraph, URIRef
 from pytest import fixture, raises
 from unittest.mock import patch, Mock
 
@@ -107,18 +102,18 @@ def test_bundle_directory_manifest_has_no_bundle_id(tempdir):
         cut.deploy(bdir)
 
 
-def test_deploy_directory_from_installer(bundle, remote):
+def test_deploy_directory_from_installer(test_bundle, remote):
     ''' Test that we can deploy an installed bundle '''
     Deployer().deploy(
-        bundle.bundle_directory,
+        test_bundle.bundle_directory,
         remotes=(remote,)
     )
 
 
-def test_deploy_directory_no_remotes(bundle):
+def test_deploy_directory_no_remotes(test_bundle):
     ''' We can't deploy if we don't have any remotes '''
     with raises(NoRemoteAvailable):
-        Deployer().deploy(bundle.bundle_directory)
+        Deployer().deploy(test_bundle.bundle_directory)
 
 
 def test_deploy_archive_no_remotes(bundle_archive):
@@ -145,7 +140,7 @@ def test_deploy_archive_no_manifest_not_a_bundle(tempdir):
     Test missing manifest
     '''
     bundle_path = p(tempdir, 'bundle.tar.xz')
-    with tarfile.open(bundle_path, 'w:xz') as tf:
+    with tarfile.open(bundle_path, 'w:xz'):
         pass
 
     rem = Remote('remote')

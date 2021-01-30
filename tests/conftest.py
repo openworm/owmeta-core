@@ -2,17 +2,13 @@ from contextlib import contextmanager
 import hashlib
 import json
 import logging
-from subprocess import check_output, CalledProcessError
 import os
-from os.path import join as p, exists, split as split_path, isdir, isabs
-from textwrap import dedent
-import shutil
-import shlex
+from os.path import join as p
 import tempfile
 
-from owmeta_core.bundle import Descriptor, Installer, Fetcher
+from owmeta_core.bundle import Descriptor, Installer
 from owmeta_core.bundle.archive import Archiver
-from owmeta_core.command import DEFAULT_OWM_DIR, OWM
+from owmeta_pytest_plugin import bundle_fixture_helper
 from pytest import fixture
 from rdflib.term import URIRef
 from rdflib.graph import ConjunctiveGraph
@@ -63,172 +59,12 @@ def http_bundle_server(http_server):
     yield http_server
 
 
-@fixture
-def owm_project_with_customizations(request):
-    return contextmanager(_owm_project_helper(request))
-
-
-def _owm_project_helper(request):
-    def f(*args, **kwargs):
-        res = _shell_helper(*args, **kwargs)
-        try:
-            default_context_id = 'http://example.org/data'
-            res.sh(f'owm -b init --default-context-id "{default_context_id}"')
-
-            add_core_bundle = request.node.get_closest_marker('core_bundle')
-            if add_core_bundle:
-                core_bundle = request.getfixturevalue('core_bundle')
-                bundles_directory = p(res.test_homedir, '.owmeta', 'bundles')
-                fetcher = Fetcher(bundles_directory, (core_bundle.remote,))
-                fetcher.fetch(core_bundle.id, core_bundle.version)
-
-            res.owmdir = p(res.testdir, DEFAULT_OWM_DIR)
-            res.default_context_id = default_context_id
-
-            def owm(**kwargs):
-                r = OWM(owmdir=p(res.testdir, '.owm'), **kwargs)
-                r.userdir = p(res.test_homedir, '.owmeta')
-                return r
-
-            res.owm = owm
-
-            yield res
-        finally:
-            shutil.rmtree(res.testdir)
-    return f
+core_bundle_1 = fixture(bundle_fixture_helper('openworm/owmeta-core', 1))
+core_bundle = fixture(bundle_fixture_helper('openworm/owmeta-core'))
 
 
 @fixture
-def owm_project(request):
-    with contextmanager(_owm_project_helper(request))() as f:
-        yield f
-
-
-@fixture
-def shell_helper():
-    res = _shell_helper()
-    try:
-        yield res
-    finally:
-        shutil.rmtree(res.testdir)
-
-
-@fixture
-def shell_helper_with_customizations():
-    @contextmanager
-    def f(*args, **kwargs):
-        res = _shell_helper(*args, **kwargs)
-        try:
-            yield res
-        finally:
-            shutil.rmtree(res.testdir)
-    return f
-
-
-def _shell_helper(customizations=None):
-    res = Data()
-    os.mkdir(res.test_homedir)
-    with open(p('tests', 'pytest-cov-embed.py'), 'r') as f:
-        ptcov = f.read()
-    # Added so pytest_cov gets to run for our subprocesses
-    with open(p(res.testdir, 'sitecustomize.py'), 'w') as f:
-        f.write(ptcov)
-        f.write('\n')
-
-    def apply_customizations():
-        if customizations:
-            with open(p(res.testdir, 'sitecustomize.py'), 'a') as f:
-                f.write(dedent(customizations))
-
-    res.apply_customizations = apply_customizations
-    return res
-
-
-class Data(object):
-    exception = None
-
-    def __init__(self):
-        self.testdir = tempfile.mkdtemp(prefix=__name__ + '.')
-        self.test_homedir = p(self.testdir, 'homedir')
-
-    def __str__(self):
-        items = []
-        for m in vars(self):
-            if (m.startswith('_') or m == 'sh'):
-                continue
-            items.append(m + '=' + repr(getattr(self, m)))
-        return 'Data({})'.format(', '.join(items))
-
-    def copy(self, source, dest):
-        if isdir(source):
-            return shutil.copytree(source, p(self.testdir, dest))
-        else:
-            return shutil.copy(source, p(self.testdir, dest))
-
-    def make_module(self, module):
-        if isabs(module):
-            raise Exception('Must use a relative path. Given ' + str(module))
-        modpath = p(self.testdir, module)
-        os.makedirs(modpath)
-        last_dname = None
-        dname = modpath
-        while last_dname != dname and dname != self.testdir:
-            open(p(dname, '__init__.py'), 'x').close()
-            base = ''
-            while not base and last_dname != dname:
-                last_dname = dname
-                dname, base = split_path(modpath)
-
-        return modpath
-
-    def writefile(self, name, contents=None):
-        if contents is None:
-            contents = name
-        fname = p(self.testdir, name)
-        with open(fname, 'w') as f:
-            if exists(contents):
-                print(open(contents).read(), file=f)
-            else:
-                print(dedent(contents), file=f)
-            f.flush()
-        return fname
-
-    def sh(self, *command, **kwargs):
-        if not command:
-            return None
-        env = dict(os.environ)
-        env['PYTHONPATH'] = self.testdir + ((os.pathsep + env['PYTHONPATH'])
-                                            if 'PYTHONPATH' in env
-                                            else '')
-        env['HOME'] = self.test_homedir
-        env.update(kwargs.pop('env', {}))
-        outputs = []
-        for cmd in command:
-            try:
-                outputs.append(check_output(shlex.split(cmd), env=env, cwd=self.testdir, **kwargs).decode('utf-8'))
-            except CalledProcessError as e:
-                if e.output:
-                    print(dedent('''\
-                    ----------stdout from "{}"----------
-                    {}
-                    ----------{}----------
-                    ''').format(cmd, e.output.decode('UTF-8'),
-                               'end stdout'.center(14 + len(cmd))))
-                if getattr(e, 'stderr', None):
-                    print(dedent('''\
-                    ----------stderr from "{}"----------
-                    {}
-                    ----------{}----------
-                    ''').format(cmd, e.stderr.decode('UTF-8'),
-                               'end stderr'.center(14 + len(cmd))))
-                raise
-        return outputs[0] if len(outputs) == 1 else outputs
-
-    __repr__ = __str__
-
-
-@fixture
-def bundle():
+def test_bundle():
     with bundle_helper(Descriptor('test')) as data:
         yield data
 
@@ -270,6 +106,9 @@ def bundle_helper(descriptor, graph=None, bundles_directory=None, homedir=None, 
     homedir : str, optional
         Test home directory. If not provided, one will be created based on test directory
     '''
+    class BundleData(object):
+        pass
+
     res = BundleData()
     with tempfile.TemporaryDirectory(prefix=__name__ + '.') as testdir:
         res.testdir = testdir
@@ -308,7 +147,3 @@ def bundle_archive_helper(*args, pre_pack_callback=None, **kwargs):
                 bundle_directory=bundle_data.bundle_directory,
                 target_file_name='bundle.tar.xz')
         yield bundle_data
-
-
-class BundleData(object):
-    pass

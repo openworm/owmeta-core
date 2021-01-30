@@ -15,6 +15,7 @@ from owmeta_core.context_common import CONTEXT_IMPORTS
 from owmeta_core.data_trans.local_file_ds import LocalFileDataSource as LFDS
 from owmeta_core.datasource import DataTranslator, DataSource
 from owmeta_core.bundle import Descriptor
+from owmeta_pytest_plugin import bundle_versions
 
 from .test_modules.owmclitest01 import DT2
 from .TestUtilities import assertRegexpMatches, assertNotRegexpMatches
@@ -135,9 +136,9 @@ def test_translator_list(owm_project):
     )
 
 
-@mark.bundle_version('openworm/owmeta-core', 1)
-@mark.core_bundle
+@bundle_versions('core_bundle', [1, 2])
 def test_translator_list_kinds(owm_project, core_bundle):
+    owm_project.fetch(core_bundle)
     owm = owm_project.owm()
     deps = [{'id': 'openworm/owmeta-core', 'version': 1}]
     owm.config.set('dependencies', json.dumps(deps))
@@ -199,9 +200,9 @@ def test_translate_data_source_loader(owm_project):
     )
 
 
-@mark.bundle_version('openworm/owmeta-core', 1)
-@mark.core_bundle
+@bundle_versions('core_bundle', [1, 2])
 def test_source_list(owm_project, core_bundle):
+    owm_project.fetch(core_bundle)
     owm = owm_project.owm()
     deps = [{'id': 'openworm/owmeta-core', 'version': 1}]
     owm.config.set('dependencies', json.dumps(deps))
@@ -228,9 +229,9 @@ def test_source_list(owm_project, core_bundle):
             '<http://example.org/lfds>')
 
 
-@mark.bundle_version('openworm/owmeta-core', 1)
-@mark.core_bundle
+@bundle_versions('core_bundle', [1, 2])
 def test_source_list_kinds(owm_project, core_bundle):
+    owm_project.fetch(core_bundle)
     owm = owm_project.owm()
     deps = [{'id': 'openworm/owmeta-core', 'version': 1}]
     owm.config.set('dependencies', json.dumps(deps))

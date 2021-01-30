@@ -15,7 +15,7 @@ import transaction
 from owmeta_core.context import Context
 from owmeta_core.command import DEFAULT_OWM_DIR as OD, OWM
 from owmeta_core.bundle import DependencyDescriptor, Descriptor, Bundle, make_include_func
-
+from owmeta_pytest_plugin import bundle_versions
 
 from .TestUtilities import assertRegexpMatches, assertNotRegexpMatches
 
@@ -126,9 +126,9 @@ def test_non_interactive_install_fail_when_target_directory_not_empty(owm_projec
     assert exists(marker)
 
 
-@mark.bundle_version('openworm/owmeta-core', 1)
-@pytest.mark.core_bundle
+@bundle_versions('core_bundle', [1, 2])
 def test_install_class_registry_load(owm_project, core_bundle):
+    owm_project.fetch(core_bundle)
     from tests.test_modules.owmbundletest01 import Person
 
     modpath = p('tests', 'test_modules')
