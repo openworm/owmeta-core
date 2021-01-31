@@ -1,4 +1,4 @@
 develop openworm/owmeta master
-develop openworm/owmeta develop
+develop openworm/owmeta dev
 develop openworm/owmeta-movement master
 develop openworm/owmeta-modeldb master
