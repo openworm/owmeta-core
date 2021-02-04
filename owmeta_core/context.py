@@ -672,7 +672,8 @@ class QueryContext(Context):
     @property
     def imports(self):
         ctxid = self.conf.get(IMPORTS_CONTEXT_KEY, None)
-        imports_graph = ctxid and self.__graph.get_context(URIRef(ctxid))
+
+        imports_graph = ctxid and self.rdf.get_context(URIRef(ctxid))
         if imports_graph is None:
             return
         for t in imports_graph.triples((self.identifier, CONTEXT_IMPORTS, None)):

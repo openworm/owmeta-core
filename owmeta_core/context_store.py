@@ -157,6 +157,7 @@ class RDFContextStore(Store):
         self.__context = context
         self.__context_transitive_imports = None
         self.__include_imports = include_imports
+        self.__query_perctx = False
 
     def __init_contexts(self):
         if self.__store is not None and self.__context_transitive_imports is None:
@@ -175,29 +176,45 @@ class RDFContextStore(Store):
                 # case though if self.__include_imports is True, we could have an empty
                 # set of imports => we query against everything
                 self.__context_transitive_imports = set([self.__context.identifier])
-            imports_id = getattr(self.__imports_graph, 'identifier', self.__imports_graph)
-            if imports_id is not None:
-                self.__context_transitive_imports.add(imports_id)
+
+            total_triples = self.__store.__len__()
+            per_ctx_triples = sum(self.__store.__len__(context=ctx)
+                        for ctx in self.__context_transitive_imports)
+
+            self.__query_perctx = total_triples > per_ctx_triples
 
     def triples(self, pattern, context=None):
         self.__init_contexts()
 
-        context = getattr(context, 'identifier', context)
-        ctx = None if context is None else self.__graph.get_context(context)
-        for t in self.__store.triples(pattern, ctx):
-            contexts = set(getattr(c, 'identifier', c) for c in t[1])
-            if self.__context_transitive_imports:
-                inter = self.__context_transitive_imports & contexts
-            else:
-                inter = contexts
-            if inter:
-                yield t[0], inter
+        ctx = self._determine_context(context)
+        if ctx is _BAD_CONTEXT:
+            return
+
+        # If the sum of lengths of the selected contexts is less than total number of
+        # triples, query each context in series
+        if pattern == (None, None, None) and ctx is None and self.__query_perctx:
+            imports = self.__context_transitive_imports
+            store = self.__store
+            for ctx0 in imports:
+                for t, tctxs in store.triples(pattern, ctx0):
+                    contexts = set(getattr(c, 'identifier', c) for c in tctxs)
+                    yield t, imports & contexts
+        else:
+            for t in self.__store.triples(pattern, ctx):
+                contexts = set(getattr(c, 'identifier', c) for c in t[1])
+                if self.__context_transitive_imports:
+                    inter = self.__context_transitive_imports & contexts
+                else:
+                    inter = contexts
+                if inter:
+                    yield t[0], inter
 
     def remove(self, pattern, context=None):
         self.__init_contexts()
 
-        context = getattr(context, 'identifier', context)
-        ctx = None if context is None else self.__graph.get_context(context)
+        ctx = self._determine_context(context)
+        if ctx is _BAD_CONTEXT:
+            return
         for t in self.__store.triples(pattern, ctx):
             triple = t[0]
             contexts = set(getattr(c, 'identifier', c) for c in t[1])
@@ -211,7 +228,10 @@ class RDFContextStore(Store):
     def triples_choices(self, pattern, context=None):
         self.__init_contexts()
 
-        ctx = None if context is None else self.__graph.get_context(context)
+        ctx = self._determine_context(context)
+        if ctx is _BAD_CONTEXT:
+            return
+
         for t in self.__store.triples_choices(pattern, ctx):
             contexts = set(getattr(c, 'identifier', c) for c in t[1])
             if self.__context_transitive_imports:
@@ -221,6 +241,17 @@ class RDFContextStore(Store):
 
             if inter:
                 yield t[0], inter
+
+    def _determine_context(self, context):
+        context = getattr(context, 'identifier', context)
+        if context is not None and context not in self.__context_transitive_imports:
+            return _BAD_CONTEXT
+        if len(self.__context_transitive_imports) == 1 and context is None:
+            # Micro-benchmarked this with timeit it's faster than tuple(s)[0] and
+            # next(iter(s),None)
+            for context in self.__context_transitive_imports:
+                break
+        return None if context is None else self.__graph.get_context(context)
 
     def contexts(self, triple=None):
         if triple is not None:
@@ -244,3 +275,6 @@ class RDFContextStore(Store):
     def namespaces(self):
         for x in self.__store.namespaces():
             yield x
+
+
+_BAD_CONTEXT = object()
