@@ -31,6 +31,7 @@ class AggregateStore(Store):
         super(AggregateStore, self).__init__(configuration, identifier)
         self.__stores = []
         self.__bound_ns = dict()
+        self.__bound_pref = dict()
         if graph_aware is not None:
             self.graph_aware = graph_aware
 
@@ -80,36 +81,37 @@ class AggregateStore(Store):
                 yield ctx
 
     def prefix(self, namespace):
-        prefix = None
-        for store in self.__stores:
-            aprefix = store.prefix(namespace)
-            if aprefix and prefix and aprefix != prefix:
-                msg = 'multiple prefixes ({},{}) for namespace {}'.format(prefix, aprefix, namespace)
-                raise AggregatedStoresConflict(msg)
-            prefix = aprefix
+        prefix = self.__bound_pref.get(namespace)
+        if prefix is None:
+            for store in self.__stores:
+                aprefix = store.prefix(namespace)
+                if aprefix and prefix and aprefix != prefix:
+                    msg = 'multiple prefixes ({},{}) for namespace {}'.format(prefix, aprefix, namespace)
+                    raise AggregatedStoresConflict(msg)
+                prefix = aprefix
         return prefix
 
     def namespace(self, prefix):
-        namespace = None
-        for store in self.__stores:
-            anamespace = store.namespace(prefix)
-            if anamespace and namespace and anamespace != namespace:
-                msg = 'multiple namespaces ({},{}) for prefix {}'.format(namespace, anamespace, prefix)
-                raise AggregatedStoresConflict(msg)
-            namespace = anamespace
+        namespace = self.__bound_ns.get(prefix)
         if namespace is None:
-            namespace = self.__bound_ns.get(prefix)
+            for store in self.__stores:
+                anamespace = store.namespace(prefix)
+                if anamespace and namespace and anamespace != namespace:
+                    msg = 'multiple namespaces ({},{}) for prefix {}'.format(namespace, anamespace, prefix)
+                    raise AggregatedStoresConflict(msg)
+                namespace = anamespace
         return namespace
 
     def namespaces(self):
+        for ns in self.__bound_ns.items():
+            yield ns
         for store in self.__stores:
             for ns in store.namespaces():
                 yield ns
-        for ns in self.__bound_ns.items():
-            yield ns
 
     def bind(self, prefix, namespace):
         self.__bound_ns[prefix] = namespace
+        self.__bound_pref[namespace] = prefix
 
     def close(self, *args, **kwargs):
         for store in self.__stores:
