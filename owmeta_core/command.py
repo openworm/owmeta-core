@@ -32,6 +32,7 @@ from textwrap import dedent
 from tempfile import TemporaryDirectory
 import uuid
 
+from pkg_resources import iter_entry_points, DistributionNotFound
 import rdflib
 from rdflib.term import URIRef
 
@@ -45,7 +46,7 @@ from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
                       CLASS_REGISTRY_CONTEXT_KEY)
 from .context_common import CONTEXT_IMPORTS
 from .capability import provide
-from .capabilities import FilePathProvider
+from .capabilities import FilePathProvider, CacheDirectoryProvider
 from .datasource_loader import DataSourceDirLoader, LoadFailed
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
 from .mapper import Mapper
@@ -59,6 +60,8 @@ DEFAULT_SAVE_CALLABLE_NAME = 'owm_data'
 '''
 Default name for the provider in the arguments to `OWM.save`
 '''
+
+DSDL_GROUP = 'owmeta_core.datasource_dir_loader'
 
 
 class OWMSourceData(object):
@@ -225,7 +228,12 @@ class OWMSource(object):
 
     def list_kinds(self, full=False):
         """
-        List kinds of sources
+        List kinds of DataSources available in the current context.
+
+        Note that *only* DataSource types which are reachable from the current context
+        will be listed. So if, for instance, you have just saved some types (e.g., with
+        `owm save`) but have not added an import of the contexts for those types, you
+        may not see any results from this command.
 
         Parameters
         ----------
@@ -347,7 +355,12 @@ class OWMTranslator(object):
 
     def list_kinds(self, full=False):
         """
-        List kinds of translators
+        List kinds of DataTranslators
+
+        Note that *only* DataTranslator types which are reachable from the current context
+        will be listed. So if, for instance, you have just saved some types (e.g., with
+        `owm save`) but have not added an import of the contexts for those types, you may
+        not see any results from this command.
 
         Parameters
         ----------
@@ -1638,6 +1651,13 @@ class OWM(object):
 
             # XXX persist the dict
             loaders = [OWMDirDataSourceDirLoader()]
+            for entry_point in iter_entry_points(group=DSDL_GROUP):
+                try:
+                    loaders.append(entry_point.load()())
+                except DistributionNotFound:
+                    L.debug('Not adding DataSource directory loader %s due to failure in'
+                            ' package resources resolution',
+                            entry_point, exc_info=True)
             dsd = _DSD(dict(), pth_join(self.owmdir, 'data_source_data'), loaders)
             try:
                 dindex = open(pth_join(self.owmdir, 'data_source_directories'))
@@ -1677,13 +1697,13 @@ class OWM(object):
             sname = sname.identifier
 
         for x in self._default_ctx.stored(DataSource)(ident=self._den3(sname)).load():
-            provide(x, self._cap_provs)
+            provide(x, self._cap_provs())
             return x
 
-    @property
     def _cap_provs(self):
         return [DataSourceDirectoryProvider(self._dsd),
-                WorkingDirectoryProvider()]
+                WorkingDirectoryProvider(),
+                OWMCacheDirectoryProvider(pth_join(self.owmdir, 'cache'))]
 
     @property
     def _default_ctx(self):
@@ -2039,13 +2059,35 @@ class WorkingDirectoryProvider(FilePathProvider):
 
     def provides_to(self, obj):
         from owmeta_core.data_trans.local_file_ds import LocalFileDataSource
+        file_name = obj.file_name.one()
+        if not file_name:
+            return None
         if (isinstance(obj, LocalFileDataSource) and
-                exists(pth_join(self.cwd, obj.file_name.one()))):
+                exists(pth_join(self.cwd, file_name))):
             return self
         return None
 
     def file_path(self):
         return self.cwd
+
+
+class OWMCacheDirectoryProvider(CacheDirectoryProvider):
+    '''
+    Provides a directory in the OWM project directory for caching remote resources as
+    local files
+    '''
+
+    def __init__(self, cache_directory, **kwargs):
+        super().__init__(**kwargs)
+        self._cache_directory = cache_directory
+
+    def provides_to(self, obj):
+        return self
+
+    def cache_directory(self, cache_key):
+        res = pth_join(self._cache_directory, cache_key)
+        makedirs(res)
+        return res
 
 
 class _OWMSaveContext(Context):

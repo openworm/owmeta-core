@@ -42,7 +42,7 @@ class CacheDirectoryProvider(Provider):
 
     provided_capabilities = [CacheDirectoryCapability()]
 
-    def clear(self):
+    def clear(self, cache_key):
         '''
         Clear the cache directory for the `Capable`.
 
@@ -50,9 +50,14 @@ class CacheDirectoryProvider(Provider):
         '''
         raise NotImplementedError
 
-    def cache_directory(self):
+    def cache_directory(self, cache_key):
         '''
         Return the cache directory path
+
+        Parameters
+        ----------
+        cache_key : str
+            The key for the cache entry
 
         Returns
         -------
