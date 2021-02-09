@@ -104,7 +104,8 @@ def load(graph, start, target_type, *args):
 
 def get_most_specific_rdf_type(graph, types, base=None):
     '''
-    Find the rdf type that isn't a sub-class of any other
+    Find the rdf type that isn't a sub-class of any other, constrained to `base` if that
+    is provided.
     '''
     if len(types) == 1 and (not base or (base,) == tuple(types)):
         return tuple(types)[0]
@@ -112,7 +113,7 @@ def get_most_specific_rdf_type(graph, types, base=None):
     if not types and base:
         return base
 
-    most_specific_types = _gmsrt_helper(graph, types)
+    most_specific_types = _gmsrt_helper(graph, types, base)
 
     if len(most_specific_types) == 1:
         return most_specific_types.pop()
@@ -122,9 +123,11 @@ def get_most_specific_rdf_type(graph, types, base=None):
         return None
 
 
-def _gmsrt_helper(graph, start):
+def _gmsrt_helper(graph, start, base=None):
     res = set(start)
     border = set(start)
+    colors = {s: {s} for s in start}
+    hit = True
     while len(res) > 1:
         new_border = set()
         itr = graph.triples_choices((list(border), rdflib.RDFS.subClassOf, None))
@@ -135,12 +138,32 @@ def _gmsrt_helper(graph, start):
             o = t[2]
             s = t[0]
             if o != s:
+                o_color = colors.get(o, None)
+                if o_color is None:
+                    colors[o] = o_color = set()
+                o_color |= colors[s]
                 res.discard(o)
                 hit = True
                 new_border.add(o)
         if not hit:
             break
         border = new_border
+    if base is not None:
+        if not hit:
+            # If hit is False, then we've stopped because no more super-classes were found, so
+            # base *has* to be in here or else none of our types are any good
+            res &= colors.get(base, set())
+        else:
+            # We exited because we eliminated all of the other types (or only had one to
+            # begin with), but keep going to make sure we have the base.
+            seen = set(border)
+            while border:
+                if base in border:
+                    break
+                border = {o for _, _, o
+                        in graph.triples_choices((list(border), rdflib.RDFS.subClassOf, None))
+                        if o not in seen}
+                seen |= border
     return res
 
 

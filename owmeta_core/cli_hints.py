@@ -98,7 +98,7 @@ CLI_HINTS = {
             },
             (METHOD_NAMED_ARG, 'imported'): {
                 'names': ['imported'],
-                'nargs': '*'
+                'nargs': '+'
             },
         },
         'rm_import': {
