@@ -18,8 +18,7 @@ from .context_mapped_class_util import find_class_context, find_base_namespace
 from .graph_object import GraphObject, GraphObjectQuerier
 from .inverse_property import InversePropertyMixin
 from .mapped_class import MappedClass
-from .property_mixins import (DatatypePropertyMixin,
-                              UnionPropertyMixin)
+from .property_mixins import UnionPropertyMixin
 from .property_value import PropertyValue
 from .rdf_utils import deserialize_rdflib_term
 from .rdf_query_modifiers import (rdfs_subpropertyof_zom,
@@ -732,31 +731,6 @@ class ExprResultObj(object):
         return f'{FCN(type(self))}({repr(self._expr)}, {repr(self.identifier)})'
 
 
-class OPResolver(object):
-
-    def __init__(self, context):
-        self._ctx = context
-
-    def id2ob(self, ident, typ):
-        from .rdf_query_util import oid
-        return oid(ident, typ, self._ctx)
-
-    @property
-    def type_resolver(self):
-        from .dataobject import _Resolver
-        return _Resolver.get_instance().type_resolver
-
-    @property
-    def deserializer(self):
-        from .dataobject import _Resolver
-        return _Resolver.get_instance().deserializer
-
-    @property
-    def base_type(self):
-        from .dataobject import _Resolver
-        return _Resolver.get_instance().base_type
-
-
 class PropertyCountMixin(object):
     def count(self):
         return sum(1 for _ in super(PropertyCountMixin, self).get())
@@ -775,9 +749,8 @@ class ObjectProperty(InversePropertyMixin,
 
     def contextualize_augment(self, context):
         res = super(ObjectProperty, self).contextualize_augment(context)
-        if context is not None:
-            if self is not res:
-                res.add_attr_override('resolver', context(self.resolver))
+        if context is not None and self is not res:
+            res.add_attr_override('resolver', context(self.resolver))
         return res
 
     def set(self, v):
@@ -806,13 +779,26 @@ class ObjectProperty(InversePropertyMixin,
                     self.context)
 
 
-class DatatypeProperty(DatatypePropertyMixin, PropertyCountMixin, Property):
+class DatatypeProperty(PropertyCountMixin, Property):
 
     rdf_object_deferred = True
     rdf_type_object_deferred = True
 
+    def __init__(self, resolver, **kwargs):
+        """
+        Parameters
+        ----------
+        resolver : RDFTypeResolver
+            Resolves RDF identifiers returned from :meth:`get` into objects
+        """
+        super(DatatypeProperty, self).__init__(**kwargs)
+        self.resolver = resolver
+
+    def __get(self):
+        for v in super(DatatypeProperty, self).get():
+            yield self.resolver.deserializer(v)
+
     def get(self):
-        r = super(DatatypeProperty, self).get()
         s = set()
         unhashables = []
         for x in self.defined_values:
@@ -822,7 +808,7 @@ class DatatypeProperty(DatatypePropertyMixin, PropertyCountMixin, Property):
             except TypeError as e:
                 unhashables.append(val)
                 L.info('Unhashable type: %s', e)
-        return itertools.chain(r, s, unhashables)
+        return itertools.chain(self.__get(), s, unhashables)
 
     def onedef(self):
         x = super(DatatypeProperty, self).onedef()

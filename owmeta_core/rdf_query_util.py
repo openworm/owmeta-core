@@ -102,43 +102,6 @@ def load(graph, start, target_type, *args):
     return load_base(graph, idents, target_type, *args)
 
 
-def get_most_specific_rdf_type_ex(types, context=None, base=None):
-    """ Gets the most specific rdf_type.
-
-    Returns the URI corresponding to the lowest in the DataObject class
-    hierarchy from among the given URIs.
-    """
-    if context is None:
-        if len(types) == 1 and (not base or (base,) == tuple(types)):
-            return tuple(types)[0]
-        if not types and base:
-            return base
-        msg = "Without a Context, `get_most_specific_rdf_type` cannot order RDF types {}{}".format(
-                types,
-                " constrained to be subclasses of {}".format(base) if base else '')
-        L.warning(msg)
-        return None
-    most_specific_types = ()
-    if base:
-        base_class = context.resolve_class(base)
-        if base_class:
-            most_specific_types = (base_class,)
-    for typ in types:
-        class_object = context.resolve_class(typ)
-        if class_object is None:
-            L.warning(
-                    f"A Python class corresponding to the type URI {repr(typ)} couldn't be found.")
-        elif issubclass(class_object, most_specific_types):
-            most_specific_types = (class_object,)
-
-    if len(most_specific_types) == 1:
-        return most_specific_types[0].rdf_type
-    else:
-        L.warning('No most-specific type could be determined among %s'
-                  ' constrained to subclasses of %r', types, base)
-        return None
-
-
 def get_most_specific_rdf_type(graph, types, base=None):
     '''
     Find the rdf type that isn't a sub-class of any other
