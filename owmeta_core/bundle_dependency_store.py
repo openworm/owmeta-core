@@ -168,14 +168,19 @@ class BundleDependencyStore(Store):
     def _contexts_filter(self, contexts):
         contexts_iter = iter(contexts)
         excludes = self.excludes
+        hit = False
         for c in contexts_iter:
+            hit = True
             ctxid = getattr(c, 'identifier', c)
             if ctxid not in excludes:
                 yield True
                 yield c
                 break
         else:  # no break
-            yield False
+            if hit:
+                yield False
+            else:
+                yield _NO_CONTEXTS
             return
         for c in contexts_iter:
             ctxid = getattr(c, 'identifier', c)
@@ -220,6 +225,9 @@ class BundleDependencyStore(Store):
 
     def __repr__(self):
         return '%s(%s)' % (FCN(type(self)), repr(self.wrapped))
+
+
+_NO_CONTEXTS = object()
 
 
 def _is_cacheable(store_key, store_conf):
