@@ -1433,6 +1433,8 @@ class OWM(object):
         from owmeta_core import disconnect
         if self._owm_connection is not None:
             disconnect(self._owm_connection)
+            self._dat = None
+            self._owm_connection = None
 
     def clone(self, url=None, update_existing_config=False, branch=None):
         """Clone a data store
@@ -1749,7 +1751,8 @@ class OWM(object):
     def own_rdf(self):
         has_dependencies = self._conf('dependencies', None)
         if has_dependencies:
-            return rdflib.Dataset(self._conf('rdf.graph').store.stores[0],
+            return rdflib.Dataset(
+                    self._conf('rdf.graph').store.stores[0],
                     default_union=True)
         else:
             return self._conf('rdf.graph')
@@ -1986,7 +1989,7 @@ class _ProjectConnection(object):
         return self
 
     def __exit__(self, *args):
-        self.connection.disconnect()
+        self.owm.disconnect()
 
 
 class _ProjectContext(Context):
