@@ -332,3 +332,36 @@ def test_contexts_rm_import_not_listed(owm_project):
 
     owm_project.sh(f'owm contexts rm-import {ctx1_id} {ctx2_id}')
     assert owm_project.sh(f'owm contexts list-imports {ctx1_id}') == ''
+
+
+def test_rm_context_removes_all_1(owm_project):
+    owm = owm_project.owm()
+    pred = URIRef('http://example.org/p')
+    with owm.connect() as conn:
+        g = conn.rdf.graph(URIRef('http://example.org/ctx1'))
+        for i in range(5):
+            g.add((URIRef(f'http://example.org/s{i}'),
+                pred,
+                URIRef(f'http://example.org/o{i}'),))
+    owm_project.sh('owm contexts rm http://example.org/ctx1')
+    with owm.connect(read_only=True) as conn:
+        assert set() == set(conn.rdf.triples((None, pred, None)))
+
+
+def test_rm_context_removes_all_2(owm_project):
+    owm = owm_project.owm()
+    pred = URIRef('http://example.org/p')
+    with owm.connect() as conn:
+        g = conn.rdf.graph(URIRef('http://example.org/ctx1'))
+        for i in range(5):
+            g.add((URIRef(f'http://example.org/s{i}'),
+                pred,
+                URIRef(f'http://example.org/o{i}'),))
+        g = conn.rdf.graph(URIRef('http://example.org/ctx2'))
+        for i in range(5):
+            g.add((URIRef(f'http://example.org/s{i}x'),
+                pred,
+                URIRef(f'http://example.org/o{i}x'),))
+    owm_project.sh('owm contexts rm http://example.org/ctx1 http://example.org/ctx2')
+    with owm.connect(read_only=True) as conn:
+        assert set() == set(conn.rdf.triples((None, pred, None)))
