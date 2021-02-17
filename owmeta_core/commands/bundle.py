@@ -203,8 +203,8 @@ class OWMBundleRemote(object):
 
         return GeneratorWithData(self._retrieve_remotes(),
                 text_format=lambda r: r.name,
-                columns=(lambda r: r.name,),
-                header=("Name",))
+                columns=(lambda r: r.name, lambda r: r.file_name),
+                header=("Name", "File Name",))
 
     def show(self, name):
         '''

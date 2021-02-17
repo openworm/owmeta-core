@@ -82,6 +82,12 @@ class Remote(object):
         accessor configs
         '''
 
+        self.file_name = None
+        '''
+        If read from a file, the remote should have this attribute set to its source
+        file's path
+        '''
+
     def add_config(self, accessor_config):
         '''
         Add the given accessor config to this remote
@@ -1151,6 +1157,12 @@ class Cache(object):
                         raise
 
 
+def retrieve_remote_by_name(remotes_dir, name, **kwargs):
+    for rem in retrieve_remotes(remotes_dir, **kwargs):
+        if rem.name == name:
+            return rem
+
+
 def retrieve_remotes(remotes_dir, load_entry_points=True):
     '''
     Retrieve remotes from a project directory or user remotes directory
@@ -1171,9 +1183,11 @@ def retrieve_remotes(remotes_dir, load_entry_points=True):
 
     for r in listdir(remotes_dir):
         if r.endswith('.remote'):
-            with open(p(remotes_dir, r)) as inp:
+            fname = p(remotes_dir, r)
+            with open(fname) as inp:
                 try:
                     rem = Remote.read(inp)
+                    rem.file_name = fname
                     yield rem
                 except Exception:
                     L.warning('Unable to read remote %s', r, exc_info=True)
