@@ -381,7 +381,7 @@ class HTTPBundleLoader(Loader):
 
     def load(self, bundle_id, bundle_version=None):
         try:
-            return self._load(bundle_id, bundle_version)
+            self._load(bundle_id, bundle_version)
         finally:
             self._save_session()
 

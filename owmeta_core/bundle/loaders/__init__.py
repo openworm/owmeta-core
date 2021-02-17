@@ -102,6 +102,11 @@ class Loader(object):
             ID of the bundle to load
         bundle_version : int
             Version of the bundle to load. Defaults to the latest available. optional
+
+        Raises
+        ------
+        LoadFailed
+            Raised when the bundle cannot be loaded
         '''
         raise NotImplementedError()
 
@@ -114,6 +119,10 @@ class Loader(object):
     @classmethod
     def register(cls):
         LOADER_CLASSES.add(cls)
+
+    @classmethod
+    def unregister(cls):
+        LOADER_CLASSES.remove(cls)
 
 
 class Uploader(object):
@@ -160,6 +169,10 @@ class Uploader(object):
     @classmethod
     def register(cls):
         UPLOADER_CLASSES.add(cls)
+
+    @classmethod
+    def unregister(cls):
+        UPLOADER_CLASSES.remove(cls)
 
 
 def load_entry_point_loaders():

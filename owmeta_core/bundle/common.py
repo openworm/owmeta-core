@@ -1,5 +1,5 @@
 from os import scandir
-from os.path import join as p, exists
+from os.path import join as p, exists, relpath
 import errno
 
 try:
@@ -134,3 +134,46 @@ def find_bundle_directory(bundles_directory, ident, version=None):
             raise BundleNotFound(ident,
                     f'Bundle directory, "{res}", does not exist for the specified version', version)
     return res
+
+
+def bundle_tree_filter(path, fullpath):
+    '''
+    Returns true for file names that are to be included in a bundle for deployment or
+    fetching.
+
+    Parameters
+    ----------
+    path : str
+        The relative path of the file to check
+    fillpath : str
+        The full path of the file to check (usable for deeper inspection)
+    '''
+    if path.startswith(BUNDLE_INDEXED_DB_NAME):
+        # Skip the indexed DB -- the format isn't really designed for sharability and
+        # we can regenerate it anyway.
+        return False
+    return True
+
+
+class BundleTreeFileIgnorer:
+    def __init__(self, bundle_directory):
+        '''
+        Parameters
+        ----------
+        bundle_directory : str
+            Path to the source directory of the bundle. Serves as the base directory for
+            filtering.
+        '''
+        self.bundle_directory = bundle_directory
+
+    def __call__(self, directory, contents):
+        '''
+        Functions as needed for the "ignore" argument to `shutil.copytree`
+        '''
+        files_to_ignore = []
+        for fname in contents:
+            fpath = p(directory, fname)
+            rpath = relpath(fpath, start=self.bundle_directory)
+            if not bundle_tree_filter(rpath, fpath):
+                files_to_ignore.append(fname)
+        return files_to_ignore

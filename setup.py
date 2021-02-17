@@ -99,6 +99,7 @@ setup(
         'owmeta_core.loaders': [
             'http_uploader = owmeta_core.bundle.loaders.http:HTTPBundleUploader',
             'http_loader = owmeta_core.bundle.loaders.http:HTTPBundleLoader',
+            'file_loader = owmeta_core.bundle.loaders.local:FileBundleLoader',
             'sftp_uploader = owmeta_core.bundle.loaders.sftp:DumbSFTPUploader [sftp]',
         ],
     },

@@ -1,22 +1,26 @@
 from collections import namedtuple
+import json
 from os.path import join as p
 from os import makedirs, chmod
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch, Mock, ANY
+import shutil
 
 import pytest
 import rdflib
 from rdflib.term import URIRef
 from rdflib.graph import ConjunctiveGraph
-
+import transaction
+import ZODB
 
 from owmeta_core.context import Context
 from owmeta_core.contextualize import Contextualizable
 from owmeta_core.bundle import (Bundle, BundleNotFound, Descriptor, DependencyDescriptor,
                                 _RemoteHandlerMixin, make_include_func, NoRemoteAvailable,
-                                BUNDLE_INDEXED_DB_NAME, DEFAULT_BUNDLES_DIRECTORY)
-import transaction
-import ZODB
+                                DEFAULT_BUNDLES_DIRECTORY)
+from owmeta_core.bundle.common import (find_bundle_directory, BUNDLE_MANIFEST_FILE_NAME,
+                                       BundleTreeFileIgnorer, BUNDLE_INDEXED_DB_NAME)
 
 
 Dirs = namedtuple('Dirs', ('source_directory', 'bundles_directory'))
@@ -582,3 +586,37 @@ def test_bundle_store_conf_with_two_levels_excludes(custom_bundle):
 
 def aURI(c):
     return URIRef(f'http://example.org/uri#{c}')
+
+
+def test_find_bundle_directory_pathlib(tmpdir):
+    basedir = p(tmpdir, 'bundles')
+    bdir = p(basedir, 'example%2FaBundle', '23')
+    makedirs(bdir)
+    with open(p(bdir, BUNDLE_MANIFEST_FILE_NAME), 'w') as f:
+        json.dump({"id": "example/aBundle", "version": 23, "manifest_version": 1}, f)
+    path = Path(basedir)
+    assert find_bundle_directory(path, 'example/aBundle', 23) == bdir
+
+
+def test_bundle_tree_file_ignore_ignores_indexed_db(tmpdir):
+    ignore = BundleTreeFileIgnorer(tmpdir)
+    dir_contents = [BUNDLE_INDEXED_DB_NAME, BUNDLE_INDEXED_DB_NAME + '.tmp', BUNDLE_MANIFEST_FILE_NAME]
+    ignored_names = [BUNDLE_INDEXED_DB_NAME, BUNDLE_INDEXED_DB_NAME + '.tmp']
+    assert ignore(tmpdir, dir_contents) == ignored_names
+
+
+@pytest.mark.inttest
+def test_copytree_bundle_tree_file_ignore(tmpdir):
+    src = p(tmpdir, 'src')
+    dst = p(tmpdir, 'dst')
+    makedirs(src)
+    ignore = BundleTreeFileIgnorer(src)
+    dir_contents = [BUNDLE_INDEXED_DB_NAME, BUNDLE_INDEXED_DB_NAME + '.tmp', BUNDLE_MANIFEST_FILE_NAME]
+    for fname in dir_contents:
+        open(p(src, fname), 'w').close()
+    ignored_names = [BUNDLE_INDEXED_DB_NAME, BUNDLE_INDEXED_DB_NAME + '.tmp']
+
+    shutil.copytree(src, dst, ignore=ignore)
+
+    assert (not any(Path(dst, fname).exists() for fname in ignored_names) and
+            Path(dst, BUNDLE_MANIFEST_FILE_NAME).exists())

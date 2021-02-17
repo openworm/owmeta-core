@@ -8,7 +8,7 @@ import tarfile
 import tempfile
 
 from .common import (fmt_bundle_directory, validate_manifest, find_bundle_directory,
-                     BUNDLE_INDEXED_DB_NAME)
+                     bundle_tree_filter)
 from .exceptions import NotABundlePath
 
 
@@ -348,11 +348,7 @@ class Archiver(object):
         '''
         Filters out file names that are not to be included in a bundle
         '''
-        if path.startswith(BUNDLE_INDEXED_DB_NAME):
-            # Skip the indexed DB -- the format isn't really designed for sharability and
-            # we can regenerate it anyway.
-            return False
-        return True
+        return bundle_tree_filter(path, fullpath)
 
 
 @contextmanager
