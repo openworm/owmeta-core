@@ -146,7 +146,7 @@ class Remote(object):
         inp : :term:`file object`
             File-like object containing the serialized `Remote`
         '''
-        res = yaml.full_load(inp)
+        res = yaml.unsafe_load(inp)
         assert isinstance(res, cls)
         return res
 
