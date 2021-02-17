@@ -39,6 +39,12 @@ class FileBundleLoader(Loader):
             self.source_bundles_dir = source_bundles_dir
         elif isinstance(source_bundles_dir, FileURLConfig):
             self.source_bundles_dir = Path(urlparse(source_bundles_dir.url).path)
+        elif isinstance(source_bundles_dir, URLConfig):
+            parsed = urlparse(source_bundles_dir.url)
+            if parsed.scheme == 'file':
+                self.source_bundles_dir = Path(parsed.path)
+            else:
+                raise ValueError(f'Expected a file URL, but got {source_bundles_dir.url}')
         else:
             raise TypeError('FileBundleLoader config is invalid. Expected a str,'
                     ' Path-like object, or a FileURLConfig')
@@ -70,7 +76,7 @@ class FileBundleLoader(Loader):
             # This is a warn log because although there *may* be more than one loader that
             # can handle file:// URLs, I would rather this gets seen and has to be
             # supressed than that it's at debug or info and has to be sought out.
-            L.warn('Unable to load bundle %s at version %d with %s',
+            L.warning('Unable to load bundle %s at version %d with %s',
                     bundle_id, bundle_version, self, exc_info=True)
             return False
 
