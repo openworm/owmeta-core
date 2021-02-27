@@ -320,7 +320,7 @@ class HTTPBundleLoader(Loader):
             self._setup_index()
             self._save_session()
         except IndexLoadFailed:
-            L.warn('Failed to set up the index for %s', self,
+            L.warning('Failed to set up the index for %s', self,
                 exc_info=L.isEnabledFor(logging.DEBUG))
             return False
         binfo = self._index.get(bundle_id)
