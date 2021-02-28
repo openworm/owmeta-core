@@ -122,6 +122,9 @@ class PThunk(object):
     def __init__(self):
         self.result = None
 
+    def __getattr__(self, name):
+        return getattr(self.result, name)
+
     def __call__(self, *args, **kwargs):
         raise NotImplementedError()
 
@@ -911,7 +914,6 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
                          value_type=value_type,
                          owner_type=owner_class,
                          class_context=owner_class.definition_context,
-                         rdf_object=RDFProperty.contextualize(owner_class.definition_context)(ident=link),
                          lazy=lazy,
                          multiple=multiple,
                          inverse_of=inverse_of,

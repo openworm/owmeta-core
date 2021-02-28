@@ -1,3 +1,9 @@
+- Finish the transformer super-classes
+- Make `subproperty_of` in class dict work to create rdfs_subpropertyof assignments.
+- Define un-zip transformer
+- Define an un-tar transformer (may be an un-tar.gz and obviate the next one)
+- Define an un-gzip transformer
+
 - Define __format__ for DataSource and DataTranslator to allow for multi-line
 vs single line format. 
 

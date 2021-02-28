@@ -33,9 +33,39 @@ L = logging.getLogger(__name__)
 
 
 class ContextMappedPropertyClass(MappedClass, ContextualizableClass):
+    '''
+    Meta-class for `Property`.
 
-    rdf_object_deferred = False
-    rdf_type_object_deferred = False
+    A few attributes can be specified in the class body which affect how the created type
+    is set up: these are defined in the "Attributes" section.
+
+    One aspect in particular is important: a `Property` class can represent a single type
+    of property where all instances have the same URI, or a `Property` can represent an a
+    class of RDF properties where the instances have distinct URIs and correspond to
+    instances of the RDF type. An instance of the latter is demonstrated with
+    `ContainerMembershipProperty`.
+
+    Attributes
+    ----------
+    rdf_type_class : type
+        A sub-class of `DataObject` to use as the type. If set, this will be used instead
+        of what `init_rdf_type_object` would create.
+    rdf_type : str or URIRef
+        The RDF type for the `Property`. Must be defined for `init_rdf_type_object` to
+        actually create the rdf type object
+    rdf_type_object_deferred : bool
+        If `True`, defer calling `init_rdf_type_object` until it's explicitly called rather
+        than during normal class init. Useful for cases where `init_rdf_type_object` uses
+        types that aren't defined at the point where the `Property` is defined.
+    rdf_object : RDFProperty
+        An instance of `RDFProperty` corresponding to this class. If set, this will be
+        used instead of what `init_rdf_object` would create.
+    rdf_object_deferred : bool
+        If `True`, defer calling `init_rdf_object` until it is explicitly called rather
+        than during normal class init. Useful for cases where `init_rdf_object` uses types
+        that aren't defined at the point where the `Property` is defined.
+
+    '''
 
     context_carries = ('rdf_object_deferred', 'rdf_type_object_deferred', 'link', 'linkName', 'rdf_type_class')
 
@@ -72,6 +102,7 @@ class ContextMappedPropertyClass(MappedClass, ContextualizableClass):
 
         # We have to deferr initializing our rdf_object since initialization depends on
         # RDFSSubClassOfProperty being initialized
+        self.subproperty_of = dct.get('subproperty_of')
         if not self.rdf_object_deferred:
             self.init_rdf_object()
 
@@ -119,30 +150,36 @@ class ContextMappedPropertyClass(MappedClass, ContextualizableClass):
         return res
 
     def init_rdf_object(self):
-        # Properties created in a DataObject sub-class definition will have their
-        # rdf_object created for them, obviating this procedure.
-        if (getattr(self, 'link', None) is not None and
+        if (self.link is not None and
                 (self.rdf_object is None or
                     self.rdf_object.identifier != self.link)):
             from .dataobject import RDFProperty
             if self.definition_context is None:
-                L.info("The class {0} has no context for PropertyDataObject(ident={1})".format(
-                    self, self.link))
+                L.info("The class %s has no context for RDFProperty(ident=%s)",
+                    self, self.link)
                 return
-            L.debug('Creating rdf_object for {} in {}'.format(self, self.definition_context))
+            L.debug('Creating rdf_object for %s in %s', self, self.definition_context)
             rdto = RDFProperty.contextualize(self.definition_context)(ident=self.link)
             if hasattr(self, 'label'):
                 rdto.rdfs_label(self.label)
+
+            superproperty = getattr(self, 'subproperty_of', None)
+            if superproperty is not None:
+                if isinstance(superproperty, (list, tuple)):
+                    for sp in superproperty:
+                        rdto.rdfs_subpropertyof(sp.rdf_object)
+                else:
+                    rdto.rdfs_subpropertyof(superproperty.rdf_object)
 
             self.rdf_object = rdto
 
     def init_rdf_type_object(self):
         '''
-        Sometimes, we actually use Property sub-classes *as* rdf:Property classes (e.g.,
-        rdfs:ContainerMembershipProperty). The 'rdf_type' attribute has to be defined on
-        this class if we're going to use it as a class.
+        Initializes `rdf_type_class` and thereby initializes the `rdf_type_object`
 
-        Here's where we can create the objects that describe the property classes.
+        Sometimes, we actually use Property sub-classes *as* ``rdf:Property`` classes
+        (e.g., ``rdfs:ContainerMembershipProperty``). The `rdf_type` attribute has to be
+        defined on this class if we're going to use it as an ``rdf:Property`` class.
         '''
         from .dataobject import RDFProperty
 

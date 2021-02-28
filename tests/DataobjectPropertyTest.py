@@ -203,11 +203,48 @@ class DataobjectPropertyTest(_DataTest):
                          Statement(do, do.birds, PropertyValue(R.Literal(5)), self.context)]
 
     def test_label(self):
+        context = Context('http://example.org/test-context')
+
         class TestProperty(DatatypeProperty):
-            class_context = 'http://example.org/test-context'
+            class_context = context
             link = 'http://example.org/property'
             label = 'Test Property'
         TestProperty.init_rdf_object()
         rdfo = TestProperty.rdf_object
 
         assert 'Test Property' in rdfo.rdfs_label()
+
+    def test_subproperty_of(self):
+        context = Context('http://example.org/test-context')
+
+        class AProperty(DatatypeProperty):
+            class_context = context
+            link = 'http://example.org/a_property'
+
+        class BProperty(DatatypeProperty):
+            class_context = context
+            link = 'http://example.org/b_property'
+            label = 'Test Property'
+            subproperty_of = AProperty
+
+        assert AProperty.rdf_object == BProperty.rdf_object.rdfs_subpropertyof.one()
+
+    def test_subproperty_of_list(self):
+        context = Context('http://example.org/test-context')
+
+        class A0Property(DatatypeProperty):
+            class_context = context
+            link = 'http://example.org/a0_property'
+
+        class A1Property(DatatypeProperty):
+            class_context = context
+            link = 'http://example.org/a1_property'
+
+        class BProperty(DatatypeProperty):
+            class_context = context
+            link = 'http://example.org/b_property'
+            label = 'Test Property'
+            subproperty_of = (A0Property, A1Property)
+
+        assert ((A0Property.rdf_object, A1Property.rdf_object) ==
+                tuple(BProperty.rdf_object.rdfs_subpropertyof.defined_values))

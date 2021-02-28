@@ -2,7 +2,7 @@ from __future__ import absolute_import
 from __future__ import print_function
 import unittest
 
-from owmeta_core.datasource import Informational, DataSource
+from owmeta_core.datasource import Informational, DataSource, OneOrMore, Transformation
 from .DataTestTemplate import _DataTest
 
 
@@ -67,12 +67,12 @@ class DataSourceTest(_DataTest):
         self.assertNotEqual(self.DS1.info_fields, self.DS2.info_fields)
 
     def test_subclass_class_info_fields_2(self):
-        self.assertEqual(len(self.DS1.info_fields), 4,
-                         msg='should have translation, source, and "a"')
+        self.assertEqual(len(self.DS1.info_fields), 5,
+                         msg='should have translation, transformation, source, and "a"')
 
     def test_subclass_class_info_fields_3(self):
-        self.assertEqual(len(self.DS2.info_fields), 5,
-                         msg='should have translation, source, and "a" and "b"')
+        self.assertEqual(len(self.DS2.info_fields), 6,
+                         msg='should have translation, transformation, source, and "a" and "b"')
 
     def test_also(self):
         class C(self.DS1):
@@ -197,5 +197,32 @@ class DataSourceTest(_DataTest):
             p = C.q
 
         self.assertEqual(D.p.property, C.q.property)
+
+    def test_informational_alias_same_class_shared_property_class(self):
+        class C(DataSource):
+            q = Informational()
+            p = q
+
+        self.assertEqual(C.p.property, C.q.property)
+
+    def test_translation_is_transformation(self):
+        class C(DataSource):
+            pass
+        superproperties = C.translation.property.rdf_object.rdfs_subpropertyof.defined_values
+        assert (C.transformation.property.rdf_object in superproperties)
+
+    def test_multiple_subproperty_of(self):
+        class C(DataSource):
+            a = Informational()
+            b = Informational()
+            c = Informational(subproperty_of=(a, b))
+        superproperties = C.c.property.rdf_object.rdfs_subpropertyof.defined_values
+        assert ((C.a.property.rdf_object in superproperties)
+                and (C.b.property.rdf_object in superproperties))
+
+
+class OneOrMoreTest(unittest.TestCase):
+    def test_repr(self):
+        assert "owmeta_core.datasource.OneOrMore('test')" == repr(OneOrMore("test"))
 
 # TODO: Test throwing DuplicateAlsoException

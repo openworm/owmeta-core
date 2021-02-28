@@ -60,7 +60,8 @@ class Informational(object):
 
     def __init__(self, name=None, display_name=None, description=None,
                  default_value=None, property_type='DatatypeProperty',
-                 multiple=True, property_name=None, also=(), **property_args):
+                 multiple=True, property_name=None, also=(), subproperty_of=None,
+                 **property_args):
         '''
         Parameters
         ----------
@@ -85,6 +86,8 @@ class Informational(object):
             is not provided here
         also : Informational, tuple of Informational, or list of Informational; optional
             Other properties which, if set, will give their value to this property as well
+        subproperty_of : Informational
+            Declares that given Informational's corresponding Property is a subproperty of
         **property_args
             Additional arguments which will be passed into the class dictionary when the
             `~owmeta_core.dataobject_property.Property` corresponding to this object is created.
@@ -104,6 +107,7 @@ class Informational(object):
         self.default_override = None
 
         self.cls = None
+        self.subproperty_of = subproperty_of
 
     def __get__(self, obj, owner):
         if obj is None:
@@ -171,48 +175,98 @@ class DataSourceType(type(DataObject)):
         self.__info_fields = []
         others = []
         newdct = dict()
-        for z in dct:
-            meta = dct[z]
-            if isinstance(meta, Informational):
-                if meta.cls is not None:
-                    L.debug("Already created a Property from %s for %s. Not creating another for %s",
-                            meta, meta.cls, self)
-                    meta_owner_property_property = getattr(meta.cls, INFO_PROP_PREFIX + meta.name)
-                    newdct[INFO_PROP_PREFIX + z] = CPThunk(meta_owner_property_property.property)
+        keys = dct.keys()
+        phase = 0
+        while keys and phase < 2:
+            unhandled_keys = list()
+            for z in keys:
+                meta = dct[z]
+                if isinstance(meta, Informational):
+                    if meta.cls is not None:
+                        L.debug("Already created a Property from %s for %s. Not creating another for %s",
+                                meta, meta.cls, self)
+                        prop_name = INFO_PROP_PREFIX + meta.name
+                        meta_owner_property_property = None
+                        meta_owner_property = None
+                        try:
+                            meta_owner_property_property = getattr(meta.cls, prop_name)
+                        except AttributeError:
+                            if phase == 0:
+                                try:
+                                    meta_owner_property = newdct[prop_name]
+                                except KeyError:
+                                    L.debug('Unable to handle Informational %s on %s -- probably a reference to an'
+                                            ' Informational defined on this same DataSource. Will re-process.',
+                                            meta, self)
+                                    unhandled_keys.append(z)
+                                    continue
+                            else:
+                                raise
 
-                    meta_copy = meta.copy()
-                    meta_copy.cls = self
-                    meta_copy.name = z
-                    self.__info_fields.append(meta_copy)
-                    setattr(self, z, meta_copy)
-                else:
-                    meta.cls = self
-                    meta.name = z
-                    self.__info_fields.append(meta)
+                        if meta_owner_property:
+                            newdct[INFO_PROP_PREFIX + z] = meta_owner_property
+                        else:
+                            newdct[INFO_PROP_PREFIX + z] = CPThunk(meta_owner_property_property.property)
 
-                    # Make the owmeta_core property
-                    #
-                    # We set the name for the property to the inf.name since that's how we
-                    # access the info on this object, but the inf.property_name is used for
-                    # the linkName so that the property's URI is generated based on that name.
-                    # This allows to set an attribute named inf.property_name on self while
-                    # still having access to the property through inf.name.
-                    ptype = None
-                    if meta.property_type == 'DatatypeProperty':
-                        ptype = DatatypeProperty
-                    elif meta.property_type == 'ObjectProperty':
-                        ptype = ObjectProperty
-                    elif meta.property_type == 'UnionProperty':
-                        ptype = UnionProperty
+                        meta_copy = meta.copy()
+                        meta_copy.cls = self
+                        meta_copy.name = z
+                        self.__info_fields.append(meta_copy)
+                        setattr(self, z, meta_copy)
                     else:
-                        raise ValueError(f'Unrecognized property type {meta.property_type}')
+                        meta.cls = self
+                        meta.name = z
+                        self.__info_fields.append(meta)
 
-                    newdct[INFO_PROP_PREFIX + meta.name] = ptype(
-                            linkName=meta.property_name,
-                            multiple=meta.multiple,
-                            **meta.property_args)
-            else:
-                others.append((z, dct[z]))
+                        # Make the owmeta_core property
+                        #
+                        # We set the name for the property to the inf.name since that's how we
+                        # access the info on this object, but the inf.property_name is used for
+                        # the linkName so that the property's URI is generated based on that name.
+                        # This allows to set an attribute named inf.property_name on self while
+                        # still having access to the property through inf.name.
+                        ptype = None
+                        if meta.property_type == 'DatatypeProperty':
+                            ptype = DatatypeProperty
+                        elif meta.property_type == 'ObjectProperty':
+                            ptype = ObjectProperty
+                        elif meta.property_type == 'UnionProperty':
+                            ptype = UnionProperty
+                        else:
+                            raise ValueError(f'Unrecognized property type {meta.property_type}')
+
+                        property_args = dict(**meta.property_args)
+                        superproperty = meta.subproperty_of
+                        if isinstance(superproperty, Informational):
+                            superproperty_property = newdct.get(INFO_PROP_PREFIX + superproperty.name)
+                            if not superproperty_property:
+                                try:
+                                    superproperty_property = superproperty.property
+                                except AttributeError:
+                                    raise ValueError(f'{superproperty} is missing a Property definition')
+                            property_args['subproperty_of'] = superproperty_property
+                        elif isinstance(superproperty, (list, tuple)):
+                            sps = []
+                            for sp in superproperty:
+                                superproperty_property = newdct.get(INFO_PROP_PREFIX + sp.name)
+                                if not superproperty_property:
+                                    try:
+                                        superproperty_property = sp.property
+                                    except AttributeError:
+                                        raise ValueError(f'{sp} is missing a Property definition')
+                                sps.append(superproperty_property)
+                            property_args['subproperty_of'] = sps
+                        elif meta.subproperty_of:
+                            property_args['subproperty_of'] = meta.subproperty_of
+
+                        newdct[INFO_PROP_PREFIX + meta.name] = ptype(
+                                linkName=meta.property_name,
+                                multiple=meta.multiple,
+                                **property_args)
+                else:
+                    others.append((z, dct[z]))
+            keys = unhandled_keys
+            phase += 1
 
         for x in bases:
             if isinstance(x, DataSourceType):
@@ -248,6 +302,35 @@ class DataSourceType(type(DataObject)):
         return self.__info_fields
 
 
+class Transformation(DataObject):
+    """
+    Representation of the method by which a `DataSource` was transformed and
+    the sources of that transformation.  Unlike the 'source' field attached to
+    DataSources, the Translation may distinguish different kinds of input
+    source to a translation.
+    """
+
+    class_context = BASE_CONTEXT
+
+    transformer = ObjectProperty()
+
+    def defined_augment(self):
+        return self.transformer.has_defined_value() and self.transformer.onedef().defined
+
+    def identifier_augment(self):
+        return self.make_identifier(self.transformer.onedef().identifier.n3())
+
+
+class Translation(Transformation):
+    '''
+    A transformation where, notionally, the general character of the input is preserved.
+
+    In contrast to just a transformation, a translation wouldn't just pick out, say, one
+    record within an input source containing several, but would have an output source with o
+    '''
+    translator = ObjectProperty(subproperty_of=Transformation.transformer)
+
+
 class DataSource(six.with_metaclass(DataSourceType, DataObject)):
     '''
     A source for data that can get translated into owmeta_core objects.
@@ -269,9 +352,17 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
                            property_type='ObjectProperty',
                            value_type=This)
 
+    transformation = Informational(display_name='Transformation',
+                                   description='Information about the transformation process that created this object',
+                                   property_type='ObjectProperty',
+                                   value_type=Transformation,
+                                   cascade_retract=True)
+
     translation = Informational(display_name='Translation',
                                 description='Information about the translation process that created this object',
                                 property_type='ObjectProperty',
+                                subproperty_of=transformation,
+                                value_type=Translation,
                                 cascade_retract=True)
 
     description = Informational(display_name='Description',
@@ -377,23 +468,16 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
             return res
 
 
-class Translation(DataObject):
+class OneOrMore(object):
     """
-    Representation of the method by which a DataSource was translated and
-    the sources of that translation.  Unlike the 'source' field attached to
-    DataSources, the Translation may distinguish different kinds of input
-    source to a translation.
+    Wrapper for :class:`DataTransformer` input :class:`DataSource` types indicating that
+    one or more of the wrapped type must be provided to the translator
     """
+    def __init__(self, source_type):
+        self.source_type = source_type
 
-    class_context = BASE_CONTEXT
-
-    translator = ObjectProperty()
-
-    def defined_augment(self):
-        return self.translator.has_defined_value() and self.translator.onedef().defined
-
-    def identifier_augment(self):
-        return self.make_identifier(self.translator.onedef().identifier.n3())
+    def __repr__(self):
+        return f"{FCN(type(self))}({self.source_type!r})"
 
 
 class GenericTranslation(Translation):
@@ -419,7 +503,7 @@ class GenericTranslation(Translation):
 
     def format_str(self, stored):
         sio = six.StringIO()
-        print('{}({})'.format(self.__class__.__name__, self.idl), file=sio)
+        print('{self.__class__.__name__}({self.idl})', file=sio)
         sources_field_name = 'Sources: '
         print(sources_field_name, end='', file=sio)
 
@@ -463,9 +547,9 @@ def format_types(typ):
         return ', '.join(':class:`~{}`'.format(FCN(x)) for x in typ)
 
 
-class DataTransatorType(type(DataObject)):
+class DataTransformerType(type(DataObject)):
     def __init__(self, name, bases, dct):
-        super(DataTransatorType, self).__init__(name, bases, dct)
+        super(DataTransformerType, self).__init__(name, bases, dct)
 
         if not getattr(self, '__doc__', None):
             self.__doc__ = '''Input type(s): {}\n
@@ -473,28 +557,29 @@ class DataTransatorType(type(DataObject)):
                                                              format_types(self.output_type))
 
 
-class BaseDataTranslator(six.with_metaclass(DataTransatorType, DataObject)):
+class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
     '''
-    Translates from a data source to owmeta_core objects
+    Transforms zero or more `DataSources <DataSource>` to one or more other `DataSources
+    <DataSource>`
 
     Attributes
     ----------
     input_type : type or tuple of type
-        Types of input to this `DataTranslator`. Should be sub-classes of `DataSource`
+        Types of input to this transformer. Types should be sub-classes of `DataSource`
     output_type : type or tuple of type
-        Types of output from this `DataTranslator`. Should be sub-classes of `DataSource`
-    translation_type : type
-        Type of the translation record produced as a side-effect of translating with this
-        translator
+        Types of output from this transformer. Types should be sub-classes of `DataSource`
+    transformation_type : type
+        Type of the `Transformation` record produced as a side-effect of transforming with
+        this transformer
     output_key : str
-        The "key" for outputs from this translator. See `IdentifierMixin`
+        The "key" for outputs from this transformer. See `IdentifierMixin`
     '''
 
     class_context = BASE_CONTEXT
 
     input_type = DataSource
     output_type = DataSource
-    translation_type = Translation
+    translation_type = Transformation
 
     def __call__(self, *args, **kwargs):
         self.output_key = kwargs.pop('output_key', None)
@@ -517,28 +602,27 @@ class BaseDataTranslator(six.with_metaclass(DataTransatorType, DataObject)):
     def identifier_augment(self):
         return self.make_identifier(type(self).rdf_type)
 
-    def translate(self, *args, **kwargs):
+    def transform(self, *args, **kwargs):
         '''
-        Notionally, this method takes a data source, which is translated into
-        some other data source. There doesn't necessarily need to be an input
-        data source.
+        Notionally, this method takes a data source, which is transformed into some other
+        data source. There doesn't necessarily need to be an input data source.
         '''
         raise NotImplementedError
 
-    def make_translation(self, sources=()):
+    def make_transformation(self, sources=()):
         '''
-        It's intended that implementations of DataTranslator will override this
-        method to make custom Translations according with how different
-        arguments to Translate are (or are not) distinguished.
+        It's intended that implementations of `DataTransformer` will override this
+        method to make custom `Transformations <Transformation>` according with how different
+        arguments to `transform` are (or are not) distinguished.
 
-        The actual properties of a Translation subclass must be defined within
-        the 'translate' method
+        The actual properties of a `Transformation` subclass must be assigned within the
+        `transform` method
         '''
-        return self.translation_type.contextualize(self.context)(translator=self)
+        return self.translation_type.contextualize(self.context)(transformer=self)
 
     def make_new_output(self, sources, *args, **kwargs):
-        trans = self.make_translation(sources)
-        res = self.output_type.contextualize(self.context)(*args, translation=trans,
+        trans = self.make_transformation(sources)
+        res = self.output_type.contextualize(self.context)(*args, transformation=trans,
                                                            ident=self.output_identifier,
                                                            key=self.output_key, **kwargs)
         for s in sources:
@@ -548,16 +632,9 @@ class BaseDataTranslator(six.with_metaclass(DataTransatorType, DataObject)):
         return res
 
 
-class OneOrMore(object):
-    """
-    Wrapper for :class:`DataTranslator` input :class:`DataSource` types indicating that
-    one or more of the wrapped type must be provided to the translator
-    """
-    def __init__(self, source_type):
-        self.source_type = source_type
-
-    def __repr__(self):
-        return FCN(type(self)) + '(' + repr(self.source_type) + ')'
+class BaseDataTranslator(DataTransformer):
+    make_translation = DataTransformer.make_transformation
+    translate = DataTransformer.transform
 
 
 class DataTranslator(BaseDataTranslator):
