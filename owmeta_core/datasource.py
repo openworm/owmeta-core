@@ -304,10 +304,9 @@ class DataSourceType(type(DataObject)):
 
 class Transformation(DataObject):
     """
-    Representation of the method by which a `DataSource` was transformed and
-    the sources of that transformation.  Unlike the 'source' field attached to
-    DataSources, the Translation may distinguish different kinds of input
-    source to a translation.
+    Record of the how a `DataSource` was produced and the sources of the transformation
+    that produced it.  Unlike the 'source' field attached to DataSources, the Translation
+    may distinguish different kinds of input source to a transformation.
     """
 
     class_context = BASE_CONTEXT
@@ -423,10 +422,15 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
         pass
 
     def defined_augment(self):
-        return self.translation.has_defined_value()
+        return self.transformation.has_defined_value() or self.translation.has_defined_value()
 
     def identifier_augment(self):
-        return self.make_identifier(self.translation.defined_values[0].identifier.n3())
+        '''
+        It doesn't make much sense to have translation and transformation set, so we just
+        take the first of them
+        '''
+        return (self.make_identifier(self.transformation.defined_values[0].identifier.n3())
+                or self.make_identifier(self.translation.defined_values[0].identifier.n3()))
 
     def __str__(self):
         return self.format_str(False)
@@ -449,9 +453,7 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
                     print('    ' + info.display_name, end=': ', file=sio)
                     for val in sorted(attr_vals):
                         val_line_sep = '\n      ' + ' ' * len(info.display_name)
-                        if isinstance(val, DataSource):
-                            valstr = val.format_str(stored)
-                        elif isinstance(val, GenericTranslation):
+                        if isinstance(val, (DataSource, GenericTranslation)):
                             valstr = val.format_str(stored)
                         elif isinstance(val, URIRef):
                             valstr = val.n3()
@@ -503,7 +505,7 @@ class GenericTranslation(Translation):
 
     def format_str(self, stored):
         sio = six.StringIO()
-        print('{self.__class__.__name__}({self.idl})', file=sio)
+        print(f'{self.__class__.__name__}({self.idl})', file=sio)
         sources_field_name = 'Sources: '
         print(sources_field_name, end='', file=sio)
 
@@ -579,7 +581,7 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
 
     input_type = DataSource
     output_type = DataSource
-    translation_type = Transformation
+    transformation_type = Transformation
 
     def __call__(self, *args, **kwargs):
         self.output_key = kwargs.pop('output_key', None)
@@ -606,6 +608,17 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
         '''
         Notionally, this method takes a data source, which is transformed into some other
         data source. There doesn't necessarily need to be an input data source.
+
+        Parameters
+        ----------
+        *args
+            Input data sources
+        **kwargs
+            Named input data sources
+
+        Returns
+        -------
+        the output data source
         '''
         raise NotImplementedError
 
@@ -618,7 +631,7 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
         The actual properties of a `Transformation` subclass must be assigned within the
         `transform` method
         '''
-        return self.translation_type.contextualize(self.context)(transformer=self)
+        return self.transformation_type.contextualize(self.context)(transformer=self)
 
     def make_new_output(self, sources, *args, **kwargs):
         trans = self.make_transformation(sources)
@@ -633,8 +646,56 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
 
 
 class BaseDataTranslator(DataTransformer):
-    make_translation = DataTransformer.make_transformation
-    translate = DataTransformer.transform
+
+    def translate(self, *args, **kwargs):
+        '''
+        Notionally, this method takes one or more data sources, and translates them into
+        some other data source that captures essentially the same information, but in a
+        different format. Additional sources can be passed in as well for auxiliary
+        information which are not "translated" in their entirety into the output data
+        source. Such auxiliarry data sources should be distinguished from the primary ones
+        in the translation
+
+        Parameters
+        ----------
+        *args
+            Input data sources
+        **kwargs
+            Named input data sources
+
+        Returns
+        -------
+        the output data source
+        '''
+        raise NotImplementedError
+
+    def transform(self, *args, **kwargs):
+        return self.translate(*args, **kwargs)
+
+    def make_translation(self, sources=()):
+        '''
+        It's intended that implementations of `BaseDataTranslator` will override this
+        method to make custom `Translations <Translation>` according with how different
+        arguments to `translate` are (or are not) distinguished.
+
+        The actual properties of a `Translation` subclass must be assigned within the
+        `transform` method
+
+        Parameters
+        ----------
+        sources : tuple
+            The sources that go into the translation. Sub-classes may choose to pass these
+            to their superclass' make_translation method or not.
+
+        Returns
+        -------
+        a description of the translation
+
+        '''
+        return self.translation_type.contextualize(self.context)(transformer=self)
+
+    def make_transformation(self, sources=()):
+        return self.make_translation(sources)
 
 
 class DataTranslator(BaseDataTranslator):

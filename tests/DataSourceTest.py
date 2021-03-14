@@ -2,7 +2,14 @@ from __future__ import absolute_import
 from __future__ import print_function
 import unittest
 
-from owmeta_core.datasource import Informational, DataSource, OneOrMore, Transformation
+from owmeta_core.dataobject import DatatypeProperty
+from owmeta_core.datasource import (Informational,
+                                    DataSource,
+                                    OneOrMore,
+                                    DataTranslator,
+                                    DataTransformer,
+                                    Transformation,
+                                    GenericTranslation)
 from .DataTestTemplate import _DataTest
 
 
@@ -219,6 +226,40 @@ class DataSourceTest(_DataTest):
         superproperties = C.c.property.rdf_object.rdfs_subpropertyof.defined_values
         assert ((C.a.property.rdf_object in superproperties)
                 and (C.b.property.rdf_object in superproperties))
+
+
+class DataTransformerTest(_DataTest):
+    def test_make_transformation(self):
+        class TestTrans(Transformation):
+            a = DatatypeProperty()
+
+        class TestDTF(DataTransformer):
+            transformation_type = TestTrans
+
+            def make_transformation(self, sources=()):
+                res = super().make_transformation(sources)
+                res.a('love')
+                return res
+        dt = TestDTF()
+        tf = dt.make_transformation()
+        assert tf.a.onedef() == 'love'
+
+
+class DataTranslatorTest(_DataTest):
+    def test_make_transformation_from_make_translation(self):
+        class TestTrans(GenericTranslation):
+            a = DatatypeProperty()
+
+        class TestDT(DataTranslator):
+            translation_type = TestTrans
+
+            def make_translation(self, sources):
+                res = super().make_translation(sources)
+                res.a('love')
+                return res
+        dt = TestDT()
+        tf = dt.make_transformation()
+        assert tf.a.onedef() == 'love'
 
 
 class OneOrMoreTest(unittest.TestCase):
