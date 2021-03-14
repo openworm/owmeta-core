@@ -55,7 +55,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'owmeta-core'
-copyright = u'2013-2020, OpenWorm'
+copyright = u'2013-2021, OpenWorm'
 
 # For substitutions in docs
 rst_epilog = """
