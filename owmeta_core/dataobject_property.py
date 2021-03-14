@@ -43,13 +43,13 @@ class ContextMappedPropertyClass(MappedClass, ContextualizableClass):
     of property where all instances have the same URI, or a `Property` can represent an a
     class of RDF properties where the instances have distinct URIs and correspond to
     instances of the RDF type. An instance of the latter is demonstrated with
-    `ContainerMembershipProperty`.
+    `~owmeta_core.collections.ContainerMembershipProperty`.
 
     Attributes
     ----------
     rdf_type_class : type
-        A sub-class of `DataObject` to use as the type. If set, this will be used instead
-        of what `init_rdf_type_object` would create.
+        A sub-class of `~.dataobject.DataObject` to use as the type. If set,
+        this will be used instead of what `init_rdf_type_object` would create.
     rdf_type : str or URIRef
         The RDF type for the `Property`. Must be defined for `init_rdf_type_object` to
         actually create the rdf type object
