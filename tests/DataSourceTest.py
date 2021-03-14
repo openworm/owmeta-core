@@ -244,6 +244,20 @@ class DataTransformerTest(_DataTest):
         tf = dt.make_transformation()
         assert tf.a.onedef() == 'love'
 
+    def test_call_transform(self):
+        class TestTrans(Transformation):
+            a = DatatypeProperty()
+
+        class TestDTF(DataTransformer):
+            transformation_type = TestTrans
+
+            def transform(self, sources=()):
+                res = super().make_transformation(sources)
+                res.a('soup')
+                return res
+        dt = TestDTF()
+        assert dt().a.onedef() == 'soup'
+
 
 class DataTranslatorTest(_DataTest):
     def test_make_transformation_from_make_translation(self):

@@ -334,14 +334,14 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
     '''
     A source for data that can get translated into owmeta_core objects.
 
-    The value for any field can be passed to __init__ by name. Additionally, if
-    the sub-class definition of a DataSource assigns a value for that field like::
+    The value for any field can be passed to `~DataSource.__init__` by name. Additionally,
+    if the sub-class definition of a DataSource assigns a value for that field like::
 
         class A(DataSource):
             some_field = 3
 
     that value will be used over the default value for the field, but not over
-    any value provided to __init__.
+    any value provided to `~DataSource.__init__`.
     '''
 
     class_context = BASE_CONTEXT
@@ -554,14 +554,13 @@ class DataTransformerType(type(DataObject)):
         super(DataTransformerType, self).__init__(name, bases, dct)
 
         if not getattr(self, '__doc__', None):
-            self.__doc__ = '''Input type(s): {}\n
-                              Output type(s): {}\n'''.format(format_types(self.input_type),
-                                                             format_types(self.output_type))
+            self.__doc__ = f'''Input type(s): {format_types(self.input_type)}\n
+                               Output type(s): {format_types(self.output_type)}\n'''
 
 
 class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
     '''
-    Transforms zero or more `DataSources <DataSource>` to one or more other `DataSources
+    Transforms one or more `DataSources <DataSource>` to one or more other `DataSources
     <DataSource>`
 
     Attributes
@@ -587,7 +586,7 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
         self.output_key = kwargs.pop('output_key', None)
         self.output_identifier = kwargs.pop('output_identifier', None)
         try:
-            return self.translate(*args, **kwargs)
+            return self.transform(*args, **kwargs)
         finally:
             self.output_key = None
             self.output_identifier = None
@@ -634,13 +633,15 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
         return self.transformation_type.contextualize(self.context)(transformer=self)
 
     def make_new_output(self, sources, *args, **kwargs):
+        '''
+        Make a new output `DataSource`. Typically called within `transform`. The t
+        '''
         trans = self.make_transformation(sources)
         res = self.output_type.contextualize(self.context)(*args, transformation=trans,
                                                            ident=self.output_identifier,
                                                            key=self.output_key, **kwargs)
         for s in sources:
-            # XXX: Why are we calling contextualize here? Seems redundant?
-            res.contextualize(self.context).source(s)
+            res.source(s)
 
         return res
 
@@ -670,6 +671,9 @@ class BaseDataTranslator(DataTransformer):
         raise NotImplementedError
 
     def transform(self, *args, **kwargs):
+        '''
+        Just calls `translate` and returns its result.
+        '''
         return self.translate(*args, **kwargs)
 
     def make_translation(self, sources=()):
@@ -695,6 +699,9 @@ class BaseDataTranslator(DataTransformer):
         return self.translation_type.contextualize(self.context)(transformer=self)
 
     def make_transformation(self, sources=()):
+        '''
+        Just calls `make_translation` and returns its result.
+        '''
         return self.make_translation(sources)
 
 
