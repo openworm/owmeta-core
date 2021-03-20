@@ -639,7 +639,9 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
         trans = self.make_transformation(sources)
         res = self.output_type.contextualize(self.context)(*args, transformation=trans,
                                                            ident=self.output_identifier,
-                                                           key=self.output_key, **kwargs)
+                                                           key=self.output_key,
+                                                           conf=self.conf,
+                                                           **kwargs)
         for s in sources:
             res.source(s)
 

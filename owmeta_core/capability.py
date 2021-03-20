@@ -116,6 +116,15 @@ class Capable(object):
         The `Capable` should replace any previously accepted provider with the one
         given.
 
+        The capability *should* be checked to determine which capability is being
+        provided, even if only one is declared on the class, so that if a sub-class
+        defines a capability without defining how to accept it, then the wrong actions
+        won't be taken. In case the capability isn't recognized, it is generally better to
+        pass it to the super() implementation rather than failing to allow for
+        `cooperative multiple inheritance`__.
+
+        __ https://rhettinger.wordpress.com/2011/05/26/super-considered-super/
+
         Parameters
         ----------
         cap : Capability
@@ -167,7 +176,7 @@ class NoProviderAvailable(Exception):
 class NoProviderGiven(Exception):
     '''
     Thrown by a `Capable` when a `Capability` is needed, but none has been
-    provided by a call to `accept_capability_provider`
+    provided by a call to `~Capable.accept_capability_provider`
     '''
     def __init__(self, cap, receiver=None):
         '''
@@ -181,6 +190,15 @@ class NoProviderGiven(Exception):
         super(NoProviderGiven, self).__init__('No {} providers were given{}'
                 .format(cap, ' to ' + repr(receiver) if receiver else ''))
         self._cap = cap
+
+
+class UnwantedCapability(Exception):
+    '''
+    Thrown by a `Capable` when `~Capable.accept_capability_provider` is offered a provider
+    for a capability that it does not "want", meaning it doesn't have the code to use it.
+    This can happen when a sub-class of a Capable declares a needed capability without
+    overriding `~Capable.accept_capability_provider` to accept that capability.
+    '''
 
 
 def provide(ob, provs):

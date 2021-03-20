@@ -67,6 +67,31 @@ class CacheDirectoryProvider(Provider):
         raise NotImplementedError
 
 
+class TemporaryDirectoryCapability(Capability):
+    '''
+    Provides new, empty temporary directories
+    '''
+
+
+class TemporaryDirectoryProvider(Provider):
+    '''
+    Provides the `TemporaryDirectoryCapability`
+    '''
+
+    provided_capabilities = [TemporaryDirectoryCapability()]
+
+    def temporary_directory(self):
+        '''
+        Return the path of a new, empty temporary directory. The receiver of the temporary
+        directory should delete the directory when they're done with it.
+
+        Returns
+        -------
+        str
+            The temporary directory path
+        '''
+        raise NotImplementedError
+
 # Possible other capabilities:
 # - http/socks proxy
 # - user name / password

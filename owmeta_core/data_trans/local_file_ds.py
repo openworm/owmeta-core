@@ -2,13 +2,14 @@ from os.path import join
 
 from .. import BASE_CONTEXT
 from ..datasource import Informational
-from ..capability import Capable, NoProviderGiven
+from ..capability import NoProviderGiven
 from ..capabilities import FilePathCapability
+from ..capable_configurable import CapableConfigurable
 
 from .file_ds import FileDataSource
 
 
-class LocalFileDataSource(Capable, FileDataSource):
+class LocalFileDataSource(CapableConfigurable, FileDataSource):
     '''
     File paths should be relative -- in general, path names on a given machine are not portable
     '''
