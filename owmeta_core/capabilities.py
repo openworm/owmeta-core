@@ -92,6 +92,26 @@ class TemporaryDirectoryProvider(Provider):
         '''
         raise NotImplementedError
 
+
+class OutputFilePathCapability(Capability):
+    '''
+    Provides a file path where named files can be put
+    '''
+
+
+class OutputFilePathProvider(Provider):
+    '''
+    Provides the `OutputFilePathCapability`
+    '''
+
+    provided_capabilities = [OutputFilePathCapability()]
+
+    def file_path(self):
+        '''
+        The needed file path
+        '''
+        raise NotImplementedError()
+
 # Possible other capabilities:
 # - http/socks proxy
 # - user name / password

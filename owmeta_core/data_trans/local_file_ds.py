@@ -6,7 +6,7 @@ import shutil
 from .. import BASE_CONTEXT
 from ..datasource import Informational
 from ..capability import NoProviderGiven
-from ..capabilities import FilePathCapability
+from ..capabilities import FilePathCapability, OutputFilePathCapability
 from ..capable_configurable import CapableConfigurable
 
 from .file_ds import FileDataSource
@@ -63,7 +63,7 @@ class LocalFileDataSource(CapableConfigurable, FileDataSource):
 
     file_name = Informational(display_name='File name')
     torrent_file_name = Informational(display_name='Torrent file name')
-    needed_capabilities = [FilePathCapability()]
+    needed_capabilities = [FilePathCapability(), OutputFilePathCapability()]
 
     def __init__(self, *args, commit_op=CommitOp.COPY, **kwargs):
         '''
@@ -73,10 +73,20 @@ class LocalFileDataSource(CapableConfigurable, FileDataSource):
             The operation to use for commiting the file changes. The default is
             `~CommitOp.COPY`
         '''
+        # CapableConfigurable can call accept_capability_provider in __init__, so we set
+        # these here so they're set to *something*
+        self._base_path_provider = None
+        self._output_file_path_provider = None
         super(LocalFileDataSource, self).__init__(*args, **kwargs)
-        if not hasattr(self, '_base_path_provider'):
-            self._base_path_provider = None
         self.commit_op = commit_op
+
+    def accept_capability_provider(self, cap, provider):
+        if isinstance(cap, FilePathCapability):
+            self._base_path_provider = provider
+        elif isinstance(cap, OutputFilePathCapability):
+            self._output_file_path_provider = provider
+        else:
+            super().accept_capability_provider(cap, provider)
 
     def file_contents(self):
         '''
@@ -87,6 +97,17 @@ class LocalFileDataSource(CapableConfigurable, FileDataSource):
         '''
         return open(self.full_path(), 'b')
 
+    def full_path(self):
+        '''
+        Returns the full path to the file
+        '''
+        return join(self.basedir(), self.file_name.one())
+
+    def basedir(self):
+        if not self._base_path_provider:
+            raise NoProviderGiven(FilePathCapability())
+        return self._base_path_provider.file_path()
+
     def file_output(self):
         '''
         Returns an open file to be written to at ``<full_path>/<file_name>``
@@ -94,24 +115,18 @@ class LocalFileDataSource(CapableConfigurable, FileDataSource):
         This file should be closed when you are done with it. It may be used as a context
         manager
         '''
-        return open(self.full_path(), 'bw')
+        return open(self.full_output_path(), 'bw')
 
-    def full_path(self):
+    def full_output_path(self):
         '''
-        Returns the full path to the file
+        Returns the full output path to the file
         '''
-        return join(self.basedir(), self.file_name.one())
+        return join(self.output_basedir(), self.file_name.one())
 
-    def accept_capability_provider(self, cap, provider):
-        if isinstance(cap, FilePathCapability):
-            self._base_path_provider = provider
-        else:
-            super().accept_capability_provider(cap, provider)
-
-    def basedir(self):
-        if not self._base_path_provider:
-            raise NoProviderGiven(FilePathCapability())
-        return self._base_path_provider.file_path()
+    def output_basedir(self):
+        if not self._output_file_path_provider:
+            raise NoProviderGiven(OutputFilePathCapability())
+        return self._output_file_path_provider.file_path()
 
     def commit_augment(self):
         '''
@@ -119,19 +134,20 @@ class LocalFileDataSource(CapableConfigurable, FileDataSource):
         `source_file_path` so that it is accessible at `full_path`
         '''
         if self.commit_op == CommitOp.SYMLINK:
-            os.symlink(self.source_file_path, self.full_path())
+            os.symlink(self.source_file_path, self.full_output_path())
         elif self.commit_op == CommitOp.HARDLINK:
-            os.link(self.source_file_path, self.full_path())
+            os.link(self.source_file_path, self.full_output_path())
         elif self.commit_op == CommitOp.RENAME:
-            os.rename(self.source_file_path, self.full_path())
+            os.rename(self.source_file_path, self.full_output_path())
         elif self.commit_op == CommitOp.COPY:
             # We're asking for a bit of trouble here relying on the file system to
             # preserve permissions, but it *is* possible to ensure they're preserved
             # as-set by the transformer through this operation (at least as far as Python
             # standard lib provides) since you can set the source file to be on the same
             # file system as the target file.
-            shutil.copy2(self.source_file_path, self.full_path())
+            shutil.copy2(self.source_file_path, self.full_output_path())
         elif isinstance(self.commit_op, CommitOp):
-            raise NotImplementedError
+            raise NotImplementedError(
+                    f'The given commit_op value is not supported: {self.commit_op}')
         else:
             raise TypeError(f'The given commit_op value is not a CommitOp: {self.commit_op}')

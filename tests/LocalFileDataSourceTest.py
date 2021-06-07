@@ -3,7 +3,10 @@ from os import mkdir, stat
 
 import pytest
 
-from owmeta_core.capabilities import FilePathProvider, FilePathCapability
+from owmeta_core.capabilities import (FilePathProvider,
+                                      FilePathCapability,
+                                      OutputFilePathProvider,
+                                      OutputFilePathCapability)
 from owmeta_core.data_trans.local_file_ds import LocalFileDataSource, CommitOp
 
 
@@ -25,7 +28,7 @@ def lfds_with_file(tmp_path):
     outdir = p(tmp_path, 'output')
     mkdir(outdir)
 
-    class Provider(FilePathProvider):
+    class OutputProvider(OutputFilePathProvider):
         def file_path(self):
             return outdir
 
@@ -34,7 +37,7 @@ def lfds_with_file(tmp_path):
     with open(source_file, 'w') as f:
         f.write(SOURCE_FILE_CONTENT)
     lfds.source_file_path = source_file
-    lfds.accept_capability_provider(FilePathCapability(), Provider())
+    lfds.accept_capability_provider(OutputFilePathCapability(), OutputProvider())
     return lfds
 
 
@@ -44,7 +47,7 @@ def test_commit_default(lfds_with_file):
 
     cut.commit()
 
-    with open(cut.full_path()) as f:
+    with open(cut.full_output_path()) as f:
         assert SOURCE_FILE_CONTENT == f.read()
 
 
@@ -55,7 +58,7 @@ def test_commit_rename(lfds_with_file):
 
     cut.commit()
 
-    with open(cut.full_path()) as f:
+    with open(cut.full_output_path()) as f:
         assert SOURCE_FILE_CONTENT == f.read()
 
     assert not exists(cut.source_file_path)
@@ -68,9 +71,9 @@ def test_commit_symlink(lfds_with_file):
 
     cut.commit()
 
-    with open(cut.full_path()) as f:
+    with open(cut.full_output_path()) as f:
         assert SOURCE_FILE_CONTENT == f.read()
-    assert islink(cut.full_path())
+    assert islink(cut.full_output_path())
     assert exists(cut.source_file_path)
 
 
@@ -81,9 +84,9 @@ def test_commit_link(lfds_with_file):
 
     cut.commit()
 
-    with open(cut.full_path()) as f:
+    with open(cut.full_output_path()) as f:
         assert SOURCE_FILE_CONTENT == f.read()
-    statbuf = stat(cut.full_path())
+    statbuf = stat(cut.full_output_path())
     assert exists(cut.source_file_path)
     assert statbuf.st_nlink == 2
 
