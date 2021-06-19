@@ -26,6 +26,9 @@ ARGUMENT_TYPES = {
 ''' Map from parameter types to type constructors for parsing arguments '''
 
 
+_KVLIST_ARG = '_KVLIST_ARG'
+
+
 class CLIUserError(Exception):
     '''
     An error which the user would have to correct.
@@ -82,13 +85,16 @@ class CLIArgMapper(object):
         '''
         iattrs = self.get(INSTANCE_ATTRIBUTE)
         kvpairs = self.get(METHOD_KWARGS)
-        kvs = list(kv.split('=') for kv in next(iter(kvpairs.values()), ()))
-
+        kvs = list(kv.split('=', 1) for kv in next(iter(kvpairs.values()), ()))
         kwargs = {k: v for k, v in kvs}
 
         args = self.get_list(METHOD_NAMED_ARG)
         if not args:
             kwargs.update(self.get(METHOD_NAMED_ARG))
+
+        kvlist = self.get(_KVLIST_ARG)
+        for key, vals in kvlist.items():
+            kwargs[key] = list(kv.split('=', 1) for kv in vals)
 
         try:
             # There is, at most, one nargs entry.
@@ -222,7 +228,11 @@ class CLIAppendAction(CLIStoreAction):
             Value to add
         '''
         items = _copy.copy(_ensure_value(namespace, self.dest, []))
-        items.append(values)
+        if isinstance(values, list):
+            # This can happen because of a kwargs-type argument that has nargs='*'
+            items += values
+        else:
+            items.append(values)
         self.mapper.mappings[(self.key, self.name, -1)] = items
         setattr(namespace, self.dest, items)
 
@@ -444,12 +454,21 @@ class CLICommandWrapper(object):
             arg_cli_name = arg.replace('_', '-')
             desc = param.desc
             if arg.startswith('**'):
-                subparser.add_argument('--' + arg_cli_name[2:],
-                                       action=CLIAppendAction,
-                                       mapper=self.mapper,
-                                       key=METHOD_KWARGS,
-                                       type=atype,
-                                       help=desc)
+                arg_hints = self._arg_hints(sc_hints, METHOD_KWARGS, arg[2:])
+                names = None if arg_hints is None else arg_hints.get('names')
+                if names is None:
+                    names = ['--' + arg_cli_name[2:]]
+                argument_args = dict(action=CLIAppendAction,
+                                     mapper=self.mapper,
+                                     key=METHOD_KWARGS,
+                                     type=atype,
+                                     help=desc)
+                if arg_hints:
+                    nargs = arg_hints.get('nargs')
+                    if nargs is not None:
+                        argument_args['nargs'] = nargs
+                subparser.add_argument(*names,
+                                       **argument_args)
             elif arg.startswith('*'):
                 subparser.add_argument(arg_cli_name[1:],
                                        action=action,
@@ -477,6 +496,10 @@ class CLICommandWrapper(object):
                     nargs = arg_hints.get('nargs')
                     if nargs is not None:
                         argument_args['nargs'] = nargs
+
+                    is_kvlist = arg_hints.get('kvlist')
+                    if is_kvlist:
+                        argument_args['key'] = _KVLIST_ARG
 
                 subparser.add_argument(*names,
                                        **argument_args)

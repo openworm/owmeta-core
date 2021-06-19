@@ -7,8 +7,9 @@ except ImportError:
 
 from pytest import raises
 from owmeta_core.command_util import SubCommand, IVar
-from owmeta_core.cli_command_wrapper import CLICommandWrapper, CLIArgMapper
+from owmeta_core.cli_command_wrapper import CLICommandWrapper, CLIArgMapper, _KVLIST_ARG
 from owmeta_core.cli_common import METHOD_NAMED_ARG, METHOD_NARGS, METHOD_KWARGS
+
 from .TestUtilities import noexit, stdout
 
 
@@ -197,3 +198,15 @@ class CLIArgMapperTest(unittest.TestCase):
         cut.apply(runner)
 
         sc_runner.assert_called_with(a='b', c='d')
+
+    def test_multiple_vals_per_key(self):
+        cut = CLIArgMapper()
+        sc_runner = Mock()
+        cut.runners[None] = sc_runner
+        cut.mappings[(_KVLIST_ARG, 'name0', -1)] = ['c=b', 'c=d']
+
+        runner = Mock()
+
+        cut.apply(runner)
+
+        sc_runner.assert_called_with(name0=[['c','b'], ['c','d']])
