@@ -31,6 +31,7 @@ from collections import namedtuple
 from textwrap import dedent
 from tempfile import TemporaryDirectory
 import uuid
+import hashlib
 
 from pkg_resources import iter_entry_points, DistributionNotFound
 import rdflib
@@ -46,12 +47,12 @@ from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
                       CLASS_REGISTRY_CONTEXT_KEY)
 from .context_common import CONTEXT_IMPORTS
 from .capability import provide
-from .capabilities import FilePathProvider, CacheDirectoryProvider
+from .capabilities import OutputFilePathProvider, FilePathProvider, CacheDirectoryProvider
 from .datasource_loader import DataSourceDirLoader, LoadFailed
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
 from .mapper import Mapper
 from .rdf_utils import BatchAddGraph
-from .utils import FCN
+from .utils import FCN, retrieve_provider
 
 
 L = logging.getLogger(__name__)
@@ -62,6 +63,11 @@ Default name for the provider in the arguments to `OWM.save`
 '''
 
 DSDL_GROUP = 'owmeta_core.datasource_dir_loader'
+
+DSD_DIRKEY = 'owmeta_core.command.OWMDirDataSourceDirLoader'
+'''
+Key used for data source directory loader and file path provider
+'''
 
 
 class OWMSourceData(object):
@@ -1705,6 +1711,7 @@ class OWM(object):
     def _cap_provs(self):
         return [DataSourceDirectoryProvider(self._dsd),
                 WorkingDirectoryProvider(),
+                OWMDirDataSourceDirProvider(pth_join(self.owmdir, 'ds_files')),
                 OWMCacheDirectoryProvider(pth_join(self.owmdir, 'cache'))]
 
     @property
@@ -1965,6 +1972,29 @@ class OWM(object):
                 l = colored(l, 'red')
             l += os.linesep
             yield l
+
+    def declare(self, python_type, attributes=(), id=None):
+        '''
+        Create a new data object or update an existing one
+
+        Parameters
+        ----------
+        python_type : str
+            The path to the Python type for the object. Formatted like
+            "full.module.path:ClassName"
+        attributes : str
+            Attributes to set on the object before saving
+        id : str
+            The identifier for the object
+        '''
+        import transaction
+        dctx = self._default_ctx
+        cls = retrieve_provider(python_type)
+        ob = dctx.stored(cls)(ident=self._den3(id))
+        with transaction.manager:
+            for prop, val in attributes:
+                getattr(dctx(ob), prop)(val)
+            dctx.save()
 
 
 class _ProjectConnection(object):
@@ -2272,9 +2302,60 @@ class _DSDP(FilePathProvider):
         return self._path
 
 
+class OWMDirDataSourceDirProvider(OutputFilePathProvider):
+    '''
+    Provides a directory under the OWM project directory
+    '''
+
+    def __init__(self, basedir):
+        self._basedir = basedir
+
+    def provides_to(self, obj):
+        from owmeta_core.data_trans.local_file_ds import LocalFileDataSource
+        if isinstance(obj, LocalFileDataSource):
+            key = hashlib.sha256(self.identifier).hexdigest()
+            return type(self).Helper(key)
+        return None
+
+    class Helper(FilePathProvider):
+        def __init__(self, parent, key):
+            self._key = key
+            self._parent = parent
+
+        def file_path(self):
+            # When a file path is requested, then we create one?
+            #   Well, if we try to create the file path here, but that fails, there's not
+            #   really a good recourse: we could have tried a different provider earlier in
+            #   provides_to, but not now...  If, instead, we do it in provides_to, then we can
+            #   just log the error and say "no, I can't provide a directory"
+            #
+            # An important point about the mapping from the RDF graph:
+            #   We're mapping from the RDF graph here to a single directory, so what we're
+            #   implicitly saying is that there's one and only one set of files corresponding
+            #   to the data source. For a work-in-progress project, this is really
+            #   important...also the data could change over time, right? How would we deal
+            #   with a different version of the data still pointing to the project directory?
+            #   We aren't worried about that because everything in the project is WIP. What
+            #   you would worry about is whether you could have multiple WIP versions for a
+            #   given data source...that's not as clear cut to me
+            #
+            # create a directory
+            # create an index entry
+            #   the index stores the mapping to the directory
+            #
+            # what if the directory creation fails?
+            #   Then we won't have a directory and we won't create the index entry
+            # what if the index entry creation fails?
+            #   Then we need to clean delete the directory before propagating the exception
+            #       What if the directory clean up fails?
+            #           Then we need to report that as well as the original exception --
+            #           Python will handle that for us though.
+            return pth_join(self._parent._basedir, self._key)
+
+
 class OWMDirDataSourceDirLoader(DataSourceDirLoader):
     def __init__(self, *args, **kwargs):
-        super(OWMDirDataSourceDirLoader, self).__init__(*args, **kwargs)
+        super(OWMDirDataSourceDirLoader, self).__init__(*args, directory_key=DSD_DIRKEY, **kwargs)
         self._index = dict()
 
     @property

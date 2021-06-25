@@ -59,6 +59,16 @@ CLI_HINTS = {
         'non_interactive': {
             'names': ['--non-interactive', '-b']
         },
+        'declare': {
+            (METHOD_NAMED_ARG, 'python_type'): {
+                'names': ['python_type']
+            },
+            (METHOD_NAMED_ARG, 'attributes'): {
+                'names': ['attr'],
+                'kvlist': True,
+                'nargs': '*'
+            },
+        },
         'IGNORE': ['message', 'progress_reporter', 'prompt', 'connect', 'disconnect', 'rdf', 'default_context']
     },
     'owmeta_core.command.OWMContexts': {

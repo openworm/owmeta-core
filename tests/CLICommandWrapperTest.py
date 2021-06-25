@@ -209,4 +209,4 @@ class CLIArgMapperTest(unittest.TestCase):
 
         cut.apply(runner)
 
-        sc_runner.assert_called_with(name0=[['c','b'], ['c','d']])
+        sc_runner.assert_called_with(name0=[['c', 'b'], ['c', 'd']])
