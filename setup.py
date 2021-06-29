@@ -54,7 +54,7 @@ setup(
         'wrapt~=1.11.1',
         'zc.lockfile',
         'zodb>=4.1.0',
-        'pyyaml',
+        'pyyaml>=5.1',
     ],
     extras_require={
         # SQL source support
