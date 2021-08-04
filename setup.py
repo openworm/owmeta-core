@@ -38,14 +38,10 @@ setup(
         'pytest-parallel'
     ],
     install_requires=[
-        'bibtexparser~=1.1.0',
-        'BTrees>=4.0.8',
         'gitpython>=2.1.1',
-        'libneuroml',
-        'persistent>=4.0.8',
         'Pint',
         'pow-store-zodb>=0.0.11',
-        'rdflib>=4.1.2',
+        'rdflib>=4.1.2,!6.0.0',
         'requests',
         'six~=1.10',
         'tqdm~=4.23',
