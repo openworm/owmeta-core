@@ -1,7 +1,12 @@
 from itertools import chain
 
 from rdflib.store import Store, VALID_STORE, NO_STORE
-from rdflib.plugins.memory import IOMemory
+try:
+    from rdflib.plugins.stores.memory import Memory
+except ImportError:
+    # rdflib<6.0.0
+    from rdflib.plugins.memory import IOMemory as Memory
+
 from rdflib.term import Variable
 
 from .context_common import CONTEXT_IMPORTS
@@ -58,7 +63,7 @@ class ContextStore(Store):
             self._store_store = None
 
         if self._memory_store is None:
-            self._memory_store = IOMemory()
+            self._memory_store = Memory()
             self._init_store0(ctx)
 
     def _init_store0(self, ctx, seen=None):
