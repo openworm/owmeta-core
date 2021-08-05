@@ -1,0 +1,53 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: Python package
+
+on:
+  push:
+    branches: [ develop, master ]
+  pull_request:
+    branches: [ develop, master ]
+
+env:
+  COVERALLS_PARALLEL: true
+  SQLITE_TEST: 1
+  POSTGRES_TEST: 1
+  MYSQL_TEST: 1
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.6, 3.7, 3.8, 3.9]
+    # There's some recursion error here (See #76)
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: ./ci-install.sh
+    - name: Test
+      run: if [ ! "$DEPLOY" ] ; then ./ci-test.sh ; fi
+    - name: Coveralls
+      run: coveralls
+      env:
+        COVERALLS_FLAG_NAME: ${{ matrix.python-version }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  coveralls:
+    name: Indicate completion to coveralls.io
+    needs: build
+    runs-on: ubuntu-latest
+    container: python:3-slim
+    steps:
+    - name: Finished
+      run: |
+        pip3 install --upgrade coveralls
+        coveralls --finish
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
