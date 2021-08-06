@@ -47,10 +47,10 @@ if [ "$MYSQL_TEST" ] ; then
     mysql -u root -e 'CREATE DATABASE test DEFAULT CHARACTER SET utf8;'
     mysql -u root -e "CREATE USER IF NOT EXISTS 'test' IDENTIFIED BY 'password';"
     mysql -u root -e "GRANT ALL ON test.* TO 'test';"
-    export MYSQL_URI='mysql+mysqlconnector://test:password@localhost/test?charset=utf8&auth_plugin=mysql_native_password'
+    export MYSQL_URI='mysql+mysqlconnector://test:password@127.0.0.1/test?charset=utf8&auth_plugin=mysql_native_password'
     pt --verbose -m mysql_source
     add_coverage
-    export MYSQL_URI='mysql+mysqldb://test:password@localhost/test?charset=utf8'
+    export MYSQL_URI='mysql+mysqldb://test:password@127.0.0.1/test?charset=utf8'
     pt --verbose -m mysql_source
     add_coverage
 fi
