@@ -32,8 +32,8 @@ if [ "$SQLITE_TEST" ] ; then
 fi
 
 if [ "$POSTGRES_TEST" ] ; then
-    psql -c 'DROP DATABASE IF EXISTS test;' -U postgres
-    psql -c 'create database test;' -U postgres
+    psql -h 127.0.0.1 -c 'DROP DATABASE IF EXISTS test;' -U postgres
+    psql -h 127.0.0.1 -c 'create database test;' -U postgres
     export POSTGRES_URI='postgresql+psycopg2://postgres@localhost/test'
     pt --verbose -m postgres_source "$@"
     add_coverage
