@@ -5,7 +5,7 @@ name: Python package
 
 on:
   push:
-    branches: [ develop, master ]
+    branches: [ develop, master, github-actions ]
   pull_request:
     branches: [ develop, master ]
 
@@ -66,7 +66,7 @@ jobs:
           MYSQL_DATABASE: test
         # Set health checks to wait until mysql has started
         options: >-
-          --health-cmd 'mysqladmin ping'
+          --health-cmd "mysqladmin ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
