@@ -2,7 +2,7 @@
 
 pt () {
     # Can we all just agree that quoting in the Bourne shell is awful? 
-    sh -c "pytest --cov=./owmeta_core $*"
+    sh -c "pytest --cov=owmeta_core $*"
 }
 
 
@@ -32,21 +32,21 @@ if [ "$SQLITE_TEST" ] ; then
 fi
 
 if [ "$POSTGRES_TEST" ] ; then
-    psql -c 'DROP DATABASE IF EXISTS test;' -U postgres
-    psql -c 'create database test;' -U postgres
+    psql -h 127.0.0.1 -c 'DROP DATABASE IF EXISTS test;' -U postgres
+    psql -h 127.0.0.1 -c 'create database test;' -U postgres
     export POSTGRES_URI='postgresql+psycopg2://postgres@localhost/test'
     pt --verbose -m postgres_source "$@"
     add_coverage
-    export POSTGRES_URI='postgresql+pg8000://postgres@localhost/test'
+    export POSTGRES_URI="postgresql+pg8000://postgres:$PGPASSWORD@localhost/test"
     pt --verbose -m postgres_source "$@"
     add_coverage
 fi
 
 if [ "$MYSQL_TEST" ] ; then
-    mysql -u root -e 'DROP DATABASE IF EXISTS test;'
-    mysql -u root -e 'CREATE DATABASE test DEFAULT CHARACTER SET utf8;'
-    mysql -u root -e "CREATE USER IF NOT EXISTS 'test' IDENTIFIED BY 'password';"
-    mysql -u root -e "GRANT ALL ON test.* TO 'test';"
+    mysql --host 127.0.0.1 -u root -e 'DROP DATABASE IF EXISTS test;'
+    mysql --host 127.0.0.1 -u root -e 'CREATE DATABASE test DEFAULT CHARACTER SET utf8;'
+    mysql --host 127.0.0.1 -u root -e "CREATE USER IF NOT EXISTS 'test' IDENTIFIED BY 'password';"
+    mysql --host 127.0.0.1 -u root -e "GRANT ALL ON test.* TO 'test';"
     export MYSQL_URI='mysql+mysqlconnector://test:password@127.0.0.1/test?charset=utf8&auth_plugin=mysql_native_password'
     pt --verbose -m mysql_source
     add_coverage
