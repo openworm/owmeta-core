@@ -520,8 +520,8 @@ class HTTPBundleUploader(Uploader):
                         context=self.ssl_context, **kwargs)
         conn = connection_ctor(parsed_url.netloc)
         with open(archive, 'rb') as f:
-            conn.request("POST", "", body=f, headers={'Content-Type':
-                BUNDLE_ARCHIVE_MIME_TYPE})
+            conn.request("POST", "", body=f,
+                    headers={'Content-Type': BUNDLE_ARCHIVE_MIME_TYPE})
         # XXX: Do something with this response
         # conn.getresponse()
 
