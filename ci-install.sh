@@ -16,6 +16,6 @@ if [ "$POSTGRES_TEST" ] ; then
 fi
 TARGET="$TARGET .[sftp]"
 
-pip install ${TARGET:-"."}
+pip install -e ${TARGET:-"."}
 pip install -r test-requirements.txt
 pip install --upgrade coveralls
