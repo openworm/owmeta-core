@@ -37,7 +37,7 @@ if [ "$POSTGRES_TEST" ] ; then
     export POSTGRES_URI='postgresql+psycopg2://postgres@localhost/test'
     pt --verbose -m postgres_source "$@"
     add_coverage
-    export POSTGRES_URI='postgresql+pg8000://postgres@localhost/test'
+    export POSTGRES_URI="postgresql+pg8000://postgres:$PGPASSWORD@localhost/test"
     pt --verbose -m postgres_source "$@"
     add_coverage
 fi
