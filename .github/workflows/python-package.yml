@@ -34,6 +34,7 @@ jobs:
     - name: Test
       run: ./ci-test.sh
     - name: Coveralls
+      if: github.event_name != 'schedule'
       run: coveralls --service=github
       env:
         COVERALLS_FLAG_NAME: ${{ matrix.python-version }}
