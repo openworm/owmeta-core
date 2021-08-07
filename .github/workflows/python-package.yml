@@ -10,7 +10,6 @@ on:
     branches: [ develop, master ]
 
 env:
-  COVERALLS_PARALLEL: true
   SQLITE_TEST: 1
   POSTGRES_TEST: 1
   MYSQL_TEST: 1
@@ -35,10 +34,11 @@ jobs:
     - name: Test
       run: if [ ! "$DEPLOY" ] ; then ./ci-test.sh ; fi
     - name: Coveralls
-      run: coveralls
+      run: coveralls --service=github
       env:
         COVERALLS_FLAG_NAME: ${{ matrix.python-version }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        COVERALLS_PARALLEL: true
     services:
       # Label used to access the service container
       postgres:
@@ -84,6 +84,6 @@ jobs:
     - name: Finished
       run: |
         pip3 install --upgrade coveralls
-        coveralls --finish
+        coveralls --service=github --finish
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
