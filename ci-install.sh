@@ -6,16 +6,16 @@ if [ $DEPLOY ] ; then
     exit 0
 fi
 
-TARGET=
+EXTRAS=
 if [ "$MYSQL_TEST" ] ; then
-    TARGET=".[mysql_source_mysql_connector] .[mysql_source_mysqlclient]"
+    EXTRAS="mysql_source_mysql_connector,mysql_source_mysqlclient"
 fi
 
 if [ "$POSTGRES_TEST" ] ; then
-    TARGET="$TARGET .[postgres_source_psycopg] .[postgres_source_pg8000]"
+    EXTRAS="${EXTRAS:+$EXTRAS,}postgres_source_psycopg,postgres_source_pg8000"
 fi
-TARGET="$TARGET .[sftp]"
+EXTRAS="${EXTRAS:+$EXTRAS,}sftp"
 
-pip install -e ${TARGET:-"."}
+pip install -e ".[${EXTRAS}]"
 pip install -r test-requirements.txt
 pip install --upgrade coveralls
