@@ -5,6 +5,9 @@ on:
     branches: [ develop, master ]
   pull_request:
     branches: [ develop, master ]
+  schedule:
+    # minute 39 of every hour
+    - cron:  '39 * * * *'
 
 env:
   SQLITE_TEST: 1
@@ -71,6 +74,7 @@ jobs:
   dev-deploy:
     name: Deploy Dev Package to PyPI
     needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -81,7 +85,6 @@ jobs:
       - name: Install Deploy Dependencies
         run: pip install wheel twine
       - name: Deploy
-        if: ${{ github.ref == 'refs/heads/develop' }}
         run: ./deploy.sh
         env:
           TWINE_USERNAME: __token__
@@ -89,6 +92,7 @@ jobs:
   coveralls:
     name: Indicate completion to coveralls.io
     needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     container: python:3-slim
     steps:
