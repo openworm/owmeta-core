@@ -15,6 +15,7 @@ env:
   POSTGRES_TEST: 1
   MYSQL_TEST: 1
   PGPASSWORD: postgres
+  MYSQLPASS: password
 
 jobs:
   build:
@@ -63,7 +64,7 @@ jobs:
         env:
           MYSQL_ALLOW_EMPTY_PASSWORD: 1
           MYSQL_USER: test
-          MYSQL_PASSWORD: mysql
+          MYSQL_PASSWORD: password
           MYSQL_DATABASE: test
         # Set health checks to wait until mysql has started
         options: >-
