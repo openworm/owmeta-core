@@ -72,13 +72,20 @@ jobs:
     name: Deploy Dev Package to PyPI
     needs: build
     runs-on: ubuntu-latest
-    container: python:3-slim
     steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python 3
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3
       - name: Install Twine
-        run: pip3 install twine
+        run: pip install twine
       - name: Deploy
         if: ${{ github.ref == 'refs/heads/develop' }}
         run: ./deploy.sh
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
   coveralls:
     name: Indicate completion to coveralls.io
     needs: build
