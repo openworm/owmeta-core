@@ -472,7 +472,7 @@ class HTTPBundleUploader(Uploader):
     Uploads bundles by sending bundle archives in HTTP POST requests
     '''
 
-    def __init__(self, upload_url, ssl_context=None):
+    def __init__(self, upload_url, ssl_context=None, max_retries=0):
         '''
         Parameters
         ----------
@@ -481,10 +481,13 @@ class HTTPBundleUploader(Uploader):
         ssl_context : ssl.SSLContext
             SSL/TLS context to use for the connection. Overrides any context provided in
             `upload_url`
+        max_retries : int
+            Maximum number of times to retry the upload after a failure.
         '''
         super(HTTPBundleUploader, self).__init__()
 
         self.ssl_context = None
+        self.max_retries = max_retries
 
         if isinstance(upload_url, str):
             self.upload_url = upload_url
@@ -507,6 +510,10 @@ class HTTPBundleUploader(Uploader):
                     accessor_config.url.startswith('http://')))
 
     def upload(self, bundle_path):
+        '''
+        Attempt to upload the bundle. Retries will be attempted for BrokenPipeErrors
+        thrown by the http client
+        '''
         with ensure_archive(bundle_path) as archive_path:
             self._post(archive_path)
 
@@ -520,8 +527,19 @@ class HTTPBundleUploader(Uploader):
                         context=self.ssl_context, **kwargs)
         conn = connection_ctor(parsed_url.netloc)
         with open(archive, 'rb') as f:
-            conn.request("POST", "", body=f,
-                    headers={'Content-Type': BUNDLE_ARCHIVE_MIME_TYPE})
+            retries = 0
+            completed = False
+            while not completed:
+                try:
+                    conn.request("POST", "", body=f,
+                            headers={'Content-Type': BUNDLE_ARCHIVE_MIME_TYPE})
+                    completed = True
+                except BrokenPipeError:
+                    if retries >= self.max_retries:
+                        raise
+                    L.warn('Failed to upload bundle to %s. Will retry %d more times.',
+                            self.upload_url, self.max_retries - retries, exc_info=True)
+                    retries += 1
         # XXX: Do something with this response
         # conn.getresponse()
 

@@ -361,17 +361,25 @@ def ensure_archive(bundle_path):
     bundle_path : str
         The path to a bundle directory or archive
     '''
-    archive_path = bundle_path
-    with tempfile.TemporaryDirectory() as tempdir:
-        if isdir(bundle_path):
+    if isdir(bundle_path):
+        with tempfile.TemporaryDirectory() as tempdir:
             archive_path = Archiver(tempdir).pack(
                     bundle_directory=bundle_path, target_file_name='bundle.tar.xz')
-        if not tarfile.is_tarfile(archive_path):
-            # We don't really care about the TAR file being properly formatted here --
-            # it's up to the server to tell us it can't process the bundle. We just
-            # check if it's a TAR file for the convenience of the user.
-            raise NotABundlePath(bundle_path, 'Expected a directory or a tar file')
-        yield archive_path
+            if not tarfile.is_tarfile(archive_path):
+                # We don't really care about the TAR file being properly formatted here --
+                # it's up to the server to tell us it can't process the bundle. We just
+                # check if it's a TAR file for the convenience of the user.
+                L.error('Archiver did not create a valid tar file, but did not raise an'
+                        'error: this should not happen.')
+                raise NotABundlePath(bundle_path, 'Expected a directory or a tar file')
+            yield archive_path
+    elif tarfile.is_tarfile(bundle_path):
+        # We don't really care about the TAR file being properly formatted here --
+        # it's up to the server to tell us it can't process the bundle. We just
+        # check if it's a TAR file for the convenience of the user.
+        yield bundle_path
+    else:
+        raise NotABundlePath(bundle_path, 'Expected a directory or a tar file')
 
 
 class ArchiveTargetPathDoesNotExist(Exception):
