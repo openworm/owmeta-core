@@ -41,12 +41,12 @@ def mocked_upload_client(tempdir):
         yield hc
 
 
-def test_bundle_upload_broken_pipe_default_no_retry(mocked_upload_client):
+def test_bundle_upload_broken_pipe_default_one_retry(mocked_upload_client):
     cut = HTTPBundleUploader('http://fakeyfakeurl')
 
     with pytest.raises(BrokenPipeError):
         cut(None)
-    mocked_upload_client.HTTPConnection().request.assert_called_once()
+    mocked_upload_client.HTTPConnection().request.call_count == 2
 
 
 def test_bundle_upload_broken_pipe_with_retry(mocked_upload_client):

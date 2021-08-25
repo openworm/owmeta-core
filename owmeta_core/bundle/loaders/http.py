@@ -472,16 +472,16 @@ class HTTPBundleUploader(Uploader):
     Uploads bundles by sending bundle archives in HTTP POST requests
     '''
 
-    def __init__(self, upload_url, ssl_context=None, max_retries=0):
+    def __init__(self, upload_url, ssl_context=None, max_retries=1):
         '''
         Parameters
         ----------
         upload_url : str or URLConfig
             URL string or accessor config
-        ssl_context : ssl.SSLContext
+        ssl_context : ssl.SSLContext, optional
             SSL/TLS context to use for the connection. Overrides any context provided in
             `upload_url`
-        max_retries : int
+        max_retries : int, optional
             Maximum number of times to retry the upload after a failure.
         '''
         super(HTTPBundleUploader, self).__init__()
