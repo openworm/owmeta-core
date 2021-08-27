@@ -539,6 +539,7 @@ class HTTPBundleUploader(Uploader):
                         raise
                     L.warn('Failed to upload bundle to %s. Will retry %d more times.',
                             self.upload_url, self.max_retries - retries, exc_info=True)
+                    conn = connection_ctor(parsed_url.netloc)
                     retries += 1
         # XXX: Do something with this response
         # conn.getresponse()
