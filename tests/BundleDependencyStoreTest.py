@@ -5,14 +5,18 @@ from pytest import raises
 from rdflib.store import Store
 from rdflib.term import URIRef
 from rdflib.plugin import PluginException, get as plugin_get
-from rdflib.plugins.memory import IOMemory
+try:
+    from rdflib.plugins.stores.memory import Memory
+except ImportError:
+    # rdflib<6.0.0
+    from rdflib.plugins.memory import IOMemory as Memory
 
 from owmeta_core.bundle_dependency_store import (BundleDependencyStore, _is_cacheable,
                                                  _cache_key, RDFLIB_PLUGIN_KEY, StoreCache)
 
 
 def test_excludes_no_triples():
-    iom = IOMemory()
+    iom = Memory()
     iom.add((URIRef('http://example.org/a'),
              URIRef('http://example.org/b'),
              URIRef('http://example.org/c')),
@@ -22,7 +26,7 @@ def test_excludes_no_triples():
 
 
 def test_excludes_some_triples():
-    iom = IOMemory()
+    iom = Memory()
     iom.add((URIRef('http://example.org/a'),
              URIRef('http://example.org/b'),
              URIRef('http://example.org/c')),
@@ -36,7 +40,7 @@ def test_excludes_some_triples():
 
 
 def test_excludes_all_for_excluded_context():
-    iom = IOMemory()
+    iom = Memory()
     iom.add((URIRef('http://example.org/a'),
              URIRef('http://example.org/b'),
              URIRef('http://example.org/c')),
@@ -51,7 +55,7 @@ def test_excludes_all_for_excluded_context():
 
 
 def test_includes_triples():
-    iom = IOMemory()
+    iom = Memory()
     iom.add((URIRef('http://example.org/a'),
              URIRef('http://example.org/b'),
              URIRef('http://example.org/c')),
@@ -61,7 +65,7 @@ def test_includes_triples():
 
 
 def test_includes_contexts():
-    iom = IOMemory()
+    iom = Memory()
     iom.add((URIRef('http://example.org/a'),
              URIRef('http://example.org/b'),
              URIRef('http://example.org/c')),
@@ -71,7 +75,7 @@ def test_includes_contexts():
 
 
 def test_excludes_contexts():
-    iom = IOMemory()
+    iom = Memory()
     iom.add((URIRef('http://example.org/a'),
              URIRef('http://example.org/b'),
              URIRef('http://example.org/c')),
@@ -81,7 +85,7 @@ def test_excludes_contexts():
 
 
 def test_excludes_some_contexts1():
-    iom = IOMemory()
+    iom = Memory()
     iom.add((URIRef('http://example.org/a'),
              URIRef('http://example.org/b'),
              URIRef('http://example.org/c')),
@@ -95,7 +99,7 @@ def test_excludes_some_contexts1():
 
 
 def test_excludes_some_contexts2():
-    iom = IOMemory()
+    iom = Memory()
     iom.add((URIRef('http://example.org/a'),
              URIRef('http://example.org/b'),
              URIRef('http://example.org/c')),
@@ -113,19 +117,19 @@ def test_excludes_some_contexts2():
 
 
 def test_empty_contexts_with_excludes():
-    iom = IOMemory()
+    iom = Memory()
     bds = BundleDependencyStore(iom, excludes=set(['http://example.org/ctx']))
     assert set([]) == set(bds.contexts())
 
 
 def test_empty_contexts_without_excludes():
-    iom = IOMemory()
+    iom = Memory()
     bds = BundleDependencyStore(iom)
     assert set([]) == set(bds.contexts())
 
 
 def test_len_some_excludes():
-    iom = IOMemory()
+    iom = Memory()
     iom.add((URIRef('http://example.org/a'),
              URIRef('http://example.org/b'),
              URIRef('http://example.org/c')),
@@ -143,7 +147,7 @@ def test_len_some_excludes():
 
 
 def test_len_with_ctx_excluded1():
-    iom = IOMemory()
+    iom = Memory()
     iom.add((URIRef('http://example.org/a'),
              URIRef('http://example.org/b'),
              URIRef('http://example.org/c')),
@@ -153,7 +157,7 @@ def test_len_with_ctx_excluded1():
 
 
 def test_len_with_ctx_excluded2():
-    iom = IOMemory()
+    iom = Memory()
     iom.add((URIRef('http://example.org/a'),
              URIRef('http://example.org/b'),
              URIRef('http://example.org/c')),
@@ -167,7 +171,7 @@ def test_len_with_ctx_excluded2():
 
 
 def test_triples_choices_excluded():
-    iom = IOMemory()
+    iom = Memory()
     iom.add((URIRef('http://example.org/a'),
              URIRef('http://example.org/b'),
              URIRef('http://example.org/c')),
@@ -183,7 +187,7 @@ def test_triples_choices_excluded():
 
 
 def test_triples_choices_with_context_excluded():
-    iom = IOMemory()
+    iom = Memory()
     iom.add((URIRef('http://example.org/a'),
              URIRef('http://example.org/b'),
              URIRef('http://example.org/c')),
@@ -200,7 +204,7 @@ def test_triples_choices_with_context_excluded():
 
 
 def test_triples_choices_with_some_excluded():
-    iom = IOMemory()
+    iom = Memory()
     iom.add((URIRef('http://example.org/a'),
              URIRef('http://example.org/b'),
              URIRef('http://example.org/c')),
@@ -219,7 +223,7 @@ def test_triples_choices_with_some_excluded():
 
 
 def test_triples_contexts():
-    iom = IOMemory()
+    iom = Memory()
     ctx = 'http://example.org/ctx'
     ctx1 = 'http://example.org/ctx1'
     iom.add((URIRef('http://example.org/a'),
@@ -236,7 +240,7 @@ def test_triples_contexts():
 
 
 def test_triples_choices_contexts():
-    iom = IOMemory()
+    iom = Memory()
     ctx = 'http://example.org/ctx'
     ctx1 = 'http://example.org/ctx1'
     iom.add((URIRef('http://example.org/a'),
