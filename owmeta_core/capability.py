@@ -33,6 +33,7 @@ necessary.
 '''
 import six
 from .utils import FCN
+from itertools import chain, repeat
 
 
 class _Singleton(type):
@@ -107,7 +108,17 @@ class Capable(object):
     @property
     def needed_capabilities(self):
         '''
-        The list of needed capabilities
+        The list of needed capabilities. These should be treated as though they are
+        required for any of the object's methods.
+        '''
+        return []
+
+    @property
+    def wanted_capabilities(self):
+        '''
+        The list of wanted capabilities. These should be treated as though they are
+        optional. The `Capable` subclass must determine how to deal with the provider not
+        being available.
         '''
         return []
 
@@ -158,6 +169,13 @@ class CannotProvideCapability(Exception):
 class NoProviderAvailable(Exception):
     '''
     Thrown when there is no provider available for a capabiilty
+
+    Attributes
+    ----------
+    cap : Capability
+        The capability that was sought
+    receiver : Capable
+        The object for which the capability was sought
     '''
     def __init__(self, cap, receiver=None):
         '''
@@ -171,6 +189,15 @@ class NoProviderAvailable(Exception):
         super(NoProviderAvailable, self).__init__('No providers currently provide {}{}'
                 .format(cap, ' for ' + repr(receiver) if receiver else ''))
         self._cap = cap
+        self._receiver = receiver
+
+    @property
+    def capability(self):
+        return self._cap
+
+    @property
+    def receiver(self):
+        return self._receiver
 
 
 class NoProviderGiven(Exception):
@@ -211,11 +238,18 @@ def provide(ob, provs):
         An object which may need capabilities
     provs : list of Provider
         The providers available
+
+    Raises
+    ------
+    NoProviderAvailable
+        when there is no provider available
     '''
     if is_capable(ob):
-        for cap in ob.needed_capabilities:
+        for required, cap in chain(
+                zip(repeat(True), ob.needed_capabilities),
+                zip(repeat(False), ob.wanted_capabilities)):
             provider = get_provider(ob, cap, provs)
-            if not provider:
+            if not provider and required:
                 raise NoProviderAvailable(cap, ob)
             ob.accept_capability_provider(cap, provider)
 

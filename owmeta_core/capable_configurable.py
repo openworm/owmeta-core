@@ -20,6 +20,12 @@ class CapableConfigurable(Capable, Configurable):
          <.capability.Provider>`
     '''
     def __init__(self, *args, **kwargs):
+        '''
+        Raises
+        ------
+        NoProviderAvailable
+            if any of the needed capabilities cannot be provided
+        '''
         super().__init__(*args, **kwargs)
         conf_providers = self.conf.get(CAPABILITY_PROVIDERS_KEY, [])
         if conf_providers:
