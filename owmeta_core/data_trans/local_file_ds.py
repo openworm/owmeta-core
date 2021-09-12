@@ -63,7 +63,7 @@ class LocalFileDataSource(CapableConfigurable, FileDataSource):
 
     file_name = Informational(display_name='File name')
     torrent_file_name = Informational(display_name='Torrent file name')
-    needed_capabilities = [FilePathCapability(), OutputFilePathCapability()]
+    wanted_capabilities = [FilePathCapability(), OutputFilePathCapability()]
 
     def __init__(self, *args, commit_op=CommitOp.COPY, **kwargs):
         '''
