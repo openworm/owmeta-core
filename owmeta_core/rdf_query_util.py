@@ -118,8 +118,8 @@ def get_most_specific_rdf_type(graph, types, base=None):
     if len(most_specific_types) == 1:
         return most_specific_types.pop()
     else:
-        L.warning(('No most-specific type could be determined among {}'
-                   ' constrained to subclasses of {}').format(types, repr(base)))
+        L.warning(('No most-specific type could be determined among %s'
+                   ' constrained to subclasses of %r'), types, base)
         return None
 
 

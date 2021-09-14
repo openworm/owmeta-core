@@ -1,3 +1,5 @@
+import logging
+
 from .configure import Configurable
 from .capability import Capable, provide
 from .utils import retrieve_provider
@@ -32,6 +34,12 @@ class CapableConfigurable(Capable, Configurable):
             providers = []
             for p in conf_providers:
                 if isinstance(p, str):
-                    p = retrieve_provider(p)()
-                providers.append(p)
+                    provider = retrieve_provider(p)()
+                else:
+                    provider = p
+                if not provider:
+                    raise Exception('No provider found for ' + p)
+                providers.append(provider)
             provide(self, providers)
+        else:
+            logging.debug("No providers for %s in %r", self, self.conf)

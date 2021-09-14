@@ -21,12 +21,11 @@ from os.path import (exists,
         expanduser,
         expandvars)
 
-from os import makedirs, mkdir, listdir, rename, unlink, scandir
+from os import makedirs, mkdir, rename, unlink, scandir
 
 import shutil
 import json
 import logging
-import errno
 from collections import namedtuple
 from textwrap import dedent
 from tempfile import TemporaryDirectory
@@ -45,7 +44,7 @@ from .commands.bundle import OWMBundle
 from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
                       CLASS_REGISTRY_CONTEXT_KEY)
 from .context_common import CONTEXT_IMPORTS
-from .capability import provide
+from .capable_configurable import CAPABILITY_PROVIDERS_KEY
 from .capabilities import FilePathProvider
 from .datasource_loader import DataSourceDirLoader, LoadFailed
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
@@ -971,8 +970,6 @@ class OWM(object):
 
     graph_accessor_finder = IVar(doc='Finds an RDFLib graph from the given URL')
 
-    basedir = IVar('.', doc='The base directory. owmdir is resolved against this base')
-
     repository_provider = IVar(doc='The provider of the repository logic'
                                    ' (cloning, initializing, committing, checkouts)')
 
@@ -1038,6 +1035,17 @@ class OWM(object):
     def userdir(self, val):
         self._userdir = val
 
+    @IVar.property('.')
+    def basedir(self):
+        '''
+        The base directory. owmdir is resolved against this base
+        '''
+        return self._basedir
+
+    @basedir.setter
+    def basedir(self, val):
+        self._basedir = realpath(expandvars(expanduser(val)))
+
     @IVar.property(DEFAULT_OWM_DIR)
     def owmdir(self):
         '''
@@ -1074,6 +1082,17 @@ class OWM(object):
     @store_name.setter
     def store_name(self, val):
         self._store_name = val
+
+    @IVar.property('temp')
+    def temporary_directory(self):
+        ''' The base temporary directory for any operations that need one '''
+        if isabs(self._temporary_directory):
+            return self._temporary_directory
+        return pth_join(self.owmdir, self._temporary_directory)
+
+    @temporary_directory.setter
+    def temporary_directory(self, val):
+        self._temporary_directory = val
 
     def _ensure_owmdir(self):
         if not exists(self.owmdir):
@@ -1427,6 +1446,9 @@ class OWM(object):
                                                                remotes=project_remotes,
                                                                dependencies=lambda: deps)
 
+            providers = dat.get(CAPABILITY_PROVIDERS_KEY, [])
+            providers.extend(self._cap_provs())
+            dat[CAPABILITY_PROVIDERS_KEY] = providers
             self._owm_connection = connect(conf=dat)
 
             self._dat = dat
@@ -1599,49 +1621,55 @@ class OWM(object):
 
         Parameters
         ----------
-        translator : str or `.DataTranslator`
+        translator : str
             Translator identifier
         output_key : str
             Output key. Used for generating the output's identifier. Exclusive with output_identifier
         output_identifier : str
             Output identifier. Exclusive with output_key
-        data_sources : list of str or list of `.DataSource`
+        data_sources : list of str
             Input data sources
         named_data_sources : dict
             Named input data sources
         """
-        import transaction
+        from .datasource import (translate,
+                NoTranslatorFound, NoSourceFound, DataTransformer, DataSource)
+        source_ids = []
+        for s in data_sources:
+            if isinstance(s, DataSource):
+                source_ids.append(s.identifier)
+            else:
+                source_ids.append(self._den3(s))
 
-        if named_data_sources is None:
-            named_data_sources = dict()
+        if isinstance(translator, DataTransformer):
+            transformer_id = translator.identifier
+        else:
+            transformer_id = self._den3(translator)
 
-        translator_obj = self._lookup_translator(translator)
-        if translator_obj is None:
-            raise GenericUserError(f'No translator for {translator}')
+        named_data_source_ids = dict()
+        if named_data_sources is not None:
+            for key, ds in named_data_sources.items():
+                if isinstance(ds, DataSource):
+                    named_data_source_ids[key] = ds.identifier
+                else:
+                    named_data_source_ids[key] = self._den3(ds)
 
-        positional_sources = [self._lookup_source(src) for src in data_sources]
-        if None in positional_sources:
-            raise GenericUserError(f'No source for "{data_sources[positional_sources.index(None)]}"')
-        named_sources = {k: self._lookup_source(src) for k, src in
-                named_data_sources.items()}
-        with self._tempdir(prefix='owm-translate.') as d:
-            orig_wd = os.getcwd()
-            with transaction.manager:
-                os.chdir(d)
-                try:
-                    res = self._default_ctx(translator_obj)(*positional_sources,
-                                         output_identifier=output_identifier,
-                                         output_key=output_key,
-                                         **named_sources)
-                finally:
-                    os.chdir(orig_wd)
-                res.commit()
-                res.context.save_context()
-                return res
+        try:
+            tempdir = self.temporary_directory
+            if not exists(tempdir):
+                makedirs(tempdir)
+            return translate(self._default_ctx.stored,
+                self._default_ctx,
+                tempdir,
+                transformer_id,
+                data_sources=source_ids,
+                named_data_sources=named_data_source_ids)
+        except (NoTranslatorFound, NoSourceFound) as e:
+            raise GenericUserError(e)
 
     @contextmanager
     def _tempdir(self, *args, **kwargs):
-        td = pth_join(self.owmdir, 'temp')
+        td = self.temporary_directory
         if not exists(td):
             makedirs(td)
         kwargs['dir'] = td
@@ -1676,39 +1704,6 @@ class OWM(object):
             except OSError:
                 pass
             self._data_source_directories = dsd
-
-    def _stage_translation_directory(self, source_directory, target_directory):
-        self.message('Copying files into {} from {}'.format(target_directory, source_directory))
-        # TODO: Add support for a selector based on a MANIFEST and/or ignore
-        # file to pass in as the 'ignore' option to copytree
-        for dirent in listdir(source_directory):
-            src = pth_join(source_directory, dirent)
-            dst = pth_join(target_directory, dirent)
-            self.message('Copying {} to {}'.format(src, dst))
-            try:
-                shutil.copytree(src, dst)
-            except OSError as e:
-                if e.errno == errno.ENOTDIR:
-                    shutil.copy2(src, dst)
-
-    def _lookup_translator(self, tname):
-        from owmeta_core.datasource import DataTranslator
-
-        if isinstance(tname, DataTranslator):
-            tname = tname.identifier
-
-        for x in self._default_ctx.stored(DataTranslator)(ident=self._den3(tname)).load():
-            return x
-
-    def _lookup_source(self, sname):
-        from owmeta_core.datasource import DataSource
-
-        if isinstance(sname, DataSource):
-            sname = sname.identifier
-
-        for x in self._default_ctx.stored(DataSource)(ident=self._den3(sname)).load():
-            provide(x, self._cap_provs())
-            return x
 
     def _cap_provs(self):
         return [DataSourceDirectoryProvider(self._dsd),

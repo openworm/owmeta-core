@@ -43,8 +43,8 @@ class SimpleDataSourceDirProvider(OutputFilePathProvider):
 
     def provides_to(self, obj):
         if isinstance(obj, DataSource):
-            key = hashlib.sha256(self.identifier).hexdigest()
-            return type(self).Helper(key)
+            key = hashlib.sha256(obj.identifier.encode('utf-8')).hexdigest()
+            return type(self).Helper(self, key)
         return None
 
     class Helper(OutputFilePathProvider):

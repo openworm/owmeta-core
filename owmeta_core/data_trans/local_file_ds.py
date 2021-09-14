@@ -95,7 +95,7 @@ class LocalFileDataSource(CapableConfigurable, FileDataSource):
         This file should be closed when you are done with it. It may be used as a context
         manager
         '''
-        return open(self.full_path(), 'b')
+        return open(self.full_path(), 'br')
 
     def full_path(self):
         '''
@@ -105,7 +105,7 @@ class LocalFileDataSource(CapableConfigurable, FileDataSource):
 
     def basedir(self):
         if not self._base_path_provider:
-            raise NoProviderGiven(FilePathCapability())
+            raise NoProviderGiven(FilePathCapability(), self)
         return self._base_path_provider.file_path()
 
     def file_output(self):
@@ -125,7 +125,7 @@ class LocalFileDataSource(CapableConfigurable, FileDataSource):
 
     def output_basedir(self):
         if not self._output_file_path_provider:
-            raise NoProviderGiven(OutputFilePathCapability())
+            raise NoProviderGiven(OutputFilePathCapability(), self)
         return self._output_file_path_provider.file_path()
 
     def commit_augment(self):

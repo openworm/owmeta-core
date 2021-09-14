@@ -168,13 +168,13 @@ def test_translate_data_source_loader(owm_project):
             ctx(DT2)(ident='http://example.org/trans1')
             # Create a translator
             ctx_id = conn.conf[DEFAULT_CONTEXT_KEY]
-            print(conn.rdf.serialize(format='nquads').decode('utf-8'))
+            # print(conn.rdf.serialize(format='nquads').decode('utf-8'))
             print("-------------------------")
             print("DT2.definition_context",
                   DT2.definition_context, id(DT2.definition_context))
 
             DT2.definition_context.save(conn.rdf)
-            print(conn.rdf.serialize(format='nquads').decode('utf-8'))
+            # print(conn.rdf.serialize(format='nquads').decode('utf-8'))
             print("-------------------------")
             owm.save(DataSource.__module__)
             owm.save(LFDS.__module__)
@@ -186,7 +186,7 @@ def test_translate_data_source_loader(owm_project):
             main_ctx.save_imports()
             ctx.save()
             conn.mapper.save()
-            print(conn.rdf.serialize(format='nquads').decode('utf-8'))
+            # print(conn.rdf.serialize(format='nquads').decode('utf-8'))
     owm_project.make_module('tests')
     modpath = owm_project.copy('tests/test_modules', 'tests/test_modules')
     dsfile = owm_project.writefile('DSFile', 'some stuff')
