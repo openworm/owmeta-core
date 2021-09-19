@@ -1,3 +1,7 @@
+- Make the OutputFilePath *provider* transactional such that the LFDS can just
+  write out whatever it wants and we commit by, say, renaming directories and
+  have it implement transaction.ITransactionManager
+
 - Finish the transformer super-classes
 - Make `subproperty_of` in class dict work to create rdfs_subpropertyof assignments.
 - Define un-zip transformer

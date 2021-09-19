@@ -1632,8 +1632,8 @@ class OWM(object):
         named_data_sources : dict
             Named input data sources
         """
-        from .datasource import (translate,
-                NoTranslatorFound, NoSourceFound, DataTransformer, DataSource)
+        from .datasource import (translate, NoTranslatorFound, NoSourceFound,
+                DataTransformer, DataSource)
         source_ids = []
         for s in data_sources:
             if isinstance(s, DataSource):

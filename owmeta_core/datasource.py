@@ -636,7 +636,7 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
 
     def make_new_output(self, sources, *args, **kwargs):
         '''
-        Make a new output `DataSource`. Typically called within `transform`. The t
+        Make a new output `DataSource`. Typically called within `transform`.
         '''
         trans = self.make_transformation(sources)
         res = self.output_type.contextualize(self.context)(*args, transformation=trans,
