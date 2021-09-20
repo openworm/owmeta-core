@@ -105,9 +105,9 @@ class TransactionalDataSourceDirProvider(OutputFilePathProvider):
 
         def tpc_abort(self, transaction):
             try:
-                rename(self._committed_path, self._uncommitted_path)
-                rename(self._prev_version_path, self._committed_path)
-                rmtree(self._uncommitted_path, onerror=self._handle_rmtree_error)
+                rmtree(self._committed_path)
+                if exists(self._prev_version_path):
+                    rename(self._prev_version_path, self._committed_path)
             except Exception:
                 L.error('Received exception in tpc_abort for transaction for %s,'
                         ' aborting %s, back to %s',
