@@ -122,6 +122,17 @@ class ContainerMembershipProperty(UnionPropertyType):
 
     def __init__(self, index, **kwargs):
         super().__init__(**kwargs)
+        if isinstance(index, str):
+            md = CONTAINER_MEMBERSHIP_PROPERTY_RE.match(index)
+            if not md:
+                raise ValueError(f'Expected an integer > 0. Received {index!r}.')
+            index = int(md.group(1))
+        elif isinstance(index, int):
+            if index <= 0:
+                raise ValueError('Expected an integer > 0')
+        else:
+            raise ValueError('Expected an integer > 0')
+
         self.__index = index
         name = f'_{index}'
         try:

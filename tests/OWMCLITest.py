@@ -157,6 +157,7 @@ def test_translator_list_kinds(owm_project, core_bundle):
 def test_translate_data_source_loader(owm_project):
     owm = owm_project.owm()
     with owm.connect() as conn:
+        def print_graph(): print(conn.rdf.serialize(format='nquads', encoding='utf-8').decode('utf-8'))
         with transaction.manager:
             # Create data sources
             ctx = conn(Context)(ident='http://example.org/context')
@@ -168,13 +169,13 @@ def test_translate_data_source_loader(owm_project):
             ctx(DT2)(ident='http://example.org/trans1')
             # Create a translator
             ctx_id = conn.conf[DEFAULT_CONTEXT_KEY]
-            print(conn.rdf.serialize(format='nquads').decode('utf-8'))
+            print_graph()
             print("-------------------------")
             print("DT2.definition_context",
                   DT2.definition_context, id(DT2.definition_context))
 
             DT2.definition_context.save(conn.rdf)
-            print(conn.rdf.serialize(format='nquads').decode('utf-8'))
+            print_graph()
             print("-------------------------")
             owm.save(DataSource.__module__)
             owm.save(LFDS.__module__)
@@ -186,7 +187,7 @@ def test_translate_data_source_loader(owm_project):
             main_ctx.save_imports()
             ctx.save()
             conn.mapper.save()
-            print(conn.rdf.serialize(format='nquads').decode('utf-8'))
+            print_graph()
     owm_project.make_module('tests')
     modpath = owm_project.copy('tests/test_modules', 'tests/test_modules')
     dsfile = owm_project.writefile('DSFile', 'some stuff')
