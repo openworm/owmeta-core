@@ -46,7 +46,7 @@ class _DatabaseBackendBT(object):
             self.dat.destroy()
 
             self.dat.init()
-            self.assertEqual(20, len(list(self.dat['rdf.graph'])))
+            self.assertEqual(20, len(self.dat['rdf.graph']))
         except Exception:
             traceback.print_exc()
             self.fail("Bad state")
