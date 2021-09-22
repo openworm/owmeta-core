@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/openworm/owmeta-core.png?branch=dev)](https://travis-ci.org/openworm/owmeta-core/builds)
+[![Build Status](https://github.com/openworm/owmeta-core/actions/workflows/python-package.yml/badge.svg)](https://github.com/openworm/owmeta-core/actions/workflows/python-package.yml)
 [![Docs](https://readthedocs.org/projects/owmeta-core/badge/?version=latest)](https://owmeta-core.readthedocs.io/en/latest)
 [![Coverage Status](https://coveralls.io/repos/github/openworm/owmeta-core/badge.svg?branch=develop)](https://coveralls.io/github/openworm/owmeta-core?branch=develop)
 
