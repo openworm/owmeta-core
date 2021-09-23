@@ -2,16 +2,16 @@
 
 from __future__ import absolute_import
 import unittest
+import logging
 from owmeta_core.data import Data
 import rdflib as R
 import os
 from os.path import join as p
 import tempfile
-import traceback
 import shutil
 from pytest import mark
 
-from .GraphDBInit import delete_zodb_data_store, make_graph, has_bsddb
+from .GraphDBInit import make_graph, has_bsddb
 
 
 class _DatabaseBackendBT(object):
@@ -21,6 +21,7 @@ class _DatabaseBackendBT(object):
         self.testdir = tempfile.mkdtemp(prefix=__name__ + '.')
         self.dat = Data()
         self._configure(self.dat)
+        logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
 
     def tearDown(self):
         shutil.rmtree(self.testdir)
@@ -32,10 +33,7 @@ class _DatabaseBackendBT(object):
     def test_init_no_rdf_store(self):
         """ Should be able to init without these values """
         d = Data()
-        try:
-            d.init()
-        except Exception:
-            self.fail("Bad state")
+        d.init()
 
     def test(self):
         try:
@@ -47,9 +45,6 @@ class _DatabaseBackendBT(object):
 
             self.dat.init()
             self.assertEqual(20, len(self.dat['rdf.graph']))
-        except Exception:
-            traceback.print_exc()
-            self.fail("Bad state")
         finally:
             self.dat.destroy()
 

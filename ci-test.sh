@@ -53,6 +53,7 @@ if [ "$POSTGRES_TEST" ] ; then
     export POSTGRES_URI="postgresql+pg8000://postgres:$PGPASSWORD@localhost/test"
     pt --verbose -m postgres_source "$@"
     add_coverage
+    export POSTGRES_URI=
 fi
 
 if [ "$MYSQL_TEST" ] ; then
@@ -65,6 +66,7 @@ if [ "$MYSQL_TEST" ] ; then
     export MYSQL_URI='mysql+mysqldb://test:password@127.0.0.1/test?charset=utf8'
     pt --verbose -m mysql_source
     add_coverage
+    export MYSQL_URI=
 fi
 pt --verbose -m "'not inttest and not owm_cli_test'" "$@"
 add_coverage
