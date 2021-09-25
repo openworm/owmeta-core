@@ -2,7 +2,6 @@
 
 from __future__ import absolute_import
 import unittest
-import logging
 from owmeta_core.data import Data
 import rdflib as R
 import os
@@ -15,13 +14,17 @@ from .GraphDBInit import make_graph, has_bsddb
 
 
 class _DatabaseBackendBT(object):
-    ''' Integration tests for the database backend '''
+    '''
+    Integration tests for the database backend
+
+    These stores have their own tests, but these are a couple things we care about in
+    owmeta-core
+    '''
 
     def setUp(self):
         self.testdir = tempfile.mkdtemp(prefix=__name__ + '.')
         self.dat = Data()
         self._configure(self.dat)
-        logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
 
     def tearDown(self):
         shutil.rmtree(self.testdir)
@@ -39,6 +42,21 @@ class _DatabaseBackendBT(object):
         try:
             self.dat.init()
             g = make_graph(20)
+            for x in g:
+                self.dat['rdf.graph'].add(x)
+            self.dat.destroy()
+
+            self.dat.init()
+            self.assertEqual(20, len(self.dat['rdf.graph']))
+        finally:
+            self.dat.destroy()
+
+    def test_add_dupes_len(self):
+        try:
+            self.dat.init()
+            g = make_graph(20)
+            for x in g:
+                self.dat['rdf.graph'].add(x)
             for x in g:
                 self.dat['rdf.graph'].add(x)
             self.dat.destroy()
