@@ -409,17 +409,15 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
             if v is not None:
                 ctxd_prop(v)
 
-    def commit(self):
+    def after_transform(self):
         '''
-        Commit the data source *locally*
+        Called after `Transformer.transform`.
 
-        This includes staging files such as they would be available for a translation. In general, a sub-class should
-        implement :meth:`commit_augment` rather than this method, or at least call this method via super
+        This method should handle any of the things that should happen for an output data
+        source after `Transformer.transform` (or `Translator.translate`). This can include
+        things like flushing output to files, closing file handles, and writing triples in
+        a Context.
         '''
-        self.commit_augment()
-
-    def commit_augment(self):
-        pass
 
     def defined_augment(self):
         return self.transformation.has_defined_value() or self.translation.has_defined_value()
@@ -586,7 +584,9 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
         self.output_key = kwargs.pop('output_key', None)
         self.output_identifier = kwargs.pop('output_identifier', None)
         try:
-            return self.transform(*args, **kwargs)
+            res = self.transform(*args, **kwargs)
+            res.after_transform()
+            return res
         finally:
             self.output_key = None
             self.output_identifier = None

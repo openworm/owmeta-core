@@ -252,11 +252,11 @@ class DataTransformerTest(_DataTest):
             transformation_type = TestTrans
 
             def transform(self, sources=()):
-                res = super().make_transformation(sources)
-                res.a('soup')
+                res = super().make_new_output(sources)
+                res.transformation.one().a('soup')
                 return res
         dt = TestDTF()
-        assert dt().a.onedef() == 'soup'
+        assert dt().transformation.onedef().a.onedef() == 'soup'
 
 
 class DataTranslatorTest(_DataTest):
