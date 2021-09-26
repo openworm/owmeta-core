@@ -1,3 +1,9 @@
+'''
+This module defines a generic configuration dictionary with a few extra features.
+
+A list of all documented configuration values can be found under "configuration values" in
+the index.
+'''
 from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import unicode_literals
@@ -132,6 +138,19 @@ class Configuration(object):
 
     @classmethod
     def process_config(cls, config_dict, variables=None):
+        '''
+        Resolves variables in config values and creates an instance of this class
+
+        Parameters
+        ----------
+        config_dict : dict
+            The source for the resulting config
+
+        Returns
+        -------
+        Configuration
+            config populated with variables
+        '''
         c = cls()
         for k in config_dict:
             value = config_dict[k]
@@ -159,10 +178,9 @@ class Configuration(object):
                                          "Env-var names must be alphnumeric "
                                          "and start with either a letter or '_'" % match)
                     return res
-                res = re.sub(r'\$([A-Za-z0-9_]+)', matchf, value)
-                res = None if res == '' else res
-                config_dict[k] = res
-            c[k] = _C(config_dict[k])
+                value = re.sub(r'\$([A-Za-z0-9_]+)', matchf, value)
+                value = None if value == '' else value
+            c[k] = _C(value)
         return c
 
     @classmethod
@@ -170,8 +188,28 @@ class Configuration(object):
         """
         Open a configuration file and read it to build the internal state.
 
-        :param file_name: configuration file encoded as JSON
-        :return: a Configuration object with the configuration taken from the JSON file
+        Sets :confval:`configure.file_location` to the given file_name
+
+        .. confval:: configure.file_location
+
+            The location where a `.Configuration` was loaded from. This may be set by any
+            function that loads the configuration -- not just `.Configuration.open`.
+            Generally, this value is suitable for finding files in locations relative to
+            the config file, but not for much else.
+
+        Parameters
+        ----------
+        file_name : str
+            configuration file encoded as JSON
+
+        Returns
+        -------
+        Configuration
+            returns an instance of this class with the configuration taken from the JSON file
+
+        See Also
+        --------
+        process_config
         """
 
         with open(file_name) as f:

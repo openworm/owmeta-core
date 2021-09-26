@@ -116,7 +116,7 @@ def columns_arg_to_list(arg):
     return [s.strip() for s in arg.split(',')]
 
 
-def main():
+def main(*args):
     '''
     Entry point for the command line interface.
 
@@ -152,6 +152,11 @@ def main():
     across installations. See `owmeta_core.cli_hints` source for the format of hints.
 
     See `CLICommandWrapper` for more details on how the command line options are constructed.
+
+    Parameters
+    ----------
+    *args
+        Arguments to the command. Used instead of `sys.argv`
     '''
     logging.basicConfig()
 
@@ -167,7 +172,7 @@ def main():
         profiler.enable()
 
     try:
-        _helper(p)
+        _helper(p, args=(args or None))
     except (CLIUserError, GenericUserError) as e:
         s = str(e)
         if not s:
@@ -256,12 +261,13 @@ def _augment_subcommands_from_entry_points():
     return command_map[()]
 
 
-def _helper(p):
+def _helper(p, args=None):
     ns_handler = NSHandler(p)
 
     hints = _gather_hints_from_entry_points(dict(**CLI_HINTS))
 
     out = CLICommandWrapper(p, hints_map=hints).main(
+            args=args,
             argument_callback=additional_args,
             argument_namespace_callback=ns_handler)
 

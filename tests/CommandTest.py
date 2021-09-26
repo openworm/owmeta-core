@@ -605,8 +605,8 @@ class OWMTranslateTest(BaseTest):
         translator = 'http://example.org/translator'
         source = 'http://example.org/source'
         imports_context_ident = 'http://example.org/imports'
-        self.cut._lookup_translator = lambda *args, **kwargs: Mock()
-        with self.assertRaisesRegexp(GenericUserError, re.escape(source)):
+        with patch('owmeta_core.datasource._lookup_translator'), \
+                self.assertRaisesRegexp(GenericUserError, re.escape(source)):
             self.cut.translate(translator, imports_context_ident, data_sources=(source,))
 
     def test_translate_unknown_source_object_message(self):
@@ -618,8 +618,8 @@ class OWMTranslateTest(BaseTest):
         translator = 'http://example.org/translator'
         source = DataSource(ident='http://example.org/source')
         imports_context_ident = 'http://example.org/imports'
-        self.cut._lookup_translator = lambda *args, **kwargs: Mock()
-        with self.assertRaisesRegexp(GenericUserError, re.escape(source.identifier)):
+        with patch('owmeta_core.datasource._lookup_translator'), \
+                self.assertRaisesRegexp(GenericUserError, re.escape(source.identifier)):
             self.cut.translate(translator, imports_context_ident, data_sources=(source,))
 
     # Test saving a translator ensures the input and output types are saved source is saved

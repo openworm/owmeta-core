@@ -3,6 +3,8 @@ from __future__ import absolute_import
 
 from collections import OrderedDict, defaultdict
 import logging
+import os
+from tempfile import TemporaryDirectory
 
 from rdflib.term import URIRef
 import six
@@ -642,7 +644,9 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
         trans = self.make_transformation(sources)
         res = self.output_type.contextualize(self.context)(*args, transformation=trans,
                                                            ident=self.output_identifier,
-                                                           key=self.output_key, **kwargs)
+                                                           key=self.output_key,
+                                                           conf=self.conf,
+                                                           **kwargs)
         for s in sources:
             res.source(s)
 
@@ -737,3 +741,96 @@ class PersonDataTranslator(BaseDataTranslator):
             __doc__='A person responsible for carrying out the translation.')
 
     # No translate impl is provided here since this is intended purely as a descriptive object
+
+
+def translate(source_ctx, declaration_ctx, base_tempdir, translator,
+              output_key=None, output_identifier=None,
+              data_sources=(), named_data_sources=None):
+    """
+    Do a translation with the named translator and inputs
+
+    Parameters
+    ----------
+    source_ctx : Context
+        The context to use for looking up or contextualizing sources and translators
+    declaration_ctx : Context
+        The context to save things to
+    base_tempdir : path-like object
+        The base directory for the temporary working directory for the translation
+    translator : URIRef
+        Translator identifier
+    output_key : str
+        Output key. Used for generating the output's identifier. Exclusive with output_identifier
+    output_identifier : str
+        Output identifier. Exclusive with output_key
+    data_sources : list of URIRef
+        Input data sources
+    named_data_sources : dict
+        Named input data sources
+
+    Raises
+    ------
+    NoTranslatorFound
+        when a translator cannot be looked up in the given context
+    NoSourceFound
+        when a source cannot be looked up in the given context
+    """
+    import transaction
+
+    if named_data_sources is None:
+        named_data_sources = dict()
+
+    translator_obj = _lookup_translator(source_ctx, translator)
+    if translator_obj is None:
+        raise NoTranslatorFound(f'No translator for {translator}')
+
+    positional_sources = []
+    for idx, sname in enumerate(data_sources):
+        src = _lookup_source(source_ctx, sname)
+        if src is None:
+            raise NoSourceFound(f'No source for "{sname}"')
+        positional_sources.append(src)
+
+    named_sources = dict()
+    for key, sname in named_data_sources.items():
+        src = _lookup_source(source_ctx, sname)
+        if src is None:
+            raise NoSourceFound(f'No source for "{sname}", named {key}')
+        named_sources[key] = src
+
+    with TemporaryDirectory(dir=base_tempdir, prefix='owm-translate.') as d:
+        orig_wd = os.getcwd()
+        with transaction.manager:
+            os.chdir(d)
+            try:
+                res = declaration_ctx(translator_obj)(*positional_sources,
+                                     output_identifier=output_identifier,
+                                     output_key=output_key,
+                                     **named_sources)
+            finally:
+                os.chdir(orig_wd)
+            res.commit()
+            res.context.save_context()
+            return res
+
+
+def _lookup_translator(ctx, tname):
+    for x in ctx(DataTranslator)(ident=tname).load():
+        return x
+
+
+def _lookup_source(ctx, sname):
+    for x in ctx(DataSource)(ident=sname).load():
+        return x
+
+
+class NoTranslatorFound(Exception):
+    '''
+    Raised by `translate` when a translator cannot be found in the current context
+    '''
+
+
+class NoSourceFound(Exception):
+    '''
+    Raised by `translate` when a source cannot be found in the current context
+    '''

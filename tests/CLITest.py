@@ -1,12 +1,14 @@
 import json
 import re
 import unittest
-from unittest.mock import patch, Mock
+from unittest.mock import patch, Mock, ANY
 from types import MethodType
 
 import pytest
 
 import owmeta_core.cli as PCLI
+from owmeta_core.utils import FCN
+from owmeta_core.cli_common import METHOD_KWARGS
 
 from .TestUtilities import noexit, stdout
 
@@ -449,6 +451,98 @@ def test_augment_function_subcommand():
         iter_entry_points.return_value = [ep]
         augmented = PCLI._augment_subcommands_from_entry_points()
         assert isinstance(augmented().apple, MethodType)
+
+
+def test_kwargs():
+    class Base:
+        pass
+
+    def subcommand(self, **kwargs):
+        '''
+        Blah
+
+        Parameters
+        ----------
+        **kwargs
+            Something something
+        '''
+
+    with patch('owmeta_core.cli.iter_entry_points') as iter_entry_points, \
+            patch('owmeta_core.cli.OWM', new=Base):
+        ep = Mock(name='entry_point')
+        ep.name = 'apple'
+        ep.load.return_value = subcommand
+        iter_entry_points.return_value = [ep]
+        PCLI.main('apple', '--kwargs', 'key1=val1', '--kwargs', 'key2=val2')
+
+
+def test_hinted_kwargs():
+    class Base:
+        pass
+
+    command_mock = Mock()
+
+    def subcommand(self, **kwargs):
+        '''
+        Blah
+
+        Parameters
+        ----------
+        **kwargs
+            Something something
+        '''
+        command_mock(self, **kwargs)
+
+    hints = {FCN(Base): {
+        'apple': {
+            (METHOD_KWARGS, 'kwargs'): {
+                'names': ['-e'],
+            },
+        }}}
+    with patch('owmeta_core.cli.iter_entry_points') as iter_entry_points, \
+            patch('owmeta_core.cli.CLI_HINTS', new=hints), \
+            patch('owmeta_core.cli.OWM', new=Base):
+        ep = Mock(name='entry_point')
+        ep.name = 'apple'
+        ep.load.return_value = subcommand
+        iter_entry_points.return_value = [ep]
+        PCLI.main('apple', '-e', 'key1=val1', '-e', 'key2=val2')
+        command_mock.assert_called_with(ANY, key1='val1', key2='val2')
+
+
+def test_hinted_kwargs_passed_positionally():
+    class Base:
+        pass
+
+    command_mock = Mock()
+
+    def subcommand(self, **kwargs):
+        '''
+        Blah
+
+        Parameters
+        ----------
+        **kwargs
+            Something something
+        '''
+        command_mock(self, **kwargs)
+
+    hints = {FCN(Base): {
+        'apple': {
+            (METHOD_KWARGS, 'kwargs'): {
+                'nargs': '*',
+                'names': ['kwarg'],
+            },
+        }}}
+    with patch('owmeta_core.cli.iter_entry_points') as iter_entry_points, \
+            patch('owmeta_core.cli.CLI_HINTS', new=hints), \
+            patch('owmeta_core.cli.OWM', new=Base):
+        ep = Mock(name='entry_point')
+        ep.name = 'apple'
+        ep.load.return_value = subcommand
+        iter_entry_points.side_effect = [[ep], []]
+        PCLI.main('apple', 'key1=val1', 'key2=val2')
+        command_mock.assert_called_with(ANY, key1='val1', key2='val2')
 
 
 def with_defaults(func):

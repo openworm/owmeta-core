@@ -20,9 +20,9 @@ class DataSourceDirLoader(object):
 
     .. automethod:: __call__
     '''
-    def __init__(self, base_directory=None):
+    def __init__(self, base_directory=None, directory_key=None):
         self.base_directory = base_directory
-        self.directory_key = FCN(type(self))
+        self.directory_key = directory_key or FCN(type(self))
 
     def __call__(self, data_source):
         '''

@@ -9,5 +9,9 @@ class DT2(DataTranslator):
     translator_identifier = 'http://example.org/trans1'
 
     def translate(self, source):
-        print(source.full_path(), end='')
-        return self.make_new_output((source,), file_name='Outfile')
+        with source.file_contents() as f:
+            print("File contents:\n", f.read())
+
+        res = self.make_new_output((source,), file_name='Outfile')
+        res.source_file_path = source.full_path()
+        return res
