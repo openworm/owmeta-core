@@ -585,17 +585,6 @@ class OWMTranslateTest(BaseTest):
         with self.assertRaisesRegexp(GenericUserError, re.escape(translator)):
             self.cut.translate(translator, imports_context_ident)
 
-    def test_translate_unknown_translator_object_message(self):
-        '''
-        Should exit with a message indicating the translator type
-        cannot be found in the graph
-        '''
-
-        translator = DataTranslator(ident='http://example.org/translator')
-        imports_context_ident = 'http://example.org/imports'
-        with self.assertRaisesRegexp(GenericUserError, re.escape(translator.identifier)):
-            self.cut.translate(translator, imports_context_ident)
-
     def test_translate_unknown_source_message(self):
         '''
         Should exit with a message indicating the source type cannot
@@ -605,22 +594,20 @@ class OWMTranslateTest(BaseTest):
         translator = 'http://example.org/translator'
         source = 'http://example.org/source'
         imports_context_ident = 'http://example.org/imports'
-        with patch('owmeta_core.datasource._lookup_translator'), \
-                self.assertRaisesRegexp(GenericUserError, re.escape(source)):
+        with self.assertRaisesRegexp(GenericUserError, re.escape(source)):
             self.cut.translate(translator, imports_context_ident, data_sources=(source,))
 
-    def test_translate_unknown_source_object_message(self):
+    def test_translate_unknown_named_source_message(self):
         '''
         Should exit with a message indicating the source type cannot
         be found in the graph
         '''
 
         translator = 'http://example.org/translator'
-        source = DataSource(ident='http://example.org/source')
+        source = 'http://example.org/source'
         imports_context_ident = 'http://example.org/imports'
-        with patch('owmeta_core.datasource._lookup_translator'), \
-                self.assertRaisesRegexp(GenericUserError, re.escape(source.identifier)):
-            self.cut.translate(translator, imports_context_ident, data_sources=(source,))
+        with self.assertRaisesRegexp(GenericUserError, f'{re.escape(source)}.*key'):
+            self.cut.translate(translator, imports_context_ident, named_data_sources={'key': source})
 
     # Test saving a translator ensures the input and output types are saved source is saved
 

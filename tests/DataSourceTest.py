@@ -255,7 +255,7 @@ class DataTransformerTest(_DataTest):
                 res = super().make_new_output(sources)
                 res.transformation.one().a('soup')
                 return res
-        dt = TestDTF()
+        dt = self.context(TestDTF)()
         assert dt().transformation.onedef().a.onedef() == 'soup'
 
 

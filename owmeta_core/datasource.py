@@ -757,8 +757,8 @@ def translate(source_ctx, declaration_ctx, base_tempdir, translator,
         The context to save things to
     base_tempdir : path-like object
         The base directory for the temporary working directory for the translation
-    translator : URIRef
-        Translator identifier
+    translator : DataTransformer
+        transformer to execute
     output_key : str
         Output key. Used for generating the output's identifier. Exclusive with output_identifier
     output_identifier : str
@@ -771,7 +771,7 @@ def translate(source_ctx, declaration_ctx, base_tempdir, translator,
     Raises
     ------
     NoTranslatorFound
-        when a translator cannot be looked up in the given context
+        when a translator is not
     NoSourceFound
         when a source cannot be looked up in the given context
     """
@@ -780,37 +780,32 @@ def translate(source_ctx, declaration_ctx, base_tempdir, translator,
     if named_data_sources is None:
         named_data_sources = dict()
 
-    translator_obj = _lookup_translator(source_ctx, translator)
-    if translator_obj is None:
-        raise NoTranslatorFound(f'No translator for {translator}')
+    if translator is None:
+        raise TypeError(f'No translator for {translator}')
 
     positional_sources = []
-    for idx, sname in enumerate(data_sources):
-        src = _lookup_source(source_ctx, sname)
-        if src is None:
-            raise NoSourceFound(f'No source for "{sname}"')
-        positional_sources.append(src)
+    for idx, psrc in enumerate(data_sources):
+        if psrc is None:
+            raise NoSourceFound(f'No source at position "{idx}"')
+        positional_sources.append(psrc)
 
     named_sources = dict()
-    for key, sname in named_data_sources.items():
-        src = _lookup_source(source_ctx, sname)
-        if src is None:
-            raise NoSourceFound(f'No source for "{sname}", named {key}')
-        named_sources[key] = src
+    for key, nsrc in named_data_sources.items():
+        if nsrc is None:
+            raise NoSourceFound(f'No source for {key}')
+        named_sources[key] = nsrc
 
     with TemporaryDirectory(dir=base_tempdir, prefix='owm-translate.') as d:
         orig_wd = os.getcwd()
         with transaction.manager:
             os.chdir(d)
             try:
-                res = declaration_ctx(translator_obj)(*positional_sources,
+                res = declaration_ctx(translator)(*positional_sources,
                                      output_identifier=output_identifier,
                                      output_key=output_key,
                                      **named_sources)
             finally:
                 os.chdir(orig_wd)
-            res.commit()
-            res.context.save_context()
             return res
 
 

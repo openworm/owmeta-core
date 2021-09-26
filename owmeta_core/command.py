@@ -1634,25 +1634,27 @@ class OWM(object):
         """
         from .datasource import (translate, NoTranslatorFound, NoSourceFound,
                 DataTransformer, DataSource)
-        source_ids = []
+        source_objs = []
+        srcctx = self._default_ctx.stored
         for s in data_sources:
-            if isinstance(s, DataSource):
-                source_ids.append(s.identifier)
-            else:
-                source_ids.append(self._den3(s))
+            src_obj = next(srcctx(DataSource)(ident=self._den3(s)).load(), None)
+            if src_obj is None:
+                raise GenericUserError(f'No source for "{s}"')
+            source_objs.append(src_obj)
 
-        if isinstance(translator, DataTransformer):
-            transformer_id = translator.identifier
-        else:
-            transformer_id = self._den3(translator)
-
-        named_data_source_ids = dict()
+        named_data_source_objs = dict()
         if named_data_sources is not None:
             for key, ds in named_data_sources.items():
-                if isinstance(ds, DataSource):
-                    named_data_source_ids[key] = ds.identifier
-                else:
-                    named_data_source_ids[key] = self._den3(ds)
+                src_obj = next(srcctx(DataSource)(ident=self._den3(ds)).load(), None)
+                if src_obj is None:
+                    raise GenericUserError(f'No source for "{ds}", named {key}')
+                named_data_source_objs[key] = src_obj
+
+        if isinstance(translator, str):
+            transformer_id = self._den3(translator)
+            transformer_obj = next(srcctx(DataTransformer)(ident=self._den3(transformer_id)).load(), None)
+            if transformer_obj is None:
+                raise GenericUserError(f'No transformer for {translator}')
 
         try:
             tempdir = self.temporary_directory
@@ -1661,9 +1663,9 @@ class OWM(object):
             return translate(self._default_ctx.stored,
                 self._default_ctx,
                 tempdir,
-                transformer_id,
-                data_sources=source_ids,
-                named_data_sources=named_data_source_ids)
+                transformer_obj,
+                data_sources=source_objs,
+                named_data_sources=named_data_source_objs)
         except (NoTranslatorFound, NoSourceFound) as e:
             raise GenericUserError(e)
 
