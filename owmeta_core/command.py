@@ -1627,7 +1627,6 @@ class OWM(object):
                                          **named_sources)
                 finally:
                     os.chdir(orig_wd)
-                res.context.save_context()
                 return res
 
     @contextmanager

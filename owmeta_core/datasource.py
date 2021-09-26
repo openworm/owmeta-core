@@ -417,6 +417,8 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
         source after `Transformer.transform` (or `Translator.translate`). This can include
         things like flushing output to files, closing file handles, and writing triples in
         a Context.
+
+        NOTE: Be sure to call this method via super() in sub-classes
         '''
 
     def defined_augment(self):
@@ -586,6 +588,7 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
         try:
             res = self.transform(*args, **kwargs)
             res.after_transform()
+            res.context.save_context()
             return res
         finally:
             self.output_key = None
@@ -634,7 +637,7 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
 
     def make_new_output(self, sources, *args, **kwargs):
         '''
-        Make a new output `DataSource`. Typically called within `transform`. The t
+        Make a new output `DataSource`. Typically called within `transform`.
         '''
         trans = self.make_transformation(sources)
         res = self.output_type.contextualize(self.context)(*args, transformation=trans,
