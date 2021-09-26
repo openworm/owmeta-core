@@ -45,7 +45,7 @@ def lfds_with_file(tmp_path):
 def test_commit_default(lfds_with_file):
     cut = lfds_with_file
 
-    cut.commit()
+    cut.after_transform()
 
     with open(cut.full_output_path()) as f:
         assert SOURCE_FILE_CONTENT == f.read()
@@ -56,7 +56,7 @@ def test_commit_rename(lfds_with_file):
     cut = lfds_with_file
     cut.commit_op = CommitOp.RENAME
 
-    cut.commit()
+    cut.after_transform()
 
     with open(cut.full_output_path()) as f:
         assert SOURCE_FILE_CONTENT == f.read()
@@ -69,7 +69,7 @@ def test_commit_symlink(lfds_with_file):
     cut = lfds_with_file
     cut.commit_op = CommitOp.SYMLINK
 
-    cut.commit()
+    cut.after_transform()
 
     with open(cut.full_output_path()) as f:
         assert SOURCE_FILE_CONTENT == f.read()
@@ -82,7 +82,7 @@ def test_commit_link(lfds_with_file):
     cut = lfds_with_file
     cut.commit_op = CommitOp.HARDLINK
 
-    cut.commit()
+    cut.after_transform()
 
     with open(cut.full_output_path()) as f:
         assert SOURCE_FILE_CONTENT == f.read()
@@ -96,4 +96,4 @@ def test_commit_no_commit_op(lfds_with_file):
     cut.commit_op = None
 
     with pytest.raises(TypeError):
-        cut.commit()
+        cut.after_transform()

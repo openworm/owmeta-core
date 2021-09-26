@@ -128,11 +128,12 @@ class LocalFileDataSource(CapableConfigurable, FileDataSource):
             raise NoProviderGiven(OutputFilePathCapability(), self)
         return self._output_file_path_provider.file_path()
 
-    def commit_augment(self):
+    def after_transform(self):
         '''
         "Commits" the file by applying the operation indicated by `commit_op` to
         `source_file_path` so that it is accessible at `full_path`
         '''
+        super(LocalFileDataSource, self).after_transform()
         if self.commit_op == CommitOp.SYMLINK:
             os.symlink(self.source_file_path, self.full_output_path())
         elif self.commit_op == CommitOp.HARDLINK:
