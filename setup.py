@@ -27,6 +27,7 @@ def excludes(base):
     return res
 
 
+rdflib_sqlalchemy_dep = 'rdflib-sqlalchemy~=0.4.0.dev0',
 setup(
     name='owmeta-core',
     zip_safe=False,
@@ -50,29 +51,28 @@ setup(
     extras_require={
         # SQL source support
         'mysql_source_mysql_connector': [
-            'rdflib-sqlalchemy~=0.4.0',
+            rdflib_sqlalchemy_dep,
             'mysql-connector-python'],
         'mysql_source_mysqlclient': [
-            'rdflib-sqlalchemy~=0.4.0',
+            rdflib_sqlalchemy_dep,
             'mysqlclient'],
         'postgres_source_psycopg': [
-            'rdflib-sqlalchemy~=0.4.0',
+            rdflib_sqlalchemy_dep,
             'psycopg2'],
         'postgres_source_pg8000': [
-            'rdflib-sqlalchemy~=0.4.0',
-
-            'pg8000<=1.16.5', # XXX: Remove once sqlalchemy 1.4.x is released
+            rdflib_sqlalchemy_dep,
             'sqlalchemy[postgresql_pg8000]'],
         # Need 1.5.3 for host key file support
         'sftp': 'paramiko>=1.5.3'
     },
     version=version,
-    packages=['owmeta_core',
-              'owmeta_core.data_trans',
-              'owmeta_core.commands',
-              'owmeta_core.bundle',
-              'owmeta_core.bundle.loaders',
-              ],
+    packages=[
+        'owmeta_core',
+        'owmeta_core.data_trans',
+        'owmeta_core.commands',
+        'owmeta_core.bundle',
+        'owmeta_core.bundle.loaders',
+    ],
     author='OpenWorm.org authors and contributors',
     author_email='info@openworm.org',
     description='owmeta-core is a platform for sharing relational data over the internet.',
