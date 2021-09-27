@@ -47,6 +47,9 @@ def additional_args(parser):
             help='Progress reporter to use. Default is \'tqdm\'',
             choices=['tqdm', 'none'],
             default='tqdm')
+    parser.add_argument('--full-trace',
+            help='So full stack trace for all exceptions.',
+            action='store_true')
 
 
 def parse_progress(s):
@@ -86,6 +89,7 @@ class NSHandler(object):
         self.opts['text_record_terminator'] = ns.text_record_terminator
         self.opts['text_format'] = ns.text_format
         self.opts['columns'] = ns.columns
+        self.opts['full_trace'] = ns.full_trace
         prog = parse_progress(ns.progress)
         if prog:
             self.command.progress_reporter = prog
@@ -266,13 +270,21 @@ def _helper(p, args=None):
 
     hints = _gather_hints_from_entry_points(dict(**CLI_HINTS))
 
-    out = CLICommandWrapper(p, hints_map=hints).main(
-            args=args,
-            argument_callback=additional_args,
-            argument_namespace_callback=ns_handler)
+    try:
+        out = CLICommandWrapper(p, hints_map=hints).main(
+                args=args,
+                argument_callback=additional_args,
+                argument_namespace_callback=ns_handler)
 
-    if out is not None:
-        _format_output(out, ns_handler)
+        if out is not None:
+            _format_output(out, ns_handler)
+    except (GenericUserError, CLIUserError):
+        try:
+            if ns_handler.full_trace:
+                import traceback
+                traceback.print_exc()
+        finally:
+            raise
 
 
 def _format_output(out, ns_handler):

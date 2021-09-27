@@ -127,7 +127,8 @@ class TransactionalDataSourceDirProvider(OutputFilePathProvider):
 
         def tpc_finish(self, transaction):
             try:
-                rmtree(self._prev_version_path, onerror=self._handle_rmtree_error)
+                if exists(self._prev_version_path):
+                    rmtree(self._prev_version_path, onerror=self._handle_rmtree_error)
             except Exception:
                 L.error('Received exception in tpc_finish for transaction for %s,'
                         ' removing %s,',

@@ -33,7 +33,7 @@ import uuid
 
 from pkg_resources import iter_entry_points, DistributionNotFound
 import rdflib
-from rdflib.term import URIRef
+from rdflib.term import URIRef, Identifier
 
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
                            DEFAULT_OWM_DIR)
@@ -46,10 +46,11 @@ from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
 from .context_common import CONTEXT_IMPORTS
 from .capable_configurable import CAPABILITY_PROVIDERS_KEY
 from .capabilities import FilePathProvider
+from .dataobject import DataObject
 from .datasource_loader import DataSourceDirLoader, LoadFailed
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
 from .mapper import Mapper
-from .capability_providers import (SimpleDataSourceDirProvider,
+from .capability_providers import (TransactionalDataSourceDirProvider,
                                    SimpleCacheDirectoryProvider,
                                    WorkingDirectoryProvider)
 from .rdf_utils import BatchAddGraph
@@ -1632,8 +1633,8 @@ class OWM(object):
         named_data_sources : dict
             Named input data sources
         """
-        from .datasource import (translate, NoTranslatorFound, NoSourceFound,
-                DataTransformer, DataSource)
+        import transaction
+        from .datasource import translate, DataTransformer, DataSource
         source_objs = []
         srcctx = self._default_ctx.stored
         for s in data_sources:
@@ -1660,14 +1661,26 @@ class OWM(object):
             tempdir = self.temporary_directory
             if not exists(tempdir):
                 makedirs(tempdir)
-            return translate(self._default_ctx.stored,
-                self._default_ctx,
-                tempdir,
-                transformer_obj,
-                data_sources=source_objs,
-                named_data_sources=named_data_source_objs)
-        except (NoTranslatorFound, NoSourceFound) as e:
-            raise GenericUserError(e)
+            with transaction.manager:
+                old_stdout = sys.stdout
+                old_stderr = sys.stderr
+                try:
+                    old_stdout.flush()
+                    old_stderr.flush()
+                    with open(os.devnull, 'w') as nullout:
+                        sys.stdout = nullout
+                        sys.stderr = nullout
+                        return wrap_data_object_result(translate(self._default_ctx.stored,
+                                self._default_ctx,
+                                tempdir,
+                                transformer_obj,
+                                data_sources=source_objs,
+                                named_data_sources=named_data_source_objs))
+                finally:
+                    sys.stdout = old_stdout
+                    sys.stderr = old_stderr
+        except Exception as e:
+            raise GenericUserError(f'Unable to complete translation: {e}') from e
 
     @contextmanager
     def _tempdir(self, *args, **kwargs):
@@ -1708,9 +1721,11 @@ class OWM(object):
             self._data_source_directories = dsd
 
     def _cap_provs(self):
+        import transaction
         return [DataSourceDirectoryProvider(self._dsd),
                 WorkingDirectoryProvider(),
-                SimpleDataSourceDirProvider(pth_join(self.owmdir, 'ds_files')),
+                TransactionalDataSourceDirProvider(pth_join(self.owmdir, 'ds_files'),
+                    transaction.manager),
                 SimpleCacheDirectoryProvider(pth_join(self.owmdir, 'cache'))]
 
     @property
@@ -2437,3 +2452,49 @@ class ConfigMissingException(GenericUserError):
         super(ConfigMissingException, self).__init__(
                 'Missing "%s" in configuration' % key)
         self.key = key
+
+
+def wrap_data_object_result(result, props=None, namespace_manager=None, shorten_urls=False):
+    def format_id(r):
+        if not shorten_urls or not namespace_manager:
+            return r.identifier
+        return namespace_manager.normalizeUri(r.identifier)
+
+    def format_value(propname):
+        def f(r):
+            prop = getattr(r, propname, None)
+            if prop is None:
+                return ""
+            vals = prop.get()
+            res = ''
+            for v in vals:
+                if isinstance(v, DataObject):
+                    res += r.identifier
+                elif isinstance(v, Identifier):
+                    res += v
+                res += ' '
+            if res:
+                res = res[:-1]
+            return res
+
+    props = None
+    if isinstance(result, DataObject):
+        iterable = (result,)
+        if props is None:
+            props = tuple(x.linkName for x in result.properties)
+    else:
+        iterable = result
+        if props is None:
+            iterable = list(iterable)
+            props = set()
+            for r in iterable:
+                props |= set(x.link_name for x in r.properties)
+            props = tuple(sorted(props))
+
+    header = ('ID',) + tuple(props)
+    columns = (format_id,) + tuple(format_value(propname) for propname in props)
+    return GeneratorWithData(iterable,
+            default_columns=('ID',),
+            header=header,
+            text_format=format_id,
+            columns=columns)

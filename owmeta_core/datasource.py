@@ -329,6 +329,8 @@ class Translation(Transformation):
     In contrast to just a transformation, a translation wouldn't just pick out, say, one
     record within an input source containing several, but would have an output source with o
     '''
+    class_context = BASE_CONTEXT
+
     translator = ObjectProperty(subproperty_of=Transformation.transformer)
 
 
@@ -655,6 +657,8 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
 
 class BaseDataTranslator(DataTransformer):
 
+    class_context = BASE_CONTEXT
+
     def translate(self, *args, **kwargs):
         '''
         Notionally, this method takes one or more data sources, and translates them into
@@ -775,8 +779,6 @@ def translate(source_ctx, declaration_ctx, base_tempdir, translator,
     NoSourceFound
         when a source cannot be looked up in the given context
     """
-    import transaction
-
     if named_data_sources is None:
         named_data_sources = dict()
 
@@ -797,16 +799,15 @@ def translate(source_ctx, declaration_ctx, base_tempdir, translator,
 
     with TemporaryDirectory(dir=base_tempdir, prefix='owm-translate.') as d:
         orig_wd = os.getcwd()
-        with transaction.manager:
-            os.chdir(d)
-            try:
-                res = declaration_ctx(translator)(*positional_sources,
-                                     output_identifier=output_identifier,
-                                     output_key=output_key,
-                                     **named_sources)
-            finally:
-                os.chdir(orig_wd)
-            return res
+        os.chdir(d)
+        try:
+            res = declaration_ctx(translator)(*positional_sources,
+                                 output_identifier=output_identifier,
+                                 output_key=output_key,
+                                 **named_sources)
+        finally:
+            os.chdir(orig_wd)
+        return res
 
 
 def _lookup_translator(ctx, tname):

@@ -5,6 +5,8 @@ from rdflib.term import URIRef
 from os.path import join as p
 import os
 import re
+import logging
+
 import transaction
 from pytest import mark
 
@@ -156,8 +158,11 @@ def test_translator_list_kinds(owm_project, core_bundle):
 
 def test_translate_data_source_loader(owm_project):
     owm = owm_project.owm()
+
+    def print_graph(conn):
+        print(conn.rdf.serialize(format='nquads', encoding='utf-8').decode('utf-8'))
+
     with owm.connect() as conn:
-        def print_graph(): print(conn.rdf.serialize(format='nquads', encoding='utf-8').decode('utf-8'))
         with transaction.manager:
             # Create data sources
             ctx = conn(Context)(ident='http://example.org/context')
@@ -169,13 +174,13 @@ def test_translate_data_source_loader(owm_project):
             ctx(DT2)(ident='http://example.org/trans1')
             # Create a translator
             ctx_id = conn.conf[DEFAULT_CONTEXT_KEY]
-            print_graph()
+            # print_graph(conn)
             print("-------------------------")
             print("DT2.definition_context",
                   DT2.definition_context, id(DT2.definition_context))
 
             DT2.definition_context.save(conn.rdf)
-            print_graph()
+            # print_graph(conn)
             print("-------------------------")
             owm.save(DataSource.__module__)
             owm.save(LFDS.__module__)
@@ -187,18 +192,24 @@ def test_translate_data_source_loader(owm_project):
             main_ctx.save_imports()
             ctx.save()
             conn.mapper.save()
-            print_graph()
+            # print_graph(conn)
     owm_project.make_module('tests')
     modpath = owm_project.copy('tests/test_modules', 'tests/test_modules')
-    dsfile = owm_project.writefile('DSFile', 'some stuff')
+    owm_project.writefile('DSFile', 'some stuff')
     owm_project.writefile(p(modpath, 'OWMCLITest.py'),
         'tests/test_modules/owmclitest01.py')
 
-    # Do translation
-    assertRegexpMatches(
-        owm_project.sh('owm translate http://example.org/trans1 http://example.org/lfds'),
-        re.escape(dsfile)
-    )
+    out_ds = owm_project.sh('owm --full-trace translate http://example.org/trans1 http://example.org/lfds').strip()
+    with owm_project.owm().connect() as conn:
+        ctx = conn(Context)(ident=ctx_id).stored
+        print('ds_id', repr(out_ds))
+        # print_graph(conn)
+        for loaded in ctx(DataSource)(ident=out_ds).load():
+            break
+        else: # no break
+            raise Exception(f'Failed to load datasource for {out_ds}')
+        with open(loaded.full_path()) as f:
+            assertRegexpMatches(f.read(), '^some stuff$')
 
 
 @bundle_versions('core_bundle', [1, 2])
