@@ -54,14 +54,21 @@ class TransactionalDataSourceDirProvider(OutputFilePathProvider, FilePathProvide
         self._providers = dict()
 
     def provides_to(self, obj, cap):
+        from .data_trans.local_file_ds import LocalFileDataSource
         if isinstance(obj, DataSource):
             key = hashlib.sha256(obj.identifier.encode('utf-8')).hexdigest()
             provider = self._providers.get(key)
             if provider is None:
                 provider = TDSDPHelper(self._basedir, key, self.transaction_manager)
                 self._providers[key] = provider
-            if cap == FilePathCapability() and not exists(provider.file_path()):
-                return None
+            if cap == FilePathCapability():
+                provider_file_path = provider.file_path()
+                if not exists(provider_file_path):
+                    return None
+                if isinstance(obj, LocalFileDataSource):
+                    file_name = obj.file_name.one()
+                    if not exists(pth_join(provider_file_path, file_name)):
+                        return None
             return provider
         return None
 
@@ -168,7 +175,7 @@ class TDSDPHelper(FilePathProvider, OutputFilePathProvider):
         '''
         if self._dm_sort_key is None:
             if self._uncommitted_path is None:
-                raise Exception('file_path must be called before a sort key is created')
+                raise Exception('output_file_path must be called before a sort key is created')
             cname = FCN(type(self))
             self._dm_sort_key = f'{cname}{self._uncommitted_path}'
         return self._dm_sort_key

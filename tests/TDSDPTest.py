@@ -6,6 +6,7 @@ import transaction
 import pytest
 
 from owmeta_core.datasource import DataSource
+from owmeta_core.data_trans.local_file_ds import LocalFileDataSource
 from owmeta_core.capabilities import OutputFilePathCapability, FilePathCapability
 from owmeta_core.capability_providers import TransactionalDataSourceDirProvider as TDSDP
 
@@ -86,6 +87,19 @@ def test_no_input_provider_for_no_file(tempdir, transaction_manager):
             raise Mockception('abort')
     except Mockception:
         pass
+
+    with transaction_manager:
+        iprov = cut.provides_to(ds, FilePathCapability())
+        assert iprov is None
+
+
+def test_lfds_no_input_provider_for_no_file(tempdir, transaction_manager):
+    ds = LocalFileDataSource(ident="http://example.org/tdsdp-test",
+            file_name='test.txt')
+    with transaction_manager:
+        cut = TDSDP(tempdir, transaction_manager)
+        oprov = cut.provides_to(ds, OutputFilePathCapability())
+        oprov.output_file_path()
 
     with transaction_manager:
         iprov = cut.provides_to(ds, FilePathCapability())
