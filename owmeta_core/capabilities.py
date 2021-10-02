@@ -106,7 +106,7 @@ class OutputFilePathProvider(Provider):
 
     provided_capabilities = [OutputFilePathCapability()]
 
-    def file_path(self):
+    def output_file_path(self):
         '''
         The needed file path
         '''
