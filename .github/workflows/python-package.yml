@@ -93,7 +93,7 @@ jobs:
   coveralls:
     name: Indicate completion to coveralls.io
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     container: python:3-slim
     steps:
