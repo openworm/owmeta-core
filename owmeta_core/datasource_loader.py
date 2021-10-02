@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 '''
-DataSourceLoaders take a data source identifier and retrieve the primary data (e.g., CSV
-files, electrode recordings) from some location (e.g., a file store, via a bittorrent
-tracker).
+DataSourceLoaders take a DataSource and retrieve the primary data (e.g., CSV files,
+electrode recordings) from some location (e.g., a file store, via a bittorrent tracker).
 
 Each loader can treat the base_directory given as its own namespace and place directories
 in there however it wants.

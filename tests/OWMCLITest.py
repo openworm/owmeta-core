@@ -208,6 +208,7 @@ def test_translate_data_source_loader(owm_project):
             break
         else: # no break
             raise Exception(f'Failed to load datasource for {out_ds}')
+
         with open(loaded.full_path()) as f:
             assertRegexpMatches(f.read(), '^some stuff$')
 

@@ -126,7 +126,7 @@ class LocalFileDataSource(CapableConfigurable, FileDataSource):
     def output_basedir(self):
         if not self._output_file_path_provider:
             raise NoProviderGiven(OutputFilePathCapability(), self)
-        return self._output_file_path_provider.file_path()
+        return self._output_file_path_provider.output_file_path()
 
     def after_transform(self):
         '''

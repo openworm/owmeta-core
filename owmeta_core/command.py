@@ -2250,13 +2250,15 @@ class _DSD(object):
         for loader in self._loaders:
             if loader.can_load(data_source):
                 return loader(data_source)
+            else:
+                print('Cannot load %r with %s' % (data_source, loader), file=sys.stderr)
 
 
 class DataSourceDirectoryProvider(FilePathProvider):
     def __init__(self, dsd):
         self._dsd = dsd
 
-    def provides_to(self, ob):
+    def provides_to(self, ob, cap):
         try:
             path = self._dsd[ob]
         except KeyError:

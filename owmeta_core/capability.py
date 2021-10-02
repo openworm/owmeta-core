@@ -49,11 +49,30 @@ class Capability(six.with_metaclass(_Singleton)):
     '''
     A capability.
     '''
+    def __init__(self):
+        self._class_name = FCN(type(self))
+
     def __str__(self):
-        return FCN(type(self))
+        return self._class_name
+
+    def __lt__(self, other):
+        if isinstance(other, Capability):
+            return self._class_name < other._class_name
+        return NotImplemented
 
 
-class Provider(object):
+class ProviderMeta(type):
+    def __init__(self, name, bases, dct):
+        super(ProviderMeta, self).__init__(name, bases, dct)
+        my_caps = set(self.provided_capabilities)
+        for base in bases:
+            for base_cap in base.provided_capabilities:
+                if base_cap not in my_caps:
+                    my_caps.add(base_cap)
+        self.provided_capabilities = sorted(my_caps)
+
+
+class Provider(metaclass=ProviderMeta):
     '''
     A capability provider.
 
@@ -61,6 +80,8 @@ class Provider(object):
     any source passed into `provides_to` method if, in fact, the provider does provide the
     needed capabilities
     '''
+    provided_capabilities = []
+
     def provides(self, cap, obj):
         '''
         Returns a provider of the given capability if it's one this provider provides;
@@ -78,9 +99,11 @@ class Provider(object):
         Provider or None
         '''
         if cap in getattr(self, 'provided_capabilities', ()):
-            return self.provides_to(obj)
+            return self.provides_to(obj, cap)
 
-    def provides_to(self, obj):
+        return None
+
+    def provides_to(self, obj, cap):
         '''
         Returns a `Provider` if the provider provides a capability to the given object;
         otherwise, returns `None`.
@@ -92,6 +115,13 @@ class Provider(object):
         It's best to do setup for providing the capability before exiting this method
         rather than, for instance, in the methods of the returned provider when the
         `Capable` is trying to use it.
+
+        Parameters
+        ----------
+        obj : Capable
+            The object needing/wanting the capability
+        cap : Capability
+            The capability needed/wanted
 
         Returns
         -------

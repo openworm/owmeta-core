@@ -4,14 +4,14 @@ from owmeta_core.capability import Capability, Provider
 from owmeta_core.capable_configurable import CapableConfigurable, CAPABILITY_PROVIDERS_KEY
 
 
-class TestCap(Capability):
+class Cap1(Capability):
     pass
 
 
 @pytest.fixture
 def cc():
     class CUT(CapableConfigurable):
-        needed_capabilities = [TestCap()]
+        needed_capabilities = [Cap1()]
 
         def accept_capability_provider(self, cap, prov):
             self.prov = prov
@@ -28,9 +28,9 @@ def test_empty_providers(cc):
 
 def test_provide_provider(cc):
     class CP(Provider):
-        provided_capabilities = [TestCap()]
+        provided_capabilities = [Cap1()]
 
-        def provides_to(self, ob):
+        def provides_to(self, ob, cap):
             return self
     cut = cc(conf={CAPABILITY_PROVIDERS_KEY: [CP()]})
     assert isinstance(cut.prov, CP)
@@ -42,7 +42,7 @@ def test_provide_provider_str(cc):
 
 
 class NamedCP(Provider):
-    provided_capabilities = [TestCap()]
+    provided_capabilities = [Cap1()]
 
-    def provides_to(self, ob):
+    def provides_to(self, ob, cap):
         return self

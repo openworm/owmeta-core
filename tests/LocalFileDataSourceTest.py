@@ -29,7 +29,7 @@ def lfds_with_file(tmp_path):
     mkdir(outdir)
 
     class OutputProvider(OutputFilePathProvider):
-        def file_path(self):
+        def output_file_path(self):
             return outdir
 
     lfds = LocalFileDataSource(file_name='dolly.txt')
