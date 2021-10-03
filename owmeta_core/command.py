@@ -1656,11 +1656,9 @@ class OWM(object):
             transformer_obj = next(srcctx(DataTransformer)(ident=self._den3(transformer_id)).load(), None)
             if transformer_obj is None:
                 raise GenericUserError(f'No transformer for {translator}')
+            transformer_obj = self._default_ctx(transformer_obj)
 
         try:
-            tempdir = self.temporary_directory
-            if not exists(tempdir):
-                makedirs(tempdir)
             with transaction.manager:
                 old_stdout = sys.stdout
                 old_stderr = sys.stderr
@@ -1670,9 +1668,7 @@ class OWM(object):
                     with open(os.devnull, 'w') as nullout:
                         sys.stdout = nullout
                         sys.stderr = nullout
-                        return wrap_data_object_result(translate(self._default_ctx.stored,
-                                self._default_ctx,
-                                tempdir,
+                        return wrap_data_object_result(translate(
                                 transformer_obj,
                                 data_sources=source_objs,
                                 named_data_sources=named_data_source_objs))

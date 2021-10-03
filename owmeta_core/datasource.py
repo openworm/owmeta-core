@@ -3,8 +3,6 @@ from __future__ import absolute_import
 
 from collections import OrderedDict, defaultdict
 import logging
-import os
-from tempfile import TemporaryDirectory
 
 from rdflib.term import URIRef
 import six
@@ -470,7 +468,8 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
             return sio.getvalue()
         except AttributeError:
             res = super(DataSource, self).__str__()
-            L.error('Failed while creating formatting string representation for %s', res)
+            L.error('Failed while creating formatting string representation for %s', res,
+                    exc_info=True)
             return res
 
 
@@ -577,7 +576,11 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
         Type of the `Transformation` record produced as a side-effect of transforming with
         this transformer
     output_key : str
-        The "key" for outputs from this transformer. See `IdentifierMixin`
+        The "key" for outputs from this transformer (see `IdentifierMixin`). Normally only
+        defined during execution of __call__
+    output_identifier : str
+        The identifier for outputs from this transformer. Normally only defined during
+        execution of __call__
     '''
 
     class_context = BASE_CONTEXT
@@ -586,9 +589,15 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
     output_type = DataSource
     transformation_type = Transformation
 
-    def __call__(self, *args, **kwargs):
-        self.output_key = kwargs.pop('output_key', None)
-        self.output_identifier = kwargs.pop('output_identifier', None)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.output_key = None
+        self.output_identifier = None
+
+    def __call__(self, *args, output_key=None,
+            output_identifier=None, **kwargs):
+        self.output_key = output_key
+        self.output_identifier = output_identifier
         try:
             res = self.transform(*args, **kwargs)
             res.after_transform()
@@ -653,6 +662,18 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
             res.source(s)
 
         return res
+
+    def transform_part(self, translator_type, *sources, output_key=None,
+            output_identifier=None,
+            **named_sources):
+        if translator_type.context is None:
+            translator_type = translator_type.contextualize(self.context)
+        return translate(
+                translator_type(),
+                output_key=output_key,
+                output_identifier=output_identifier,
+                data_sources=sources,
+                named_data_sources=named_sources)
 
 
 class BaseDataTranslator(DataTransformer):
@@ -747,7 +768,7 @@ class PersonDataTranslator(BaseDataTranslator):
     # No translate impl is provided here since this is intended purely as a descriptive object
 
 
-def translate(source_ctx, declaration_ctx, base_tempdir, translator,
+def translate(translator,
               output_key=None, output_identifier=None,
               data_sources=(), named_data_sources=None):
     """
@@ -755,12 +776,6 @@ def translate(source_ctx, declaration_ctx, base_tempdir, translator,
 
     Parameters
     ----------
-    source_ctx : Context
-        The context to use for looking up or contextualizing sources and translators
-    declaration_ctx : Context
-        The context to save things to
-    base_tempdir : path-like object
-        The base directory for the temporary working directory for the translation
     translator : DataTransformer
         transformer to execute
     output_key : str
@@ -778,18 +793,28 @@ def translate(source_ctx, declaration_ctx, base_tempdir, translator,
         when a translator is not
     NoSourceFound
         when a source cannot be looked up in the given context
+    ExtraSourceFound
+        when a more than one source is found in the given context for the given source
+        identifier
     """
     if named_data_sources is None:
         named_data_sources = dict()
 
     if translator is None:
-        raise TypeError(f'No translator for {translator}')
+        raise TypeError('No translator given')
 
     positional_sources = []
     for idx, psrc in enumerate(data_sources):
         if psrc is None:
-            raise NoSourceFound(f'No source at position "{idx}"')
-        positional_sources.append(psrc)
+            raise NoSourceFound(f'No source at position {idx}')
+        loaded_src = None
+        for m in psrc.load():
+            if loaded_src is not None:
+                raise ExtraSourceFound(f'Found more than one source for {psrc}: {loaded_src} AND {m}')
+            loaded_src = m
+        if loaded_src is None:
+            raise NoSourceFound(f'Unable to load source at position {idx} for {psrc}')
+        positional_sources.append(loaded_src)
 
     named_sources = dict()
     for key, nsrc in named_data_sources.items():
@@ -797,17 +822,10 @@ def translate(source_ctx, declaration_ctx, base_tempdir, translator,
             raise NoSourceFound(f'No source for {key}')
         named_sources[key] = nsrc
 
-    with TemporaryDirectory(dir=base_tempdir, prefix='owm-translate.') as d:
-        orig_wd = os.getcwd()
-        os.chdir(d)
-        try:
-            res = declaration_ctx(translator)(*positional_sources,
-                                 output_identifier=output_identifier,
-                                 output_key=output_key,
-                                 **named_sources)
-        finally:
-            os.chdir(orig_wd)
-        return res
+    return translator(*positional_sources,
+            output_identifier=output_identifier,
+            output_key=output_key,
+            **named_sources)
 
 
 def _lookup_translator(ctx, tname):
@@ -829,4 +847,10 @@ class NoTranslatorFound(Exception):
 class NoSourceFound(Exception):
     '''
     Raised by `translate` when a source cannot be found in the current context
+    '''
+
+
+class ExtraSourceFound(Exception):
+    '''
+    Raised by `translate` when more than one source is found in the current context
     '''
