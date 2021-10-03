@@ -602,6 +602,7 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
             res = self.transform(*args, **kwargs)
             res.after_transform()
             res.context.save_context()
+            self.after_transform()
             return res
         finally:
             self.output_key = None
@@ -647,6 +648,12 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
         `transform` method
         '''
         return self.transformation_type.contextualize(self.context)(transformer=self)
+
+    def after_transform(self):
+        '''
+        Called after `transform` runs in `__call__` and after the result
+        `DataSource.after_transform` is called.
+        '''
 
     def make_new_output(self, sources, *args, **kwargs):
         '''

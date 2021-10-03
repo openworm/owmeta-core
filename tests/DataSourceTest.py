@@ -229,21 +229,6 @@ class DataSourceTest(_DataTest):
 
 
 class DataTransformerTest(_DataTest):
-    def test_make_transformation(self):
-        class TestTrans(Transformation):
-            a = DatatypeProperty()
-
-        class TestDTF(DataTransformer):
-            transformation_type = TestTrans
-
-            def make_transformation(self, sources=()):
-                res = super().make_transformation(sources)
-                res.a('love')
-                return res
-        dt = TestDTF()
-        tf = dt.make_transformation()
-        assert tf.a.onedef() == 'love'
-
     def test_call_transform(self):
         class TestTrans(Transformation):
             a = DatatypeProperty()
@@ -259,21 +244,57 @@ class DataTransformerTest(_DataTest):
         assert dt().transformation.onedef().a.onedef() == 'soup'
 
 
-class DataTranslatorTest(_DataTest):
-    def test_make_transformation_from_make_translation(self):
-        class TestTrans(GenericTranslation):
-            a = DatatypeProperty()
+def test_make_transformation():
+    class TestTrans(Transformation):
+        a = DatatypeProperty()
 
-        class TestDT(DataTranslator):
-            translation_type = TestTrans
+    class TestDTF(DataTransformer):
+        transformation_type = TestTrans
 
-            def make_translation(self, sources):
-                res = super().make_translation(sources)
-                res.a('love')
-                return res
-        dt = TestDT()
-        tf = dt.make_transformation()
-        assert tf.a.onedef() == 'love'
+        def make_transformation(self, sources=()):
+            res = super().make_transformation(sources)
+            res.a('love')
+            return res
+    dt = TestDTF()
+    tf = dt.make_transformation()
+    assert tf.a.onedef() == 'love'
+
+
+def test_make_transformation_from_make_translation():
+    class TestTrans(GenericTranslation):
+        a = DatatypeProperty()
+
+    class TestDT(DataTranslator):
+        translation_type = TestTrans
+
+        def make_translation(self, sources):
+            res = super().make_translation(sources)
+            res.a('love')
+            return res
+    dt = TestDT()
+    tf = dt.make_transformation()
+    assert tf.a.onedef() == 'love'
+
+
+def test_translator_after_transform_follows_ds(context):
+    at_calls = []
+
+    class TestDTF(DataTransformer):
+
+        def after_transform(self):
+            at_calls.append('dt')
+
+        def transform(self, src):
+            return src
+
+    class TestDS(DataSource):
+        def after_transform(self):
+            at_calls.append('ds')
+
+    ds = context(TestDS)(key='test')
+    dt = TestDTF()
+    dt(ds)
+    assert at_calls == ['ds', 'dt']
 
 
 class OneOrMoreTest(unittest.TestCase):
