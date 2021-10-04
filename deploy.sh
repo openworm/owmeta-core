@@ -6,7 +6,7 @@ if [ "$HEAD_REV" != "$ORIGIN_DEV_REV" ] ; then
     exit 0
 fi
 
-git log --format=%s -n 1 "$HEAD_REV" | grep -q '^MINOR:' && exit 0
+git log --format=%s -n 1 "$HEAD_REV" | grep -E -q '(^MINOR:)|(\[skip-deploy\])' && exit 0
 
 date=$(date +"%Y%m%d%H%M%S")
 sed -i -r "s/__version__ = '([^']+)\\.dev0'/__version__ = '\\1.dev$date'/" owmeta_core/__init__.py

@@ -47,8 +47,9 @@ def pytest_runtest_call(item):
 
     # Item's excinfo will indicate any exceptions thrown
     if enabled and outcome.excinfo is None:
-        # item.listnames() returns list of form: ['owmeta', 'tests/CellTest.py', 'CellTest', 'test_blast_space']
-        fp = FunctionProfile(cprofile=item.profiler, function_name=item.listnames()[-1])
+        # item.originalname must be used because item.name can include a label from
+        # parametrize
+        fp = FunctionProfile(cprofile=item.profiler, function_name=item.originalname)
         function_profile_list.append(fp)
 
 
