@@ -88,7 +88,7 @@ class FunctionProfile(object):
         >>> x = map(lambda x: x**2, xrange(1000))
         >>> pr.disable()
         >>> function_profile = FunctionProfile(pr, "map", "map")
-        >>> print function_profile
+        >>> print(function_profile)
         """
 
         if not cprofile or not function_name:
