@@ -109,8 +109,7 @@ def transitive_lookup(graph, start, predicate, context=None, direction=DOWN, see
         else:
             qx = (None, predicate, list(border))
             idx = 0
-        itr = graph.triples_choices(qx, context=context)
-        for t in itr:
+        for t in graph.triples_choices(qx, context=context):
             if isinstance(t[0], tuple):
                 o = t[0][idx]
             else:

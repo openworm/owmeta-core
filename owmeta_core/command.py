@@ -53,7 +53,6 @@ from .mapper import Mapper
 from .capability_providers import (TransactionalDataSourceDirProvider,
                                    SimpleCacheDirectoryProvider,
                                    WorkingDirectoryProvider)
-from .rdf_utils import BatchAddGraph
 from .utils import FCN, retrieve_provider
 
 
@@ -1545,6 +1544,7 @@ class OWM(object):
         import transaction
         from rdflib import plugin
         from rdflib.parser import Parser, create_input_source
+        from .rdf_utils import BatchAddGraph
         idx_fname = pth_join(self.owmdir, 'graphs', 'index')
         triples_read = 0
         if exists(idx_fname):
@@ -2246,8 +2246,6 @@ class _DSD(object):
         for loader in self._loaders:
             if loader.can_load(data_source):
                 return loader(data_source)
-            else:
-                print('Cannot load %r with %s' % (data_source, loader), file=sys.stderr)
 
 
 class DataSourceDirectoryProvider(FilePathProvider):

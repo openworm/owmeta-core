@@ -635,7 +635,7 @@ class BundleDependentStoreConfigBuilder(object):
     '''
     Builds an RDFLib store configuration that depends on bundles.
 
-    The process of building the store configurationi requires traversing the graph of
+    The process of building the store configuration requires traversing the graph of
     dependencies so that duplicate dependencies in the graph can be omitted. To support
     this process, this builder will fetch bundles as needed to resolve transitive
     dependencies

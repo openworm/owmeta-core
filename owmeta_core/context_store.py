@@ -252,7 +252,7 @@ class RDFContextStore(Store):
         if context is not None and context not in self.__context_transitive_imports:
             return _BAD_CONTEXT
         if len(self.__context_transitive_imports) == 1 and context is None:
-            # Micro-benchmarked this with timeit it's faster than tuple(s)[0] and
+            # Micro-benchmarked this with timeit: it's faster than tuple(s)[0] and
             # next(iter(s),None)
             for context in self.__context_transitive_imports:
                 break
@@ -280,6 +280,9 @@ class RDFContextStore(Store):
     def namespaces(self):
         for x in self.__store.namespaces():
             yield x
+
+    def __str__(self):
+        return f'{type(self).__name__}(graph={self.__graph})'
 
 
 _BAD_CONTEXT = object()

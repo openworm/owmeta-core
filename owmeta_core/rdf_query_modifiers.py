@@ -280,10 +280,9 @@ class ZeroOrMoreTQLayer(TQLayer):
         for tr in results:
             zoms = zomses.get(tr[index])
             if zoms is None:
+                zoms = set(transitive_subjects(self.next, tr[index], predicate, context, direction))
                 if limit:
-                    zoms = set(transitive_subjects(self.next, tr[index], predicate, context, direction)) & limit
-                else:
-                    zoms = set(transitive_subjects(self.next, tr[index], predicate, context, direction))
+                    zoms = zoms & limit
                 zomses[tr[index]] = zoms
             for z in zoms:
                 yield tuple(x if x is not tr[index] else z for x in tr)
