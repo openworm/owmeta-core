@@ -70,14 +70,20 @@ def test_install(owm_project):
     assert owm_project.sh('python use.py') == 'True'
 
 
-def test_install_prompt_delete_when_target_directory_not_empty(owm_project):
+@pytest.fixture
+def installed_bundle(owm_project):
     add_bundle(owm_project)
     # Install once
-    bundle_directory = owm_project.sh('owm bundle install abundle').strip()
+    bundle_directory = owm_project.sh('owm -b bundle install abundle').strip()
     if not bundle_directory:
         pytest.fail("Bundle directory not provided in install output")
+
+    return bundle_directory
+
+
+def test_install_prompt_delete_when_target_directory_not_empty(owm_project, installed_bundle):
     # Place a marker in the bundle directory
-    marker = p(bundle_directory, 'marker')
+    marker = p(installed_bundle, 'marker')
     open(marker, 'w').close()
 
     # Attempt another install. Should fail and prompt to overwrite
@@ -90,14 +96,9 @@ def test_install_prompt_delete_when_target_directory_not_empty(owm_project):
     assert not exists(marker)
 
 
-def test_install_prompt_keep_when_target_directory_not_empty(owm_project):
-    add_bundle(owm_project)
-    # Install once
-    bundle_directory = owm_project.sh('owm bundle install abundle').strip()
-    if not bundle_directory:
-        pytest.fail("Bundle directory not provided in install output")
+def test_install_prompt_keep_when_target_directory_not_empty(owm_project, installed_bundle):
     # Place a marker in the bundle directory
-    marker = p(bundle_directory, 'marker')
+    marker = p(installed_bundle, 'marker')
     open(marker, 'w').close()
 
     # Attempt another install. Should fail and prompt to overwrite
@@ -110,14 +111,10 @@ def test_install_prompt_keep_when_target_directory_not_empty(owm_project):
     assert exists(marker)
 
 
-def test_non_interactive_install_fail_when_target_directory_not_empty(owm_project):
-    add_bundle(owm_project)
-    # Install once
-    bundle_directory = owm_project.sh('owm bundle install abundle').strip()
-    if not bundle_directory:
-        pytest.fail("Bundle directory not provided in install output")
+def test_non_interactive_install_fail_when_target_directory_not_empty(owm_project,
+        installed_bundle):
     # Place a marker in the bundle directory
-    marker = p(bundle_directory, 'marker')
+    marker = p(installed_bundle, 'marker')
     open(marker, 'w').close()
 
     # Attempt another install. Should fail

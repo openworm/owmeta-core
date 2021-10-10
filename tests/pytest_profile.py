@@ -47,8 +47,11 @@ def pytest_runtest_call(item):
 
     # Item's excinfo will indicate any exceptions thrown
     if enabled and outcome.excinfo is None:
-        # item.listnames() returns list of form: ['owmeta', 'tests/CellTest.py', 'CellTest', 'test_blast_space']
-        fp = FunctionProfile(cprofile=item.profiler, function_name=item.listnames()[-1])
+        # item.originalname must be used because item.name can include a label from
+        # parametrize
+        fp = FunctionProfile(cprofile=item.profiler,
+                function_name=item.originalname,
+                function_title=item.name)
         function_profile_list.append(fp)
 
 
@@ -65,27 +68,27 @@ def pytest_unconfigure(config):
     summary = {'cumulative_time': {},
                'total_time': {}}
     for fp in function_profile_list:
-        fp.profile.dump_stats(p('.prof', fp.function_name))
+        fp.profile.dump_stats(p('.prof', fp.function_title.replace('/', '-')))
         for k in summary:
-            summary[k][fp.function_name] = getattr(fp, k)
+            summary[k][fp.function_title] = getattr(fp, k)
     with open(p('.prof', 'summary'), 'w') as f:
         json.dump(summary, f, indent=4)
 
 
 class FunctionProfile(object):
 
-    def __init__(self, cprofile, function_name):
+    def __init__(self, cprofile, function_name, function_title):
         """
         :param cprofile: Cprofile object created by cProfile.Profile().  Must be paired with function_name parameter.
         :param function_name: Name of function profiled.  Must be paired with cprofile parameter.
-        :param json: Create a function profile from a JSON string.  Overridden by cprofile/functionname parameters.
+        :param function_title: Title of function profiled. Used for the output file name
 
         >>> pr = cProfile.Profile()
         >>> pr.enable()
         >>> x = map(lambda x: x**2, xrange(1000))
         >>> pr.disable()
-        >>> function_profile = FunctionProfile(pr, "map")
-        >>> print function_profile
+        >>> function_profile = FunctionProfile(pr, "map", "map")
+        >>> print(function_profile)
         """
 
         if not cprofile or not function_name:
@@ -110,6 +113,7 @@ class FunctionProfile(object):
         stats_tuple = stats.stats[function_tuple]
         self.profile = cprofile
         self.function_name = function_name
+        self.function_title = function_title
         self.primitive_calls = stats_tuple[0]
         self.calls = stats_tuple[1]
         self.total_time = stats_tuple[2]
