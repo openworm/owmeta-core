@@ -514,7 +514,14 @@ class Context(six.with_metaclass(ContextMeta,
 
     def _imports_graph(self):
         ctxid = self.conf.get(IMPORTS_CONTEXT_KEY, None)
-        return ctxid and self.rdf.get_context(URIRef(ctxid))
+        if ctxid:
+            ctx_uriref = URIRef(ctxid)
+            graph = self.rdf.get_context(ctx_uriref)
+            imports_ctx = Context.contextualize(self.context)(ctx_uriref, conf=self.conf)
+            return ConjunctiveGraph(identifier=ctx_uriref,
+                    store=RDFContextStore(imports_ctx, imports_graph=graph))
+        else:
+            return None
 
     def rdf_graph(self):
         '''
@@ -671,9 +678,7 @@ class QueryContext(Context):
 
     @property
     def imports(self):
-        ctxid = self.conf.get(IMPORTS_CONTEXT_KEY, None)
-
-        imports_graph = ctxid and self.rdf.get_context(URIRef(ctxid))
+        imports_graph = self._imports_graph()
         if imports_graph is None:
             return
         for t in imports_graph.triples((self.identifier, CONTEXT_IMPORTS, None)):

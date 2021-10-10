@@ -355,10 +355,11 @@ class OWMTranslator(object):
         if not translator_cls:
             raise GenericUserError(f'Unable to find the class for {translator_type}')
         with transaction.manager:
-            ctx(translator_cls)()
+            res = ctx(translator_cls)()
             ctx.add_import(translator_cls.definition_context)
             ctx.save()
             ctx.save_imports(transitive=False)
+        return res.identifier
 
     def list_kinds(self, full=False):
         """

@@ -103,6 +103,29 @@ class ContextTest(_DataTest):
 
         assert [c.identifier for c in ctx.stored.imports] == [imported_ctx.identifier]
 
+    def test_imports_with_imports_in_context_imported_by_imports_context(self):
+        # create a Data config so all contexts use the same rdflib.Graph
+        conf = Data()
+        conf.init()
+        imports_id = 'http://example.org/imports'
+        imported_imports_id = 'http://example.org/imported-imports'
+
+        conf[IMPORTS_CONTEXT_KEY] = imports_id
+
+        ctx = Context('http://example.org/ctx1', conf=conf)
+        imported_ctx = Context('http://example.org/ctx2', conf=conf)
+        imports_ctx = Context(imports_id, conf=conf)
+        imported_imports_ctx = Context(imported_imports_id, conf=conf)
+
+        ctx.add_import(imported_ctx)
+
+        ctx.save_imports(imported_imports_ctx)
+
+        imports_ctx.add_import(imported_imports_ctx)
+        imports_ctx.save_imports(imports_ctx)
+
+        assert [c.identifier for c in ctx.stored.imports] == [imported_ctx.identifier]
+
     def test_context_store(self):
         class A(DataObject):
             pass
