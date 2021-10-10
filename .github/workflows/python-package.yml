@@ -26,12 +26,12 @@ jobs:
     steps:
     - name: Checkout 'develop'
       uses: actions/checkout@v2
-      if: github.event_name != 'schedule' && ! endsWith(github.run_number, '0')
+      if: github.event_name == 'schedule' && ! endsWith(github.run_number, '0')
 
     - name: Checkout 'master' (latest release)
       uses: actions/checkout@v2
       with: { ref: master }
-      if: github.event_name != 'schedule' && endsWith(github.run_number, '0')
+      if: github.event_name == 'schedule' && endsWith(github.run_number, '0')
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
