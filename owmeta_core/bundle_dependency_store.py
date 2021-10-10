@@ -193,6 +193,9 @@ class BundleDependencyStore(Store):
     def namespace(self, prefix):
         return self.wrapped.namespace(prefix)
 
+    def namespaces(self):
+        return self.wrapped.namespaces()
+
     def gc(self):
         self.wrapped.gc()
 
