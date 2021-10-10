@@ -621,14 +621,12 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
     def __new__(cls, *args, **kwargs):
         # This is defined so that the __init__ method gets a contextualized
         # instance, allowing for statements made in __init__ to be contextualized.
-        ores = super(BaseDataObject, cls).__new__(cls)
+        res = super(BaseDataObject, cls).__new__(cls)
         if cls.context is not None:
-            ores.context = cls.context
-            ores.add_contextualization(cls.context, ores)
-            res = ores
+            res.context = cls.context
+            res.add_contextualization(cls.context, res)
         else:
-            ores.context = None
-            res = ores
+            res.context = None
 
         return res
 
