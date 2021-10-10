@@ -41,7 +41,7 @@ setup(
         'gitpython>=2.1.1',
         'Pint',
         'pow-store-zodb>=0.0.11',
-        'rdflib>=4.1.2,!=6.0.0',
+        'rdflib>=4.1.2,<6.0.0',
         'requests',
         'six~=1.10',
         'tqdm~=4.23',
