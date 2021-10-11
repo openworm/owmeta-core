@@ -24,19 +24,7 @@ jobs:
         python-version: [3.6, 3.7, 3.8, 3.9]
     # There's some recursion error here (See #76)
     steps:
-    - name: Checkout current branch
-      uses: actions/checkout@v2
-      if: {{'push' == github.event_name || 'pull_request' == github.event_name}}
-
-    - name: Checkout 'develop'
-      uses: actions/checkout@v2
-      if: github.event_name == 'schedule' && ! endsWith(github.run_number, '0')
-
-    - name: Checkout 'master' (latest release)
-      uses: actions/checkout@v2
-      with: { ref: master }
-      if: github.event_name == 'schedule' && endsWith(github.run_number, '0')
-
+    - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
