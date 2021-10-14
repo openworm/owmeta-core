@@ -6,6 +6,6 @@ on:
 
 jobs:
   test:
-    uses: openworm/owmeta-core/test.yml@github-workflows
+    uses: openworm/owmeta-core/.github/workflows/test.yml@github-workflows
     with:
       ref: refs/heads/master
