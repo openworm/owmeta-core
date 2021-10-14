@@ -17,11 +17,15 @@ jobs:
   dev-deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     uses: openworm/owmeta-core/.github/workflows/deploy.yml@github-workflows
+    needs: test
+    with:
+      ref: refs/heads/develop
     secrets:
       twine_token: ${{secrets.TWINE_PASSWORD}}
 
   coveralls:
     if: github.event_name == 'push'
+    needs: test
     uses: openworm/owmeta-core/.github/workflows/coveralls-upload.yml@github-workflows
     secrets:
       github_token: ${{secrets.GITHUB_TOKEN}}

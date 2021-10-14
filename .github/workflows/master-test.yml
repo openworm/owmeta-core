@@ -17,6 +17,7 @@ jobs:
 
   coveralls:
     if: github.event_name == 'push'
+    needs: test
     uses: openworm/owmeta-core/.github/workflows/coveralls-upload.yml@github-workflows
     secrets:
       github_token: ${{secrets.GITHUB_TOKEN}}
