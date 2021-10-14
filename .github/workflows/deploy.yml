@@ -1,0 +1,27 @@
+name: Deploy
+
+on:
+  workflow_call:
+    secrets:
+      twine_token:
+        required: false
+
+jobs:
+  build:
+    name: Deploy Dev Package to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python 3
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3
+      - name: Install Deploy Dependencies
+        run: pip install wheel twine
+      - name: Deploy
+        run: ./deploy.sh
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.twine_token }}
+
