@@ -1,8 +1,7 @@
 name: Dev Test/Deploy
 
 on:
-  push:
-    branches: develop
+  push: {}
   pull_request:
     branches: develop
 
@@ -11,7 +10,7 @@ jobs:
     uses: openworm/owmeta-core/.github/workflows/test.yml@github-workflows
     with:
       coveralls: ${{github.event_name != 'schedule'}}
-      ref: refs/heads/develop
+      ref: ${{ github.ref }}
     secrets:
       github_token: ${{secrets.GITHUB_TOKEN}}
   dev-deploy:
