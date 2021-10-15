@@ -1,0 +1,30 @@
+name: Dev Test/Deploy
+
+on:
+  push: {}
+  pull_request:
+    branches: develop
+
+jobs:
+  test:
+    uses: openworm/owmeta-core/.github/workflows/test.yml@github-workflows
+    with:
+      coveralls: ${{github.event_name != 'schedule'}}
+      ref: ${{ github.ref }}
+    secrets:
+      github_token: ${{secrets.GITHUB_TOKEN}}
+  dev-deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    uses: openworm/owmeta-core/.github/workflows/deploy.yml@github-workflows
+    needs: test
+    with:
+      ref: refs/heads/develop
+    secrets:
+      twine_token: ${{secrets.TWINE_PASSWORD}}
+
+  coveralls:
+    if: github.event_name == 'push'
+    needs: test
+    uses: openworm/owmeta-core/.github/workflows/coveralls-upload.yml@github-workflows
+    secrets:
+      github_token: ${{secrets.GITHUB_TOKEN}}
