@@ -1,0 +1,11 @@
+name: Build master
+
+on:
+  schedule:
+    - cron:  '13 2 * * *'
+
+jobs:
+  test:
+    uses: openworm/owmeta-core/.github/workflows/test.yml@github-workflows
+    with:
+      ref: refs/heads/master
