@@ -54,6 +54,7 @@ from .capability_providers import (TransactionalDataSourceDirProvider,
                                    SimpleCacheDirectoryProvider,
                                    WorkingDirectoryProvider)
 from .utils import FCN, retrieve_provider
+from .rdf_utils import ContextSubsetStore
 
 
 L = logging.getLogger(__name__)
@@ -1293,6 +1294,8 @@ class OWM(object):
             if not reinit:
                 self._ensure_no_owmdir()
             raise
+        finally:
+            self.disconnect()
 
     def _ensure_no_owmdir(self):
         if exists(self.owmdir):
@@ -2051,6 +2054,25 @@ class _ProjectContext(Context):
         if self._mapper is None:
             self._mapper = _ProjectMapper(owm=self.owm)
         return self._mapper
+
+    def imports_graph(self):
+        return _ProjectImportStore(self.owm, store=self.rdf.store)
+
+
+class _ProjectImportStore(ContextSubsetStore):
+    def __init__(self, owm, **kwargs):
+        super().__init__(**kwargs)
+        self.owm = owm
+
+    def init_contexts(self):
+        res = set([URIRef(self.owm.imports_context())])
+        for bnd in self.owm._bundle_dep_mgr.load_dependencies_transitive():
+            with bnd:
+                res.add(URIRef(bnd.conf[IMPORTS_CONTEXT_KEY]))
+        return res
+
+    def __str__(self):
+        return f'{type(self).__name__}({self.owm})'
 
 
 class _ProjectMapper(Mapper):

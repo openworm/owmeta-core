@@ -452,14 +452,19 @@ class OWMBundle(object):
             print('{descr.id} {file_name}\n'.format(**vars()), file=f)
 
     def _get_bundle_descr_fname(self, bundle_id):
-        with open(p(self._parent.owmdir, 'bundles'), 'r') as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                idx_id, fn = line.split(' ', 1)
-                if bundle_id == idx_id:
-                    return fn
+        try:
+            fh = open(p(self._parent.owmdir, 'bundles'), 'r')
+        except FileNotFoundError:
+            return None
+        else:
+            with fh as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    idx_id, fn = line.split(' ', 1)
+                    if bundle_id == idx_id:
+                        return fn
 
     def deregister(self, bundle_id):
         '''

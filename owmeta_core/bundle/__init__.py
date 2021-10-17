@@ -288,6 +288,30 @@ class Descriptor(object):
         else:
             raise NotADescriptor()
 
+    def dump(self, output):
+        '''
+        Save a descriptor to a file as a YAML record
+
+        Parameters
+        ----------
+        output : :term:`file object`
+            The file to save the descriptor to
+        '''
+        dct = dict()
+        dct['id'] = self.id
+        dct['name'] = self.name
+        dct['version'] = self.version
+        dct['description'] = self.description
+        dct['patterns'] = sorted(('rgx:' if isinstance(RegexURIPattern, p) else '') + p._pattern
+                for p in self.patterns)
+        dct['includes'] = sorted(str(inc.include) for inc in self.includes)
+        # XXX: Test this
+        dct['includes'].extend({inc: {'empty': True}} for inc in sorted(self.empties))
+        dct['dependencies'] = [d._asdict() for d in self.dependencies]
+        if self.files is not None:
+            dct['files'] = self.files.to_dict()
+        yaml.dump(dct, output)
+
     def _set(self, obj):
         self.name = obj.get('name', self.id)
         self.version = obj.get('version', 1)
@@ -438,6 +462,7 @@ class Bundle(object):
         Initialize the bundle's `conf` `~owmeta_core.data.Data` instance
         '''
         if self.conf is None:
+            # print("INIT FOR", self.ident)
             bundle_directory = self.resolve()
             self.conf = Data().copy(self._given_conf)
             with open(p(bundle_directory, BUNDLE_MANIFEST_FILE_NAME)) as mf:
@@ -523,7 +548,7 @@ class Bundle(object):
         Bundle
             A direct dependency of this bundle
         '''
-        return self._bundle_dep_mgr._load_dependencies()
+        return self._bundle_dep_mgr.load_dependencies()
 
     def _lookup_context_bundle(self, context_id):
         owner = self._bundle_dep_mgr.lookup_context_bundle(
@@ -1335,14 +1360,15 @@ class Installer(object):
         for ctxid in self._write_graphs(graphs_directory, *contexts):
             included_context_ids.add(ctxid)
 
+        for c in descriptor.empties:
+            included_context_ids.discard(URIRef(c))
+
         # Compute imported contexts
         imported_contexts = set()
         for ctxid in included_context_ids:
             if imports_ctxg is not None:
-                imported_contexts |= transitive_lookup(imports_ctxg,
-                                                       ctxid,
-                                                       CONTEXT_IMPORTS,
-                                                       seen=imported_contexts)
+                for t in imports_ctxg.triples((ctxid, CONTEXT_IMPORTS, None)):
+                    imported_contexts.add(t[2])
         uncovered_contexts = imported_contexts - included_context_ids
         if self.class_registry_ctx:
             uncovered_contexts.discard(URIRef(self.class_registry_ctx))
@@ -1499,10 +1525,6 @@ class Installer(object):
                 uncovered_contexts.discard(URIRef(c))
                 if not uncovered_contexts:
                     break
-        for c in descriptor.empties:
-            uncovered_contexts.discard(URIRef(c))
-            if not uncovered_contexts:
-                break
         return uncovered_contexts
 
 
@@ -1533,10 +1555,20 @@ class FilesDescriptor(object):
     @classmethod
     def make(cls, obj):
         if not obj:
-            return
+            return None
         res = cls()
         res.patterns = set(obj.get('patterns', ()))
         res.includes = set(obj.get('includes', ()))
+        return res
+
+    def to_dict(self):
+        res = {}
+        if res.patterns:
+            res['patterns'] = list(res.patterns)
+
+        if res.includes:
+            res['includes'] = list(res.includes)
+
         return res
 
 

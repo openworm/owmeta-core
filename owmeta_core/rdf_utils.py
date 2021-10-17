@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 from rdflib.term import Literal, URIRef
+from rdflib.store import Store
 
 # Directions for traversal across triples
 UP = 'up'
@@ -175,3 +176,127 @@ class BatchAddGraph(object):
 
 transitive_subjects = transitive_lookup
 ''' Alias to `transitive_lookup` '''
+
+
+class ContextSubsetStore(Store):
+    # Returns triples imported by the given context
+    context_aware = True
+
+    def __init__(self, store, **kwargs):
+        super(ContextSubsetStore, self).__init__(**kwargs)
+        self.__store = store
+        self.__context_ids = None
+        self.__query_perctx = None
+
+    def init_contexts(self):
+        raise NotImplementedError
+
+    def __init_contexts(self):
+        if self.__context_ids is None:
+            self.__context_ids = self.init_contexts()
+
+        if self.__store is not None and self.__query_perctx is None:
+            total_triples = self.__store.__len__()
+            per_ctx_triples = sum(self.__store.__len__(context=ctx)
+                    for ctx in self.__context_ids)
+
+            self.__query_perctx = total_triples > per_ctx_triples
+
+    def triples(self, pattern, context=None):
+        self.__init_contexts()
+
+        ctx = self._determine_context(context)
+        if ctx is _BAD_CONTEXT:
+            return
+
+        # If the sum of lengths of the selected contexts is less than total number of
+        # triples, query each context in series
+        if pattern == (None, None, None) and ctx is None and self.__query_perctx:
+            imports = self.__context_ids
+            store = self.__store
+            for ctx0 in imports:
+                for t, tctxs in store.triples(pattern, ctx0):
+                    contexts = set(getattr(c, 'identifier', c) for c in tctxs)
+                    yield t, imports & contexts
+        else:
+            for t in self.__store.triples(pattern, ctx):
+                contexts = set(getattr(c, 'identifier', c) for c in t[1])
+                if self.__context_ids:
+                    inter = self.__context_ids & contexts
+                else:
+                    inter = contexts
+                if inter:
+                    yield t[0], inter
+
+    def remove(self, pattern, context=None):
+        self.__init_contexts()
+
+        ctx = self._determine_context(context)
+        if ctx is _BAD_CONTEXT:
+            return
+        for t in self.__store.triples(pattern, ctx):
+            triple = t[0]
+            contexts = set(getattr(c, 'identifier', c) for c in t[1])
+            if self.__context_ids:
+                inter = self.__context_ids & contexts
+            else:
+                inter = contexts
+            for ctx in inter:
+                self.__store.remove((triple[0], triple[1], triple[2]), ctx)
+
+    def triples_choices(self, pattern, context=None):
+        self.__init_contexts()
+
+        ctx = self._determine_context(context)
+        if ctx is _BAD_CONTEXT:
+            return
+
+        for t in self.__store.triples_choices(pattern, ctx):
+            contexts = set(getattr(c, 'identifier', c) for c in t[1])
+            if self.__context_ids:
+                inter = self.__context_ids & contexts
+            else:
+                inter = contexts
+
+            if inter:
+                yield t[0], inter
+
+    def _determine_context(self, context):
+        context = getattr(context, 'identifier', context)
+        if context is not None and context not in self.__context_ids:
+            return _BAD_CONTEXT
+        if len(self.__context_ids) == 1 and context is None:
+            # Micro-benchmarked this with timeit: it's faster than tuple(s)[0] and
+            # next(iter(s),None)
+            for context in self.__context_ids:
+                break
+        return context
+
+    def contexts(self, triple=None):
+        if triple is not None:
+            for x in self.triples(triple):
+                for c in x[1]:
+                    yield getattr(c, 'identifier', c)
+        else:
+            self.__init_contexts()
+            for c in self.__context_ids:
+                yield c
+
+    def namespace(self, prefix):
+        return self.__store.namespace(prefix)
+
+    def prefix(self, uri):
+        return self.__store.prefix(uri)
+
+    def bind(self, prefix, namespace):
+        return self.__store.bind(prefix, namespace)
+
+    def namespaces(self):
+        for x in self.__store.namespaces():
+            yield x
+
+    def __str__(self):
+        return f'{type(self).__name__}(store={self.__store})'
+
+
+_BAD_CONTEXT = object()

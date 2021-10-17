@@ -7,10 +7,10 @@ except ImportError:
     # rdflib<6.0.0
     from rdflib.plugins.memory import IOMemory as Memory
 
-from rdflib.term import Variable
+from rdflib.term import Variable, URIRef
 
 from .context_common import CONTEXT_IMPORTS
-from .rdf_utils import transitive_lookup
+from .rdf_utils import transitive_lookup, ContextSubsetStore
 
 
 class ContextStoreException(Exception):
@@ -150,139 +150,42 @@ class ContextStore(Store):
             yield ctx
 
 
-class RDFContextStore(Store):
+class RDFContextStore(ContextSubsetStore):
     # Returns triples imported by the given context
     context_aware = True
 
     def __init__(self, context=None, imports_graph=None, include_imports=True, **kwargs):
-        super(RDFContextStore, self).__init__(**kwargs)
-        self.__graph = context.rdf
+        store = context.rdf.store
+        super(RDFContextStore, self).__init__(store=store, **kwargs)
         self.__imports_graph = imports_graph
-        self.__store = self.__graph.store
+        self.__store = store
         self.__context = context
-        self.__context_transitive_imports = None
         self.__include_imports = include_imports
-        self.__query_perctx = False
 
-    def __init_contexts(self):
-        if self.__store is not None and self.__context_transitive_imports is None:
+    def init_contexts(self):
+        if self.__store is not None:
             if not self.__context or self.__context.identifier is None:
-                self.__context_transitive_imports = {getattr(x, 'identifier', x)
-                                                     for x in self.__store.contexts()}
+                return {getattr(x, 'identifier', x)
+                        for x in self.__store.contexts()}
             elif self.__include_imports:
-                imports = transitive_lookup(self.__store,
-                                            self.__context.identifier,
-                                            CONTEXT_IMPORTS,
-                                            self.__imports_graph)
-                self.__context_transitive_imports = imports
+                context = None
+                if self.__imports_graph is not None:
+                    if isinstance(self.__imports_graph, URIRef):
+                        query_graph = self.__store
+                        context = self.__imports_graph
+                    else:
+                        query_graph = self.__imports_graph
+                else:
+                    query_graph = self.__store
+
+                return transitive_lookup(
+                        query_graph,
+                        self.__context.identifier,
+                        CONTEXT_IMPORTS,
+                        context)
             else:
                 # XXX we should maybe check that the provided context actually exists in
                 # the backing graph -- at this point, it's more-or-less assumed in this
                 # case though if self.__include_imports is True, we could have an empty
                 # set of imports => we query against everything
-                self.__context_transitive_imports = set([self.__context.identifier])
-
-            total_triples = self.__store.__len__()
-            per_ctx_triples = sum(self.__store.__len__(context=ctx)
-                        for ctx in self.__context_transitive_imports)
-
-            self.__query_perctx = total_triples > per_ctx_triples
-
-    def triples(self, pattern, context=None):
-        self.__init_contexts()
-
-        ctx = self._determine_context(context)
-        if ctx is _BAD_CONTEXT:
-            return
-
-        # If the sum of lengths of the selected contexts is less than total number of
-        # triples, query each context in series
-        if pattern == (None, None, None) and ctx is None and self.__query_perctx:
-            imports = self.__context_transitive_imports
-            store = self.__store
-            for ctx0 in imports:
-                for t, tctxs in store.triples(pattern, ctx0):
-                    contexts = set(getattr(c, 'identifier', c) for c in tctxs)
-                    yield t, imports & contexts
-        else:
-            for t in self.__store.triples(pattern, ctx):
-                contexts = set(getattr(c, 'identifier', c) for c in t[1])
-                if self.__context_transitive_imports:
-                    inter = self.__context_transitive_imports & contexts
-                else:
-                    inter = contexts
-                if inter:
-                    yield t[0], inter
-
-    def remove(self, pattern, context=None):
-        self.__init_contexts()
-
-        ctx = self._determine_context(context)
-        if ctx is _BAD_CONTEXT:
-            return
-        for t in self.__store.triples(pattern, ctx):
-            triple = t[0]
-            contexts = set(getattr(c, 'identifier', c) for c in t[1])
-            if self.__context_transitive_imports:
-                inter = self.__context_transitive_imports & contexts
-            else:
-                inter = contexts
-            for ctx in inter:
-                self.__store.remove((triple[0], triple[1], triple[2]), ctx)
-
-    def triples_choices(self, pattern, context=None):
-        self.__init_contexts()
-
-        ctx = self._determine_context(context)
-        if ctx is _BAD_CONTEXT:
-            return
-
-        for t in self.__store.triples_choices(pattern, ctx):
-            contexts = set(getattr(c, 'identifier', c) for c in t[1])
-            if self.__context_transitive_imports:
-                inter = self.__context_transitive_imports & contexts
-            else:
-                inter = contexts
-
-            if inter:
-                yield t[0], inter
-
-    def _determine_context(self, context):
-        context = getattr(context, 'identifier', context)
-        if context is not None and context not in self.__context_transitive_imports:
-            return _BAD_CONTEXT
-        if len(self.__context_transitive_imports) == 1 and context is None:
-            # Micro-benchmarked this with timeit: it's faster than tuple(s)[0] and
-            # next(iter(s),None)
-            for context in self.__context_transitive_imports:
-                break
-        return None if context is None else self.__graph.get_context(context)
-
-    def contexts(self, triple=None):
-        if triple is not None:
-            for x in self.triples(triple):
-                for c in x[1]:
-                    yield getattr(c, 'identifier', c)
-        else:
-            self.__init_contexts()
-            for c in self.__context_transitive_imports:
-                yield c
-
-    def namespace(self, prefix):
-        return self.__store.namespace(prefix)
-
-    def prefix(self, uri):
-        return self.__store.prefix(uri)
-
-    def bind(self, prefix, namespace):
-        return self.__store.bind(prefix, namespace)
-
-    def namespaces(self):
-        for x in self.__store.namespaces():
-            yield x
-
-    def __str__(self):
-        return f'{type(self).__name__}(graph={self.__graph})'
-
-
-_BAD_CONTEXT = object()
+                return set([self.__context.identifier])
