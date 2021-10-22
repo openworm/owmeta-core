@@ -1,0 +1,9 @@
+---
+id: openworm/owmeta-core
+name: owmeta-core bundle
+version: 3
+description: Core bundle for owmeta-core bundles
+includes:
+    - http://schema.openworm.org/2020/07
+    - http://www.w3.org/1999/02/22-rdf-syntax-ns
+    - http://www.w3.org/2000/01/rdf-schema
