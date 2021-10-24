@@ -52,7 +52,8 @@ from .graph_serialization import write_canonical_to_file, gen_ctx_fname
 from .mapper import Mapper
 from .capability_providers import (TransactionalDataSourceDirProvider,
                                    SimpleCacheDirectoryProvider,
-                                   WorkingDirectoryProvider)
+                                   WorkingDirectoryProvider,
+                                   SimpleTemporaryDirectoryProvider)
 from .utils import FCN, retrieve_provider
 from .rdf_utils import ContextSubsetStore
 
@@ -350,17 +351,18 @@ class OWMTranslator(object):
         '''
         import transaction
 
-        ctx = self._parent._default_ctx
-        translator_uri = self._parent._den3(translator_type)
-        translator_cls = ctx.stored.resolve_class(translator_uri)
-        if not translator_cls:
-            raise GenericUserError(f'Unable to find the class for {translator_type}')
-        with transaction.manager:
-            res = ctx(translator_cls)()
-            ctx.add_import(translator_cls.definition_context)
-            ctx.save()
-            ctx.save_imports(transitive=False)
-        return res.identifier
+        with self._parent.connect():
+            ctx = self._parent._default_ctx
+            translator_uri = self._parent._den3(translator_type)
+            translator_cls = ctx.stored.resolve_class(translator_uri)
+            if not translator_cls:
+                raise GenericUserError(f'Unable to find the class for {translator_type}')
+            with transaction.manager:
+                res = ctx(translator_cls)()
+                ctx.add_import(translator_cls.definition_context)
+                ctx.save()
+                ctx.save_imports(transitive=False)
+            return res.identifier
 
     def list_kinds(self, full=False):
         """
@@ -1026,6 +1028,9 @@ class OWM(object):
         self._bundle_dep_mgr = None
         self._context = _ProjectContext(owm=self)
 
+    def __str__(self):
+        return f'{self.__class__.__name__}({self.owmdir})'
+
     @IVar.property(OWMETA_PROFILE_DIR)
     def userdir(self):
         '''
@@ -1130,62 +1135,62 @@ class OWM(object):
         import transaction
         import importlib as IM
         from functools import wraps
-        conf = self._conf()
+        with self.connect() as conn:
+            conf = self._conf()
 
-        added_cwd = False
-        cwd = os.getcwd()
-        if cwd not in sys.path:
-            sys.path.append(cwd)
-            added_cwd = True
+            added_cwd = False
+            cwd = os.getcwd()
+            if cwd not in sys.path:
+                sys.path.append(cwd)
+                added_cwd = True
 
-        try:
-            mod = IM.import_module(module)
-            provider_not_set = provider is None
-            if not provider:
-                provider = DEFAULT_SAVE_CALLABLE_NAME
+            try:
+                mod = IM.import_module(module)
+                provider_not_set = provider is None
+                if not provider:
+                    provider = DEFAULT_SAVE_CALLABLE_NAME
 
-            conn = self.connect()
-            if not context:
-                ctx = conn(_OWMSaveContext)(self._default_ctx, mod)
-            else:
-                ctx = conn(_OWMSaveContext)(Context(ident=context, conf=conf), mod)
-            attr_chain = provider.split('.')
-            prov = mod
-            for x in attr_chain:
-                try:
-                    prov = getattr(prov, x)
-                except AttributeError:
-                    if provider_not_set and getattr(mod, '__yarom_mapped_classes__', None):
-                        def prov(*args, **kwargs):
-                            pass
-                        break
-                    raise
-            ns = OWMSaveNamespace(context=ctx)
+                if not context:
+                    ctx = conn(_OWMSaveContext)(self._default_ctx, mod)
+                else:
+                    ctx = conn(_OWMSaveContext)(Context(ident=context, conf=conf), mod)
+                attr_chain = provider.split('.')
+                prov = mod
+                for x in attr_chain:
+                    try:
+                        prov = getattr(prov, x)
+                    except AttributeError:
+                        if provider_not_set and getattr(mod, '__yarom_mapped_classes__', None):
+                            def prov(*args, **kwargs):
+                                pass
+                            break
+                        raise
+                ns = OWMSaveNamespace(context=ctx)
 
-            mapped_classes = getattr(mod, '__yarom_mapped_classes__', None)
-            if mapped_classes:
-                # It's a module with class definitions -- take each of the mapped
-                # classes and add their contexts so they're saved properly...
-                orig_prov = prov
-                mapper = self._owm_connection.mapper
+                mapped_classes = getattr(mod, '__yarom_mapped_classes__', None)
+                if mapped_classes:
+                    # It's a module with class definitions -- take each of the mapped
+                    # classes and add their contexts so they're saved properly...
+                    orig_prov = prov
+                    mapper = self._owm_connection.mapper
 
-                @wraps(prov)
-                def save_classes(ns):
-                    ns.include_context(mapper.class_registry_context)
-                    mapper.process_module(module, mod)
-                    mapper.declare_python_class_registry_entry(*mapped_classes)
-                    for mapped_class in mapped_classes:
-                        ns.include_context(mapped_class.definition_context)
-                    orig_prov(ns)
-                prov = save_classes
+                    @wraps(prov)
+                    def save_classes(ns):
+                        ns.include_context(mapper.class_registry_context)
+                        mapper.process_module(module, mod)
+                        mapper.declare_python_class_registry_entry(*mapped_classes)
+                        for mapped_class in mapped_classes:
+                            ns.include_context(mapped_class.definition_context)
+                        orig_prov(ns)
+                    prov = save_classes
 
-            with transaction.manager:
-                prov(ns)
-                ns.save(graph=conf['rdf.graph'])
-            return ns.created_contexts()
-        finally:
-            if added_cwd:
-                sys.path.remove(cwd)
+                with transaction.manager:
+                    prov(ns)
+                    ns.save(graph=conf['rdf.graph'])
+                return ns.created_contexts()
+            finally:
+                if added_cwd:
+                    sys.path.remove(cwd)
 
     def say(self, subject, property, object):
         '''
@@ -1391,12 +1396,12 @@ class OWM(object):
         return self.graph_accessor_finder(url)
 
     def connect(self, read_only=False):
-        self._init_store(read_only=read_only)
+        conf = self._init_store(read_only=read_only)
+        self._owm_connection = connect(conf=conf, mapper=self._context.mapper)
         return _ProjectConnection(self, self._owm_connection)
 
     def _conf(self, *args, read_only=False):
         from owmeta_core.data import Data
-        import six
         dat = getattr(self, '_dat', None)
         if not dat or self._dat_file != self.config_file:
             if not exists(self.config_file):
@@ -1425,7 +1430,7 @@ class OWM(object):
                 ' configuration files at ' + self.config_file + ' or ' +
                 self.config.user_config_file + ' OWM repository may have been initialized'
                 ' incorrectly')
-            if (isinstance(store_conf, six.string_types) and
+            if (isinstance(store_conf, str) and
                     isabs(store_conf) and
                     not store_conf.startswith(abspath(self.owmdir))):
                 raise GenericUserError('rdf.store_conf must specify a path inside of ' +
@@ -1453,7 +1458,6 @@ class OWM(object):
             providers = dat.get(CAPABILITY_PROVIDERS_KEY, [])
             providers.extend(self._cap_provs())
             dat[CAPABILITY_PROVIDERS_KEY] = providers
-            self._owm_connection = connect(conf=dat)
 
             self._dat = dat
             self._dat_file = self.config_file
@@ -1637,50 +1641,51 @@ class OWM(object):
         named_data_sources : dict
             Named input data sources
         """
-        import transaction
-        from .datasource import translate, DataTransformer, DataSource
-        source_objs = []
-        srcctx = self._default_ctx.stored
-        for s in data_sources:
-            src_obj = next(srcctx(DataSource)(ident=self._den3(s)).load(), None)
-            if src_obj is None:
-                raise GenericUserError(f'No source for "{s}"')
-            source_objs.append(src_obj)
-
-        named_data_source_objs = dict()
-        if named_data_sources is not None:
-            for key, ds in named_data_sources.items():
-                src_obj = next(srcctx(DataSource)(ident=self._den3(ds)).load(), None)
+        with self.connect():
+            import transaction
+            from .datasource import translate, DataTransformer, DataSource
+            source_objs = []
+            srcctx = self._default_ctx.stored
+            for s in data_sources:
+                src_obj = next(srcctx(DataSource)(ident=self._den3(s)).load(), None)
                 if src_obj is None:
-                    raise GenericUserError(f'No source for "{ds}", named {key}')
-                named_data_source_objs[key] = src_obj
+                    raise GenericUserError(f'No source for "{s}"')
+                source_objs.append(src_obj)
 
-        if isinstance(translator, str):
-            transformer_id = self._den3(translator)
-            transformer_obj = next(srcctx(DataTransformer)(ident=self._den3(transformer_id)).load(), None)
-            if transformer_obj is None:
-                raise GenericUserError(f'No transformer for {translator}')
-            transformer_obj = self._default_ctx(transformer_obj)
+            named_data_source_objs = dict()
+            if named_data_sources is not None:
+                for key, ds in named_data_sources.items():
+                    src_obj = next(srcctx(DataSource)(ident=self._den3(ds)).load(), None)
+                    if src_obj is None:
+                        raise GenericUserError(f'No source for "{ds}", named {key}')
+                    named_data_source_objs[key] = src_obj
 
-        try:
-            with transaction.manager:
-                old_stdout = sys.stdout
-                old_stderr = sys.stderr
-                try:
-                    old_stdout.flush()
-                    old_stderr.flush()
-                    with open(os.devnull, 'w') as nullout:
-                        sys.stdout = nullout
-                        sys.stderr = nullout
-                        return wrap_data_object_result(translate(
-                                transformer_obj,
-                                data_sources=source_objs,
-                                named_data_sources=named_data_source_objs))
-                finally:
-                    sys.stdout = old_stdout
-                    sys.stderr = old_stderr
-        except Exception as e:
-            raise GenericUserError(f'Unable to complete translation: {e}') from e
+            if isinstance(translator, str):
+                transformer_id = self._den3(translator)
+                transformer_obj = next(srcctx(DataTransformer)(ident=self._den3(transformer_id)).load(), None)
+                if transformer_obj is None:
+                    raise GenericUserError(f'No transformer for {translator}')
+                transformer_obj = self._default_ctx(transformer_obj)
+
+            try:
+                with transaction.manager:
+                    old_stdout = sys.stdout
+                    old_stderr = sys.stderr
+                    try:
+                        old_stdout.flush()
+                        old_stderr.flush()
+                        with open(os.devnull, 'w') as nullout:
+                            sys.stdout = nullout
+                            sys.stderr = nullout
+                            return wrap_data_object_result(translate(
+                                    transformer_obj,
+                                    data_sources=source_objs,
+                                    named_data_sources=named_data_source_objs))
+                    finally:
+                        sys.stdout = old_stdout
+                        sys.stderr = old_stderr
+            except Exception as e:
+                raise GenericUserError(f'Unable to complete translation: {e}') from e
 
     @contextmanager
     def _tempdir(self, *args, **kwargs):
@@ -1726,7 +1731,8 @@ class OWM(object):
                 WorkingDirectoryProvider(),
                 TransactionalDataSourceDirProvider(pth_join(self.owmdir, 'ds_files'),
                     transaction.manager),
-                SimpleCacheDirectoryProvider(pth_join(self.owmdir, 'cache'))]
+                SimpleCacheDirectoryProvider(pth_join(self.owmdir, 'cache')),
+                SimpleTemporaryDirectoryProvider(self.temporary_directory)]
 
     @property
     def _default_ctx(self):
