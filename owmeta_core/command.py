@@ -1643,7 +1643,7 @@ class OWM(object):
         """
         with self.connect():
             import transaction
-            from .datasource import translate, DataTransformer, DataSource
+            from .datasource import transform, DataTransformer, DataSource
             source_objs = []
             srcctx = self._default_ctx.stored
             for s in data_sources:
@@ -1677,7 +1677,7 @@ class OWM(object):
                         with open(os.devnull, 'w') as nullout:
                             sys.stdout = nullout
                             sys.stderr = nullout
-                            return wrap_data_object_result(translate(
+                            return wrap_data_object_result(transform(
                                     transformer_obj,
                                     data_sources=source_objs,
                                     named_data_sources=named_data_source_objs))

@@ -675,7 +675,7 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
             **named_sources):
         if translator_type.context is None:
             translator_type = translator_type.contextualize(self.context)
-        return translate(
+        return transform(
                 translator_type(),
                 output_key=output_key,
                 output_identifier=output_identifier,
@@ -775,7 +775,7 @@ class PersonDataTranslator(BaseDataTranslator):
     # No translate impl is provided here since this is intended purely as a descriptive object
 
 
-def translate(translator,
+def transform(transformer,
               output_key=None, output_identifier=None,
               data_sources=(), named_data_sources=None):
     """
@@ -783,13 +783,13 @@ def translate(translator,
 
     Parameters
     ----------
-    translator : DataTransformer
+    transformer : DataTransformer
         transformer to execute
     output_key : str
         Output key. Used for generating the output's identifier. Exclusive with output_identifier
     output_identifier : str
         Output identifier. Exclusive with output_key
-    data_sources : list of URIRef
+    data_sources : list of DataSource
         Input data sources
     named_data_sources : dict
         Named input data sources
@@ -807,7 +807,7 @@ def translate(translator,
     if named_data_sources is None:
         named_data_sources = dict()
 
-    if translator is None:
+    if transformer is None:
         raise TypeError('No translator given')
 
     positional_sources = []
@@ -829,7 +829,7 @@ def translate(translator,
             raise NoSourceFound(f'No source for {key}')
         named_sources[key] = nsrc
 
-    return translator(*positional_sources,
+    return transformer(*positional_sources,
             output_identifier=output_identifier,
             output_key=output_key,
             **named_sources)
@@ -847,17 +847,17 @@ def _lookup_source(ctx, sname):
 
 class NoTranslatorFound(Exception):
     '''
-    Raised by `translate` when a translator cannot be found in the current context
+    Raised by `transform` when a translator cannot be found in the current context
     '''
 
 
 class NoSourceFound(Exception):
     '''
-    Raised by `translate` when a source cannot be found in the current context
+    Raised by `transform` when a source cannot be found in the current context
     '''
 
 
 class ExtraSourceFound(Exception):
     '''
-    Raised by `translate` when more than one source is found in the current context
+    Raised by `transform` when more than one source is found in the current context
     '''
