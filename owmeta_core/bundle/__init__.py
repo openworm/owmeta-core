@@ -29,7 +29,7 @@ from ..file_match import match_files
 from ..file_lock import lock_file
 from ..file_utils import hash_file
 from ..graph_serialization import write_canonical_to_file
-from ..rdf_utils import transitive_lookup, BatchAddGraph
+from ..rdf_utils import BatchAddGraph
 from ..utils import FCN, aslist
 
 from .archive import Unarchiver
@@ -462,7 +462,6 @@ class Bundle(object):
         Initialize the bundle's `conf` `~owmeta_core.data.Data` instance
         '''
         if self.conf is None:
-            # print("INIT FOR", self.ident)
             bundle_directory = self.resolve()
             self.conf = Data().copy(self._given_conf)
             with open(p(bundle_directory, BUNDLE_MANIFEST_FILE_NAME)) as mf:
@@ -742,7 +741,7 @@ class BundleDependentStoreConfigBuilder(object):
                         manifest_data = json.load(mf)
                     break
                 except (BundleNotFound, FileNotFoundError):
-                    bundle_directory = self._fetch_bundle(dep_ident, dep_version)
+                    self._fetch_bundle(dep_ident, dep_version)
                     tries += 1
 
             # We don't want to include items in the configuration that aren't specified by
@@ -759,6 +758,8 @@ class BundleDependentStoreConfigBuilder(object):
 
     def _fetch_bundle(self, bundle_ident, version):
         remotes_list = list(retrieve_remotes(self.remotes_directory))
+        if self.remotes is not None:
+            remotes_list += list(self.remotes)
         f = Fetcher(self.bundles_directory, remotes_list)
         return f.fetch(bundle_ident, version, self.remotes)
 
@@ -880,7 +881,8 @@ class _RemoteHandlerMixin(object):
             yield rem
 
         if not has_remote:
-            raise NoRemoteAvailable()
+            raise NoRemoteAvailable(f'No valid remote from {remotes} among {self.remotes}'
+                    f' for {self}')
 
 
 class Fetcher(_RemoteHandlerMixin):
@@ -1017,10 +1019,19 @@ class Fetcher(_RemoteHandlerMixin):
             raise FetchTargetIsNotEmpty(bdir)
 
     def _get_bundle_loaders(self, bundle_id, bundle_version, remotes):
-        for rem in self._get_remotes(remotes):
-            for loader in rem.generate_loaders():
-                if loader.can_load(bundle_id, bundle_version):
-                    yield loader
+        try:
+            retrieved_remotes = self._get_remotes(remotes)
+        except NoRemoteAvailable as e:
+            raise NoBundleLoader(bundle_id, bundle_version,
+                    'Could not get any remotes to generate loaders from') from e
+        else:
+            for rem in retrieved_remotes:
+                for loader in rem.generate_loaders():
+                    if loader.can_load(bundle_id, bundle_version):
+                        yield loader
+
+    def __str__(self):
+        return f'{self.__class__.__name__}(bundles_root={self.bundles_root}, remotes={self.remotes})'
 
 
 class Deployer(_RemoteHandlerMixin):

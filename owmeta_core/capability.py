@@ -207,7 +207,7 @@ class NoProviderAvailable(Exception):
     receiver : Capable
         The object for which the capability was sought
     '''
-    def __init__(self, cap, receiver=None):
+    def __init__(self, cap, receiver, providers):
         '''
         Parameters
         ----------
@@ -215,9 +215,11 @@ class NoProviderAvailable(Exception):
             The capability that was sought
         receiver : Capable
             The object for which the capability was sought
+        providers : list of Provider
+            Providers that were tried for the capability
         '''
-        super(NoProviderAvailable, self).__init__('No providers currently provide {}{}'
-                .format(cap, ' for ' + repr(receiver) if receiver else ''))
+        super(NoProviderAvailable, self).__init__(
+                f'No providers currently provide {cap} for {receiver} among {providers}')
         self._cap = cap
         self._receiver = receiver
 
@@ -280,7 +282,7 @@ def provide(ob, provs):
                 zip(repeat(False), ob.wanted_capabilities)):
             provider = get_provider(ob, cap, provs)
             if not provider and required:
-                raise NoProviderAvailable(cap, ob)
+                raise NoProviderAvailable(cap, ob, provs)
             ob.accept_capability_provider(cap, provider)
 
 
