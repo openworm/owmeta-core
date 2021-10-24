@@ -1169,8 +1169,6 @@ def test_subclass_across_bundles(tmp_path, owm_project):
         with open(apth, 'w') as f:
             descr_a.dump(f)
 
-        owm.bundle.install(apth)
-
         descr_b = Descriptor(
             'test/bbundle',
             version=1,
@@ -1180,8 +1178,6 @@ def test_subclass_across_bundles(tmp_path, owm_project):
         bpth = p(tmp_path, 'b.yml')
         with open(bpth, 'w') as f:
             descr_b.dump(f)
-
-        owm.bundle.install(bpth)
 
         descr_c = Descriptor(
             'test/cbundle',
@@ -1193,7 +1189,9 @@ def test_subclass_across_bundles(tmp_path, owm_project):
         with open(cpth, 'w') as f:
             descr_c.dump(f)
 
-        owm.bundle.install(cpth)
+    owm.bundle.install(apth)
+    owm.bundle.install(bpth)
+    owm.bundle.install(cpth)
 
     owm_project.owmdir = p(owm_project.testdir, '.owm1')
 
@@ -1212,8 +1210,6 @@ def test_subclass_across_bundles(tmp_path, owm_project):
         defctx.save_imports()
 
         print(conn1.rdf.store)
-        # for t in conn1.rdf.quads((None, None, None, None)):
-            # print(t)
 
         loaded = [x.identifier for x in defctx.stored(A)().load()]
         assert loaded == [c.identifier]
