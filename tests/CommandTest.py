@@ -19,7 +19,6 @@ from owmeta_core.command import (OWM, UnreadableGraphException, GenericUserError
 from owmeta_core.context import (DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
                                  CLASS_REGISTRY_CONTEXT_KEY, Context)
 from owmeta_core.context_common import CONTEXT_IMPORTS
-from owmeta_core.bundle import Descriptor
 from owmeta_core.bittorrent import BitTorrentDataSourceDirLoader
 from owmeta_core.command_util import IVar, PropertyIVar
 from owmeta_core.dataobject import DataObject
@@ -1127,92 +1126,6 @@ class CLICommandWrapperTest(unittest.TestCase):
 class _TestException(Exception):
     pass
 
-
-def test_subclass_across_bundles(tmp_path, owm_project):
-
-    ctxa_id = 'http://example.org/context_a'
-    ctxb_id = 'http://example.org/context_b'
-    ctxc_id = 'http://example.org/context_c'
-
-    class A(DataObject):
-        class_context = ctxa_id
-
-    class B(A):
-        class_context = ctxb_id
-
-    class C(B):
-        class_context = ctxc_id
-
-    owm = owm_project.owm()
-    with owm.connect() as conn:
-        actx = conn(A.definition_context)
-        conn.mapper.process_class(A)
-        actx.save()
-
-        bctx = conn(B.definition_context)
-        conn.mapper.process_class(B)
-        bctx.add_import(actx)
-        bctx.save()
-        bctx.save_imports()
-
-        cctx = conn(C.definition_context)
-        cctx.add_import(bctx)
-        cctx.save()
-        cctx.save_imports()
-
-        descr_a = Descriptor(
-            'test/abundle',
-            version=1,
-            includes=[ctxa_id])
-
-        apth = p(tmp_path, 'a.yml')
-        with open(apth, 'w') as f:
-            descr_a.dump(f)
-
-        descr_b = Descriptor(
-            'test/bbundle',
-            version=1,
-            includes=[ctxb_id],
-            dependencies=[(descr_a.id, descr_a.version)])
-
-        bpth = p(tmp_path, 'b.yml')
-        with open(bpth, 'w') as f:
-            descr_b.dump(f)
-
-        descr_c = Descriptor(
-            'test/cbundle',
-            version=1,
-            includes=[ctxc_id],
-            dependencies=[(descr_b.id, descr_b.version)])
-
-        cpth = p(tmp_path, 'c.yml')
-        with open(cpth, 'w') as f:
-            descr_c.dump(f)
-
-    owm.bundle.install(apth)
-    owm.bundle.install(bpth)
-    owm.bundle.install(cpth)
-
-    owm_project.owmdir = p(owm_project.testdir, '.owm1')
-
-    owm1 = owm_project.owm(non_interactive=True)
-    default_ctxid = 'http://example.org/project_default_context'
-    owm1.init(default_context_id=default_ctxid)
-    owm1.config.set('dependencies', json.dumps([{'id': descr_c.id, 'version': descr_c.version}]))
-    owm1.disconnect()
-
-    owm2 = owm_project.owm(non_interactive=True)
-    with owm2.connect() as conn1:
-        defctx = conn1(Context)(default_ctxid)
-        defctx.add_import(cctx)
-        c = defctx(C)(key="c")
-        defctx.save()
-        defctx.save_imports()
-
-        print(conn1.rdf.store)
-
-        loaded = [x.identifier for x in defctx.stored(A)().load()]
-        assert loaded == [c.identifier]
 
 # TODO: Test project context imports empty bundle context
 # TODO: Test empty project context imports bundle context
