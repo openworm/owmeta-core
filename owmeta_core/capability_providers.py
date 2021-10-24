@@ -7,12 +7,13 @@ from os.path import join as pth_join, exists
 from random import getrandbits
 from shutil import rmtree
 import logging
-import sys
+from tempfile import mkdtemp
 
 from .capabilities import (OutputFilePathProvider,
         FilePathProvider,
         FilePathCapability,
-        CacheDirectoryProvider)
+        CacheDirectoryProvider,
+        TemporaryDirectoryProvider)
 from .datasource import DataSource
 from .file_lock import lock_file
 from .utils import FCN
@@ -100,7 +101,6 @@ class TDSDPHelper(FilePathProvider, OutputFilePathProvider):
                     random_suffix = getrandbits(32)
                     path = f"{self._committed_path}.uncommitted.{random_suffix}"
                     makedirs(path)
-                    print("MADE DIR", path, file=sys.stderr)
                 except OSError:
                     pass
                 else:
@@ -158,7 +158,6 @@ class TDSDPHelper(FilePathProvider, OutputFilePathProvider):
         try:
             if exists(self._prev_version_path):
                 rmtree(self._prev_version_path, onerror=self._handle_rmtree_error)
-            print('COMMITTED TO PATH', self._committed_path)
         except Exception:
             L.error('Received exception in tpc_finish for transaction for %s,'
                     ' removing %s,',
@@ -248,3 +247,22 @@ class SimpleCacheDirectoryProvider(CacheDirectoryProvider):
         res = pth_join(self._cache_directory, cache_key)
         makedirs(res)
         return res
+
+
+class SimpleTemporaryDirectoryProvider(TemporaryDirectoryProvider):
+    '''
+    Provides temporary directories under a given base directory
+    '''
+    def __init__(self, base_directory, suffix=None, prefix=None, **kwargs):
+        super().__init__(**kwargs)
+        self._base_directory = base_directory
+        self._suffix = suffix
+        self._prefix = prefix
+
+    def provides_to(self, obj, cap):
+        return self
+
+    def temporary_directory(self):
+        if not exists(self._base_directory):
+            makedirs(self._base_directory)
+        return mkdtemp(suffix=self._suffix, prefix=self._prefix, dir=self._base_directory)
