@@ -1017,6 +1017,8 @@ class OWM(object):
         self._data_source_directories = None
         self._changed_contexts = None
         self._owm_connection = None
+        self._connection = None
+        self._connection_count = 0
         self._context_change_tracker = None
 
         if owmdir:
@@ -1289,7 +1291,8 @@ class OWM(object):
                     f.seek(0)
                     write_config(conf, f)
 
-            self._init_store()
+            self.connect()
+            self.disconnect()
             self._init_repository(reinit)
             if reinit:
                 self.message('Reinitialized owmeta-core project at %s' % abspath(self.owmdir))
@@ -1299,8 +1302,6 @@ class OWM(object):
             if not reinit:
                 self._ensure_no_owmdir()
             raise
-        finally:
-            self.disconnect()
 
     def _ensure_no_owmdir(self):
         if exists(self.owmdir):
@@ -1384,10 +1385,9 @@ class OWM(object):
             If True, imports of the named context will be included. Has no
             effect if context is None.
         """
-        graph = self.fetch_graph(url)
-        dat = self._conf()
-
-        dat['rdf.graph'].addN(graph.quads((None, None, None, context)))
+        with self.connect():
+            graph = self.fetch_graph(url)
+            self._conf('rdf.graph').addN(graph.quads((None, None, None, context)))
 
     def _obtain_graph_accessor(self, url):
         if self.graph_accessor_finder is None:
@@ -1396,9 +1396,12 @@ class OWM(object):
         return self.graph_accessor_finder(url)
 
     def connect(self, read_only=False):
-        conf = self._init_store(read_only=read_only)
-        self._owm_connection = connect(conf=conf, mapper=self._context.mapper)
-        return _ProjectConnection(self, self._owm_connection)
+        if self._connection is None:
+            conf = self._init_store(read_only=read_only)
+            self._owm_connection = connect(conf=conf, mapper=self._context.mapper)
+            self._connection = _ProjectConnection(self, self._owm_connection)
+        self._connection_count += 1
+        return self._connection
 
     def _conf(self, *args, read_only=False):
         from owmeta_core.data import Data
@@ -1469,10 +1472,16 @@ class OWM(object):
 
     def disconnect(self):
         from owmeta_core import disconnect
-        if self._owm_connection is not None:
+        if self._connection_count == 1:
             disconnect(self._owm_connection)
             self._dat = None
             self._owm_connection = None
+            self._connection = None
+            self._connection_count = 0
+        elif self._connection_count > 1:
+            self._connection_count -= 1
+        else:
+            raise AlreadyDisconnected(self)
 
     def clone(self, url=None, update_existing_config=False, branch=None):
         """Clone a data store
@@ -1497,7 +1506,8 @@ class OWM(object):
                 self._init_config_file()
             self._init_store()
             self.message('Deserializing...', file=sys.stderr)
-            self._regenerate_database()
+            with self.connect():
+                self._regenerate_database()
             self.message('Done!', file=sys.stderr)
         except FileExistsError:
             raise
@@ -1794,7 +1804,8 @@ class OWM(object):
             commit message
         '''
         repo = self.repository_provider
-        self._serialize_graphs()
+        with self.connect():
+            self._serialize_graphs()
         repo.commit(message)
 
     def _changed_contexts_set(self):
@@ -2041,6 +2052,9 @@ class _ProjectConnection(object):
     def __exit__(self, *args):
         self.owm.disconnect()
 
+    def __str__(self):
+        return f'{self.__class__.__name__}({self.owm}, {self.connection})'
+
 
 class _ProjectContext(Context):
     '''
@@ -2072,9 +2086,11 @@ class _ProjectImportStore(ContextSubsetStore):
 
     def init_contexts(self):
         res = set([URIRef(self.owm.imports_context())])
-        for bnd in self.owm._bundle_dep_mgr.load_dependencies_transitive():
-            with bnd:
-                res.add(URIRef(bnd.conf[IMPORTS_CONTEXT_KEY]))
+        dep_mgr = self.owm._bundle_dep_mgr
+        if dep_mgr is not None:
+            for bnd in dep_mgr.load_dependencies_transitive():
+                with bnd:
+                    res.add(URIRef(bnd.conf[IMPORTS_CONTEXT_KEY]))
         return res
 
     def __str__(self):
@@ -2523,3 +2539,11 @@ def wrap_data_object_result(result, props=None, namespace_manager=None, shorten_
             header=header,
             text_format=format_id,
             columns=columns)
+
+
+class AlreadyDisconnected(Exception):
+    '''
+    Thrown when OWM is already disconnected but a request is made to disconnect again
+    '''
+    def __init__(self, owm):
+        super().__init__(f'Already disconnected {owm}')

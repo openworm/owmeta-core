@@ -445,7 +445,6 @@ def test_subclass_across_bundles(tmp_path, owm_project):
     default_ctxid = 'http://example.org/project_default_context'
     owm1.init(default_context_id=default_ctxid)
     owm1.config.set('dependencies', json.dumps([{'id': descr_c.id, 'version': descr_c.version}]))
-    owm1.disconnect()
 
     owm2 = owm_project.owm(non_interactive=True)
     with owm2.connect() as conn1:

@@ -42,7 +42,6 @@ class BaseTest(unittest.TestCase):
     def tearDown(self):
         os.chdir(self.startdir)
         shutil.rmtree(self.testdir)
-        self.cut.disconnect()
 
     def _init_conf(self, conf=None):
         my_conf = dict(self._default_conf)
@@ -152,32 +151,34 @@ class OWMTest(BaseTest):
         self._init_conf()
 
         self.cut.graph_accessor_finder = lambda url: m
-        self.cut.add_graph("http://example.org/ImAGraphYesSiree")
-        self.assertIn(q, self.cut._conf()['rdf.graph'])
+        with self.cut.connect():
+            self.cut.add_graph("http://example.org/ImAGraphYesSiree")
+            graph = self.cut._conf('rdf.graph')
+            self.assertIn(q, graph)
 
     def test_conf_connection(self):
         self._init_conf()
         self.cut.config.user = True
         self.cut.config.set('key', '10')
-        self.assertEqual(self.cut._conf()['key'], 10)
+        self.assertEqual(self.cut._conf('key'), 10)
 
     def test_user_config_in_main_config(self):
         self._init_conf()
         self.cut.config.user = True
         self.cut.config.set('key', '10')
-        self.assertEqual(self.cut._conf()['key'], 10)
+        self.assertEqual(self.cut._conf('key'), 10)
 
     def test_conifg_set_get(self):
         self._init_conf()
         self.cut.config.set('key', '11')
-        self.assertEqual(self.cut._conf()['key'], 11)
+        self.assertEqual(self.cut._conf('key'), 11)
 
     def test_user_conifg_set_get_override(self):
         self._init_conf()
         self.cut.config.set('key', '11')
         self.cut.config.user = True
         self.cut.config.set('key', '10')
-        self.assertEqual(self.cut._conf()['key'], 10)
+        self.assertEqual(self.cut._conf('key'), 10)
 
     def test_context_set_config_get(self):
         c = 'http://example.org/context'
@@ -535,7 +536,7 @@ class OWMTest(BaseTest):
         imported_context_id = URIRef('http://example.org/new_ctx')
         self._init_conf({DEFAULT_CONTEXT_KEY: default_context,
                          IMPORTS_CONTEXT_KEY: imports_context})
-        with patch('importlib.import_module') as im:
+        with self.cut.connect(), patch('importlib.import_module') as im:
             def f(ns):
                 ctx = ns.context
                 new_ctx = Context(ident=imported_context_id)
@@ -543,8 +544,8 @@ class OWMTest(BaseTest):
 
             im().test = f
             self.cut.save('tests', 'test')
-        trips = set(self.cut._conf()['rdf.graph'].triples((None, None, None),
-                                                          context=URIRef(imports_context)))
+            trips = set(self.cut._conf('rdf.graph').triples((None, None, None),
+                                                              context=URIRef(imports_context)))
         self.assertIn((URIRef(default_context), CONTEXT_IMPORTS, imported_context_id), trips)
 
     def test_context_on_default_ctx(self):
