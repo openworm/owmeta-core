@@ -188,14 +188,16 @@ def main(*args):
         # Call 'disconnect' to clean up. If our top_command doesn't have a disconnect(), we
         # don't want to error-out, so check it actually exists.
         disconnect_method = getattr(p, 'disconnect', None)
-        if disconnect_method:
+        if disconnect_method is not None:
             had_disconnect = False
-            while True:
-                try:
-                    disconnect_method()
-                    had_disconnect = True
-                except AlreadyDisconnected:
-                    break
+
+            try:
+                disconnect_method()
+                had_disconnect = True
+            except AlreadyDisconnected:
+                pass
+            # It *is* possible that more than one connection was left open, but even one
+            # is enough to trigger further diagnosis.
             if had_disconnect:
                 if args is None:
                     cmd_args = sys.argv
