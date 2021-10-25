@@ -11,7 +11,7 @@ from pkg_resources import iter_entry_points, DistributionNotFound
 
 from .cli_command_wrapper import CLICommandWrapper, CLIUserError
 from .cli_hints import CLI_HINTS
-from .command import OWM
+from .command import OWM, AlreadyDisconnected
 from .git_repo import GitRepoProvider
 from .text_util import format_table
 from .command_util import GeneratorWithData, GenericUserError, SubCommand
@@ -189,7 +189,19 @@ def main(*args):
         # don't want to error-out, so check it actually exists.
         disconnect_method = getattr(p, 'disconnect', None)
         if disconnect_method:
-            disconnect_method()
+            had_disconnect = False
+            while True:
+                try:
+                    disconnect_method()
+                    had_disconnect = True
+                except AlreadyDisconnected:
+                    break
+            if had_disconnect:
+                if args is None:
+                    cmd_args = sys.argv
+                else:
+                    cmd_args = args
+                L.warning("Connection left open on %s with command %s", p, cmd_args)
 
     if environ.get('OWM_CLI_PROFILE'):
         profiler.disable()
