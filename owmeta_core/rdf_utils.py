@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+from rdflib.graph import Graph
 from rdflib.term import Literal, URIRef
 from rdflib.store import Store
 
@@ -262,15 +263,22 @@ class ContextSubsetStore(Store):
                 yield t[0], inter
 
     def _determine_context(self, context):
-        context = getattr(context, 'identifier', context)
-        if context is not None and context not in self.__context_ids:
+        # This is a method that has to contend with RDFLib's abiding confusion over
+        # whether Store's should return Graphs. This is stupid, because of course they
+        # shouldn't, but RDFLib acts like they should...and so here we are
+        context_id = getattr(context, 'identifier', context)
+        if context_id is not None and context_id not in self.__context_ids:
             return _BAD_CONTEXT
-        if len(self.__context_ids) == 1 and context is None:
+        if len(self.__context_ids) == 1 and context_id is None:
             # Micro-benchmarked this with timeit: it's faster than tuple(s)[0] and
             # next(iter(s),None)
-            for context in self.__context_ids:
+            for context_id in self.__context_ids:
                 break
-        return context
+        if context_id is None:
+            return None
+        # We shouldn't be querying from this store, but we pass in ourselves as the store
+        # to prevent RDFLib from making a new memory story
+        return Graph(identifier=context_id, store=self)
 
     def contexts(self, triple=None):
         if triple is not None:

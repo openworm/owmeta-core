@@ -51,6 +51,8 @@ class _ContainerTestBase(object):
         self.context.save()
         nums._1(4)
         self.context.save()
+        for x in self.conf['rdf.graph']:
+            print(x)
         nums0 = self.context.stored(self.container_type)(ident="http://example.org/fav-numbers")
         with self.assertRaisesRegex(ContainerValueConflict, r'\b1\b'):
             nums0[1]
