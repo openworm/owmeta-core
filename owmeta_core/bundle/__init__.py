@@ -307,7 +307,7 @@ class Descriptor(object):
         dct['includes'] = sorted(str(inc.include) for inc in self.includes)
         # XXX: Test this
         dct['includes'].extend({inc: {'empty': True}} for inc in sorted(self.empties))
-        dct['dependencies'] = [d._asdict() for d in self.dependencies]
+        dct['dependencies'] = [dict(d._asdict()) for d in self.dependencies]
         if self.files is not None:
             dct['files'] = self.files.to_dict()
         yaml.dump(dct, output)
