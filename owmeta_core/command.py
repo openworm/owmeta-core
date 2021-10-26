@@ -153,7 +153,6 @@ class OWMSource(object):
             Whether to (attempt to) shorten the source URIs by using the namespace manager
         """
         from .datasource import DataSource
-        conf = self._parent._conf()
         if context is not None:
             ctx = self._parent._make_ctx(context)
         else:
@@ -168,7 +167,7 @@ class OWMSource(object):
             raise GenericUserError('Could not resolve a Python class for ' + str(kind))
 
         ds = dst.query()
-        nm = conf['rdf.graph'].namespace_manager
+        nm = self._parent.rdf.namespace_manager
 
         def format_id(r):
             if full:
@@ -253,19 +252,19 @@ class OWMSource(object):
         from .dataobject import RDFSClass
         from .rdf_query_modifiers import (ZeroOrMoreTQLayer,
                                           rdfs_subclassof_subclassof_zom_creator)
-        conf = self._parent._conf()
-        ctx = self._parent._default_ctx
-        rdfto = ctx.stored(DataSource.rdf_type_object)
-        sc = ctx.stored(RDFSClass)()
-        sc.rdfs_subclassof_property(rdfto)
-        nm = conf['rdf.graph'].namespace_manager
-        zom_matcher = rdfs_subclassof_subclassof_zom_creator(DataSource.rdf_type)
-        g = ZeroOrMoreTQLayer(zom_matcher, ctx.stored.rdf_graph())
-        for x in sc.load(graph=g):
-            if full:
-                yield x.identifier
-            else:
-                yield nm.normalizeUri(x.identifier)
+        with self._parent.connect():
+            ctx = self._parent._default_ctx
+            rdfto = ctx.stored(DataSource.rdf_type_object)
+            sc = ctx.stored(RDFSClass)()
+            sc.rdfs_subclassof_property(rdfto)
+            nm = self._parent.rdf.namespace_manager
+            zom_matcher = rdfs_subclassof_subclassof_zom_creator(DataSource.rdf_type)
+            g = ZeroOrMoreTQLayer(zom_matcher, ctx.stored.rdf_graph())
+            for x in sc.load(graph=g):
+                if full:
+                    yield x.identifier
+                else:
+                    yield nm.normalizeUri(x.identifier)
 
     def rm(self, *data_source):
         '''
@@ -758,9 +757,10 @@ class OWMContexts(object):
         context : str
             The context to list imports for
         '''
-        ctx = self._parent._make_ctx(context).stored
-        for c in ctx.imports:
-            yield c.identifier
+        with self._parent.connect():
+            ctx = self._parent._make_ctx(context).stored
+            for c in ctx.imports:
+                yield c.identifier
 
     def list_importers(self, context):
         '''
@@ -809,11 +809,12 @@ class OWMContexts(object):
             An imported context
         '''
         import transaction
-        imports_ctxid = self._parent.imports_context()
-        imports_ctx = self._parent._context(Context)(imports_ctxid).stored
-        with transaction.manager:
-            for imp in imported:
-                imports_ctx.rdf_graph().remove((URIRef(importer), CONTEXT_IMPORTS, URIRef(imp)))
+        with self._parent.connect():
+            imports_ctxid = self._parent.imports_context()
+            imports_ctx = self._parent._context(Context)(imports_ctxid).stored
+            with transaction.manager:
+                for imp in imported:
+                    imports_ctx.rdf_graph().remove((URIRef(importer), CONTEXT_IMPORTS, URIRef(imp)))
 
     def bundle(self, context):
         '''
@@ -843,11 +844,12 @@ class OWMContexts(object):
             Context to remove
         '''
         import transaction
-        graph = self._parent.own_rdf
-        with transaction.manager:
-            for c in context:
-                c = self._parent._den3(c)
-                graph.remove_graph(c)
+        with self._parent.connect():
+            graph = self._parent.own_rdf
+            with transaction.manager:
+                for c in context:
+                    c = self._parent._den3(c)
+                    graph.remove_graph(c)
 
 
 class OWMRegistry(object):
@@ -2078,7 +2080,7 @@ class _ProjectContext(Context):
         return self._mapper
 
     def imports_graph(self):
-        return _ProjectImportStore(self.owm, store=self.rdf.store)
+        return rdflib.ConjunctiveGraph(store=_ProjectImportStore(self.owm, store=self.rdf.store))
 
 
 class _ProjectImportStore(ContextSubsetStore):

@@ -375,6 +375,8 @@ def test_rm_context_removes_all_2(owm_project):
             g.add((URIRef(f'http://example.org/s{i}x'),
                 pred,
                 URIRef(f'http://example.org/o{i}x'),))
+    with owm.connect(read_only=True) as conn:
+        assert set() != set(conn.rdf.triples((None, pred, None)))
     owm_project.sh('owm contexts rm http://example.org/ctx1 http://example.org/ctx2')
     with owm.connect(read_only=True) as conn:
         assert set() == set(conn.rdf.triples((None, pred, None)))
