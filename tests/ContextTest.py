@@ -481,6 +481,7 @@ class RDFContextStoreTest(_DataTest):
         ctx = Mock()
         g = MagicMock(name='graph')
         ctx.rdf = g
+        ctx.identifier = 'http://example.org'
         g.store.triples.return_value = []
         cut = RDFContextStore(context=ctx)
 
