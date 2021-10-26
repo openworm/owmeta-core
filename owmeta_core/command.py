@@ -628,21 +628,22 @@ class OWMContexts(object):
             retstr = True
             destination = BytesIO()
 
-        if whole_graph:
-            if context is not None:
-                raise GenericUserError('Serializing the whole graph precludes selecting a'
-                        ' single context')
-            self._parent.rdf.serialize(destination, format=format)
-        else:
-            if context is None:
-                ctx = self._parent._default_ctx
+        with self._parent.connect():
+            if whole_graph:
+                if context is not None:
+                    raise GenericUserError('Serializing the whole graph precludes selecting a'
+                            ' single context')
+                self._parent.rdf.serialize(destination, format=format)
             else:
-                ctx = Context(ident=self._parent._den3(context), conf=self._parent._conf())
+                if context is None:
+                    ctx = self._parent._default_ctx
+                else:
+                    ctx = Context(ident=self._parent._den3(context), conf=self._parent._conf())
 
-            if include_imports:
-                ctx.stored.rdf_graph().serialize(destination, format=format)
-            else:
-                ctx.own_stored.rdf_graph().serialize(destination, format=format)
+                if include_imports:
+                    ctx.stored.rdf_graph().serialize(destination, format=format)
+                else:
+                    ctx.own_stored.rdf_graph().serialize(destination, format=format)
 
         if retstr:
             self._parent.message(destination.getvalue().decode(encoding='utf-8'))
