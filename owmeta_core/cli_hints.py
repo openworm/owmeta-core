@@ -69,7 +69,8 @@ CLI_HINTS = {
                 'nargs': '*'
             },
         },
-        'IGNORE': ['message', 'progress_reporter', 'prompt', 'connect', 'disconnect', 'rdf', 'default_context']
+        'IGNORE': ['message', 'progress_reporter', 'prompt', 'connect', 'disconnect', 'rdf', 'default_context',
+                'connected']
     },
     'owmeta_core.command.OWMContexts': {
         'list_imports': {

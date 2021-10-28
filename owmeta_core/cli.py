@@ -11,7 +11,7 @@ from pkg_resources import iter_entry_points, DistributionNotFound
 
 from .cli_command_wrapper import CLICommandWrapper, CLIUserError
 from .cli_hints import CLI_HINTS
-from .command import OWM, AlreadyDisconnected
+from .command import OWM
 from .git_repo import GitRepoProvider
 from .text_util import format_table
 from .command_util import GeneratorWithData, GenericUserError, SubCommand
@@ -187,23 +187,13 @@ def main(*args):
     finally:
         # Call 'disconnect' to clean up. If our top_command doesn't have a disconnect(), we
         # don't want to error-out, so check it actually exists.
-        disconnect_method = getattr(p, 'disconnect', None)
-        if disconnect_method is not None:
-            had_disconnect = False
-
-            try:
-                disconnect_method()
-                had_disconnect = True
-            except AlreadyDisconnected:
-                pass
-            # It *is* possible that more than one connection was left open, but even one
-            # is enough to trigger further diagnosis.
-            if had_disconnect:
-                if args is None:
-                    cmd_args = sys.argv
-                else:
-                    cmd_args = args
-                L.warning("Connection left open on %s with command %s", p, cmd_args)
+        connected = getattr(p, 'connected', False)
+        if connected:
+            if args:
+                cmd_args = args
+            else:
+                cmd_args = sys.argv
+            die(f"Connection left open on {p} with command {cmd_args}")
 
     if environ.get('OWM_CLI_PROFILE'):
         profiler.disable()

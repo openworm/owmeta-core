@@ -153,23 +153,26 @@ class OWMSource(object):
             Whether to (attempt to) shorten the source URIs by using the namespace manager
         """
         from .datasource import DataSource
-        if context is not None:
-            ctx = self._parent._make_ctx(context)
-        else:
-            ctx = self._parent._default_ctx
 
-        if kind is None:
-            kind = DataSource.rdf_type
-        kind_uri = self._parent._den3(kind)
+        def generator():
+            with self._parent.connect():
+                if context is not None:
+                    ctx = self._parent._make_ctx(context)
+                else:
+                    ctx = self._parent._default_ctx
 
-        dst = ctx.stored(ctx.stored.resolve_class(kind_uri))
-        if dst is None:
-            raise GenericUserError('Could not resolve a Python class for ' + str(kind))
+                kind_uri = self._parent._den3(kind or DataSource.rdf_type)
 
-        ds = dst.query()
-        nm = self._parent.rdf.namespace_manager
+                dst = ctx.stored(ctx.stored.resolve_class(kind_uri))
+                if dst is None:
+                    raise GenericUserError('Could not resolve a Python class for ' + str(kind))
+
+                dsq = dst.query()
+                for ds in dsq.load():
+                    yield ds
 
         def format_id(r):
+            nm = self._parent.rdf.namespace_manager
             if full:
                 return r.identifier
             return nm.normalizeUri(r.identifier)
@@ -180,7 +183,7 @@ class OWMSource(object):
                 return '\n'.join(comment)
             return ''
 
-        return GeneratorWithData(ds.load(),
+        return GeneratorWithData(generator(),
                                  text_format=format_id,
                                  default_columns=('ID',),
                                  columns=(format_id,
@@ -306,20 +309,25 @@ class OWMTranslator(object):
             Whether to (attempt to) shorten the source URIs by using the namespace manager
         '''
         from owmeta_core.datasource import DataTranslator
-        if context is not None:
-            ctx = self._parent._make_ctx(context)
-        else:
-            ctx = self._parent._default_ctx
-        dt = ctx.stored(DataTranslator).query()
-        nm = self._parent.rdf.namespace_manager
+
+        def generator():
+            with self._parent.connect():
+                if context is not None:
+                    ctx = self._parent._make_ctx(context)
+                else:
+                    ctx = self._parent._default_ctx
+                dtq = ctx.stored(DataTranslator).query()
+                for dt in dtq.load():
+                    yield dt
 
         def id_fmt(trans):
+            nm = self._parent.rdf.namespace_manager
             if full:
                 return str(trans.identifier)
             else:
                 return nm.normalizeUri(trans.identifier)
 
-        return GeneratorWithData(dt.load(), header=('ID',), columns=(id_fmt,),
+        return GeneratorWithData(generator(), header=('ID',), columns=(id_fmt,),
                 text_format=id_fmt)
 
     def show(self, translator):
@@ -381,19 +389,19 @@ class OWMTranslator(object):
         from .dataobject import RDFSClass
         from .rdf_query_modifiers import (ZeroOrMoreTQLayer,
                                           rdfs_subclassof_subclassof_zom_creator)
-        conf = self._parent._conf()
-        ctx = self._parent._default_ctx
-        rdfto = ctx.stored(DataTranslator.rdf_type_object)
-        sc = ctx.stored(RDFSClass)()
-        sc.rdfs_subclassof_property(rdfto)
-        nm = conf['rdf.graph'].namespace_manager
-        zom_matcher = rdfs_subclassof_subclassof_zom_creator(DataTranslator.rdf_type)
-        g = ZeroOrMoreTQLayer(zom_matcher, ctx.stored.rdf_graph())
-        for x in sc.load(graph=g):
-            if full:
-                yield x.identifier
-            else:
-                yield nm.normalizeUri(x.identifier)
+        with self._parent.connect():
+            ctx = self._parent._default_ctx
+            rdfto = ctx.stored(DataTranslator.rdf_type_object)
+            sc = ctx.stored(RDFSClass)()
+            sc.rdfs_subclassof_property(rdfto)
+            nm = self._parent._conf('rdf.graph').namespace_manager
+            zom_matcher = rdfs_subclassof_subclassof_zom_creator(DataTranslator.rdf_type)
+            g = ZeroOrMoreTQLayer(zom_matcher, ctx.stored.rdf_graph())
+            for x in sc.load(graph=g):
+                if full:
+                    yield x.identifier
+                else:
+                    yield nm.normalizeUri(x.identifier)
 
     def rm(self, *translator):
         '''
@@ -878,43 +886,43 @@ class OWMRegistry(object):
             class name. Optional.
         '''
         from .dataobject import PythonClassDescription
-        mapper = self._parent.connect().mapper
 
         def registry_entries():
-            for re in mapper.load_registry_entries():
-                ident = re.identifier
-                cd = re.class_description()
-                re_rdf_type = re.rdf_class()
-                if not isinstance(cd, PythonClassDescription):
-                    continue
-                module_do = cd.module()
-                if re.namespace_manager:
-                    ident = re.namespace_manager.normalizeUri(ident)
-                if hasattr(module_do, 'name'):
-                    module_name = module_do.name()
-                re_class_name = cd.name()
+            with self._parent.connect() as conn:
+                for re in conn.mapper.load_registry_entries():
+                    ident = re.identifier
+                    cd = re.class_description()
+                    re_rdf_type = re.rdf_class()
+                    if not isinstance(cd, PythonClassDescription):
+                        continue
+                    module_do = cd.module()
+                    if re.namespace_manager:
+                        ident = re.namespace_manager.normalizeUri(ident)
+                    if hasattr(module_do, 'name'):
+                        module_name = module_do.name()
+                    re_class_name = cd.name()
 
-                if module is not None and module != module_name:
-                    continue
+                    if module is not None and module != module_name:
+                        continue
 
-                if rdf_type is not None and rdf_type != str(re_rdf_type):
-                    continue
+                    if rdf_type is not None and rdf_type != str(re_rdf_type):
+                        continue
 
-                if class_name is not None and class_name != str(re_class_name):
-                    continue
+                    if class_name is not None and class_name != str(re_class_name):
+                        continue
 
-                res = dict(id=ident,
-                        rdf_type=re_rdf_type,
-                        class_name=re_class_name,
-                        module_name=module_name)
+                    res = dict(id=ident,
+                            rdf_type=re_rdf_type,
+                            class_name=re_class_name,
+                            module_name=module_name)
 
-                if hasattr(module_do, 'package'):
-                    package = module_do.package()
-                    if package:
-                        res['package'] = dict(id=package.identifier,
-                                              name=package.name(),
-                                              version=package.version())
-                yield res
+                    if hasattr(module_do, 'package'):
+                        package = module_do.package()
+                        if package:
+                            res['package'] = dict(id=package.identifier,
+                                                  name=package.name(),
+                                                  version=package.version())
+                    yield res
 
         def fmt_text(entry, format=None):
             if format == 'pretty':
@@ -1407,6 +1415,10 @@ class OWM(object):
         self._connection_count += 1
         return self._connection
 
+    @property
+    def connected(self):
+        return self._connection_count > 0
+
     def _conf(self, *args, read_only=False):
         from owmeta_core.data import Data
         dat = getattr(self, '_dat', None)
@@ -1894,7 +1906,8 @@ class OWM(object):
 
         r = self.repository_provider
         try:
-            self._serialize_graphs(ignore_change_cache=False)
+            with self.connect():
+                self._serialize_graphs(ignore_change_cache=False)
         except Exception:
             r.reset()
             L.exception("Could not serialize graphs")
