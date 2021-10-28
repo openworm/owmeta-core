@@ -557,10 +557,7 @@ class OWMTest(BaseTest):
 class OWMTranslatorTest(unittest.TestCase):
 
     def test_translator_list(self):
-        parent = Mock()
-        dct = dict()
-        dct['rdf.graph'] = Mock()
-        parent._conf.return_value = dct
+        parent = MagicMock()
         # Mock the loading of DataObjects from the DataContext
         parent._default_ctx.stored(ANY).query(conf=ANY).load.return_value = [Mock()]
         ps = OWMTranslator(parent)
@@ -915,10 +912,7 @@ class ConfigTest(unittest.TestCase):
 
 class OWMSourceTest(unittest.TestCase):
     def test_list(self):
-        parent = Mock()
-        dct = dict()
-        dct['rdf.graph'] = Mock()
-        parent._conf.return_value = dct
+        parent = MagicMock()
 
         # Mock the loading of DataObjects from the DataContext
         def emptygen(): yield
@@ -927,10 +921,7 @@ class OWMSourceTest(unittest.TestCase):
         self.assertIsNone(next(ps.list(), None))
 
     def test_list_with_entry(self):
-        parent = Mock()
-        dct = dict()
-        dct['rdf.graph'] = Mock()
-        parent._conf.return_value = dct
+        parent = MagicMock()
 
         # Mock the loading of DataObjects from the DataContext
         def gen(): yield Mock()
