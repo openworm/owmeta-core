@@ -467,14 +467,14 @@ class OWMNamespace(object):
         '''
         List namespace prefixes and URIs in the project
         '''
-        conf = self._parent._conf()
-        nm = conf['rdf.graph'].namespace_manager
-        return GeneratorWithData(
-                (dict(prefix=prefix, uri=uri)
-                    for prefix, uri in nm.namespaces()),
-                header=('Prefix', 'URI'),
-                columns=(lambda r: r['prefix'],
-                         lambda r: r['uri']))
+        with self._parent.connect() as conn:
+            nm = conn.rdf.namespace_manager
+            return GeneratorWithData(
+                    (dict(prefix=prefix, uri=uri)
+                        for prefix, uri in nm.namespaces()),
+                    header=('Prefix', 'URI'),
+                    columns=(lambda r: r['prefix'],
+                             lambda r: r['uri']))
 
 
 class _ProgressMock(object):

@@ -25,6 +25,9 @@ from .TestUtilities import assertRegexpMatches, assertNotRegexpMatches
 pytestmark = mark.owm_cli_test
 
 
+EX = rdflib.Namespace('http://example.org')
+
+
 def test_save_diff(owm_project):
     ''' Change something and make a diff '''
     modpath = p(owm_project.testdir, 'test_module')
@@ -300,9 +303,10 @@ def test_type_rm_no_resolve(owm_project):
     print(owm_project.sh('owm save tests.test_modules.owmclitest06_datasource'))
     print(owm_project.sh(f'owm type rm {TestDataSource.rdf_type}'))
     owm = owm_project.owm()
-    assert owm.connect().mapper.resolve_class(
-            TestDataSource.rdf_type,
-            TestDataSource.definition_context) is None
+    with owm.connect() as conn:
+        assert conn.mapper.resolve_class(
+                TestDataSource.rdf_type,
+                TestDataSource.definition_context) is None
 
 
 def test_save_class_resolve_class(owm_project):
@@ -311,9 +315,10 @@ def test_save_class_resolve_class(owm_project):
     owm_project.copy('tests/test_modules', 'tests/test_modules')
     print(owm_project.sh('owm save tests.test_modules.owmclitest06_datasource'))
     owm = owm_project.owm()
-    assert owm.connect().mapper.resolve_class(
-            TestDataSource.rdf_type,
-            TestDataSource.definition_context) is not None
+    with owm.connect() as conn:
+        assert conn.mapper.resolve_class(
+                TestDataSource.rdf_type,
+                TestDataSource.definition_context) is not None
 
 
 def test_contexts_list_imports(owm_project):
@@ -458,6 +463,15 @@ def test_subclass_across_bundles(tmp_path, owm_project):
 
         loaded = [x.identifier for x in defctx.stored(A)().load()]
         assert loaded == [c.identifier]
+
+
+def test_namespace_list(owm_project):
+    with owm_project.owm().connect() as conn:
+        conn.rdf.namespace_manager.bind('test_namespace', EX)
+
+    namespaces = owm_project.sh('owm namespace list')
+    assert 'prefix\ttest_namespace' in namespaces
+    assert f'uri\t{EX}' in namespaces
 
 
 def write_descriptor(descr, path):
