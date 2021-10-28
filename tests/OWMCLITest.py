@@ -269,6 +269,23 @@ def test_source_list_kinds(owm_project, core_bundle):
         '<http://schema.openworm.org/2020/07/data_sources/HTTPFileDataSource>'])
 
 
+def test_source_derivs(owm_project):
+    owm = owm_project.owm()
+    with owm.connect():
+        DS = owm.default_context(DataSource)
+        ds0 = DS(key='ds0')
+        ds1 = DS(key='ds1')
+        ds2 = DS(key='ds2')
+        ds1.source(ds0)
+        ds2.source(ds1)
+        with transaction.manager:
+            owm.default_context.save()
+
+    derivs = owm_project.sh(f'owm source derivs {ds0.identifier}')
+    assert f'{ds0.identifier} → {ds1.identifier}' in derivs
+    assert f'{ds1.identifier} → {ds2.identifier}' in derivs
+
+
 def test_registry_list(owm_project):
     owm_project.make_module('tests')
     owm_project.copy('tests/test_modules', 'tests/test_modules')

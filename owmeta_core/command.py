@@ -200,15 +200,20 @@ class OWMSource(object):
             The ID of the data source to find derivatives of
         '''
         from owmeta_core.datasource import DataSource
-        uri = self._parent._den3(data_source)
-        ctx = self._parent._default_ctx.stored
-        source = ctx(DataSource)(ident=uri)
+
+        def generator():
+            with self._parent.connect():
+                uri = self._parent._den3(data_source)
+                ctx = self._parent._default_ctx.stored
+                source = ctx(DataSource)(ident=uri)
+                for deriv in self._derivs(ctx, source):
+                    yield deriv
 
         def text_format(dat):
             source, derived = dat
             return '{} → {}'.format(source.identifier, derived.identifier)
 
-        return GeneratorWithData(self._derivs(ctx, source),
+        return GeneratorWithData(generator(),
                                  text_format=text_format,
                                  header=("Source", "Derived"),
                                  columns=(lambda x: x[0], lambda x: x[1]))
@@ -1042,6 +1047,8 @@ class OWM(object):
         self._bundle_dep_mgr = None
         self._context = _ProjectContext(owm=self)
 
+        self._cached_default_context = None
+
     def __str__(self):
         return f'{self.__class__.__name__}({self.owmdir})'
 
@@ -1772,7 +1779,15 @@ class OWM(object):
             except KeyError:
                 raise ConfigMissingException(DEFAULT_CONTEXT_KEY)
 
-        return Context.contextualize(self._context)(ident=context)
+        if self._cached_default_context is not None:
+            cached_id = self._cached_default_context.identifier
+            current_id = URIRef(context)
+            if current_id == cached_id:
+                return self._cached_default_context
+
+        self._cached_default_context = Context.contextualize(self._context)(ident=context)
+
+        return self._cached_default_context
 
     default_context = _default_ctx
 
