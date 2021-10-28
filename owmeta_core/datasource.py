@@ -660,9 +660,14 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
         Make a new output `DataSource`. Typically called within `transform`.
         '''
         trans = self.make_transformation(sources)
+
+        if self.output_key:
+            kwargs['key'] = self.output_key
+
+        if self.output_identifier:
+            kwargs['ident'] = self.output_identifier
+
         res = self.output_type.contextualize(self.context)(*args, transformation=trans,
-                                                           ident=self.output_identifier,
-                                                           key=self.output_key,
                                                            conf=self.conf,
                                                            **kwargs)
         for s in sources:

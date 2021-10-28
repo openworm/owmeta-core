@@ -1785,7 +1785,7 @@ class OWM(object):
             if current_id == cached_id:
                 return self._cached_default_context
 
-        self._cached_default_context = Context.contextualize(self._context)(ident=context)
+        self._cached_default_context = self._make_ctx(context)
 
         return self._cached_default_context
 
@@ -2539,16 +2539,16 @@ def wrap_data_object_result(result, props=None, namespace_manager=None, shorten_
             if prop is None:
                 return ""
             vals = prop.get()
-            res = ''
+            val_strs = set()
             for v in vals:
                 if isinstance(v, DataObject):
-                    res += r.identifier
+                    val_strs.add(v.identifier)
                 elif isinstance(v, Identifier):
-                    res += v
-                res += ' '
-            if res:
-                res = res[:-1]
-            return res
+                    val_strs.add(v)
+                else:
+                    val_strs.add(repr(v))
+            return ' '.join(val_strs)
+        return f
 
     props = None
     if isinstance(result, DataObject):

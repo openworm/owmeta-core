@@ -25,7 +25,7 @@ from .TestUtilities import assertRegexpMatches, assertNotRegexpMatches
 pytestmark = mark.owm_cli_test
 
 
-EX = rdflib.Namespace('http://example.org')
+EX = rdflib.Namespace('http://example.org/')
 
 
 def test_save_diff(owm_project):
@@ -214,6 +214,42 @@ def test_translate_data_source_loader(owm_project):
 
         with open(loaded.full_path()) as f:
             assertRegexpMatches(f.read(), '^some stuff$')
+
+
+def test_translate_table_output(owm_project):
+    from .test_modules.owmclitest07_translator import DT, LABEL
+
+    owm = owm_project.owm()
+
+    with owm.connect() as conn:
+        with transaction.manager:
+            # Create data sources
+            ctx = conn(Context)(ident=EX.context)
+            insrc = ctx(DataSource)(ident=EX['in'])
+
+            ctx.mapper.process_class(DT)
+
+            DT.definition_context.save(conn.rdf)
+            ctx(DT)(ident='http://example.org/trans1')
+
+            owm.save(DataSource.__module__)
+            owm.save(DT.__module__)
+            main_ctx = owm.default_context
+            main_ctx.add_import(ctx)
+            main_ctx.add_import(DataSource.definition_context)
+            main_ctx.save_imports()
+            ctx.save()
+            conn.mapper.save()
+
+    owm_project.make_module('tests')
+    modpath = p('tests', 'test_modules')
+    owm_project.copy(modpath, modpath)
+    owm_project.writefile(p(modpath, 'owmclitest07_translator.py'))
+    out_ds = owm_project.sh(
+            'owm --full-trace -o table --columns ID,source,rdfs_label'
+            f' translate {DT.translator_identifier} {insrc.identifier}').strip()
+    print(out_ds)
+    assert re.search(rf'{EX.out} *{EX["in"]} *{LABEL!r}', out_ds)
 
 
 @bundle_versions('core_bundle', [1, 2])
