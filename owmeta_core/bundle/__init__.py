@@ -758,8 +758,6 @@ class BundleDependentStoreConfigBuilder(object):
 
     def _fetch_bundle(self, bundle_ident, version):
         remotes_list = list(retrieve_remotes(self.remotes_directory))
-        if self.remotes is not None:
-            remotes_list += list(self.remotes)
         f = Fetcher(self.bundles_directory, remotes_list)
         return f.fetch(bundle_ident, version, self.remotes)
 
@@ -948,7 +946,7 @@ class Fetcher(_RemoteHandlerMixin):
         .FetchTargetIsNotEmpty
             Thrown when the requested bundle is already in the cache
         '''
-        if remotes:
+        if remotes is not None:
             remotes = list(remotes)
         given_bundle_version = bundle_version
         loaders = self._get_bundle_loaders(bundle_id, given_bundle_version, remotes)
