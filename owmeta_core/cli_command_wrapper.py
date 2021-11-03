@@ -135,7 +135,8 @@ class CLIArgMapper(object):
         return continuation()
 
     def get(self, key):
-        return {k[1]: self.mappings[k] for k in self.mappings if k[0] == key}
+        return {k[1]: self.mappings[k] for k in self.mappings if k[0] == key and
+                self.mappings[k] is not None}
 
     def get_list(self, key):
         keys = sorted((k for k in self.mappings.keys() if k[0] == key), key=lambda it: it[2])

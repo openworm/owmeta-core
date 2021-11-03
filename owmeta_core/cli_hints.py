@@ -223,16 +223,6 @@ CLI_HINTS = {
             },
         },
     },
-    'owmeta_core.command.OWMSourceData': {
-        'retrieve': {
-            (METHOD_NAMED_ARG, 'source'): {
-                'names': ['source'],
-            },
-            (METHOD_NAMED_ARG, 'archive'): {
-                'names': ['archive'],
-            },
-        },
-    },
     'owmeta_core.command.OWMTranslator': {
         'show': {
             (METHOD_NAMED_ARG, 'translator'): {

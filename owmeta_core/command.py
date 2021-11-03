@@ -21,7 +21,7 @@ from os.path import (exists,
         expanduser,
         expandvars)
 
-from os import makedirs, mkdir, rename, unlink, scandir
+from os import makedirs, mkdir, unlink, scandir
 
 import shutil
 import json
@@ -73,68 +73,8 @@ Key used for data source directory loader and file path provider
 '''
 
 
-class OWMSourceData(object):
-    ''' Commands for saving and loading data for DataSources '''
-    def __init__(self, parent):
-        self._source_command = parent
-        self._owm_command = parent._parent
-
-    def retrieve(self, source, archive='data.tar', archive_type=None):
-        '''
-        Retrieves the data for the source
-
-        Parameters
-        ----------
-        source : str
-            The source for data
-        archive : str
-            The file name of the archive. If this ends with an extension like
-            '.zip', and no `archive_type` argument is given, then an archive
-            will be created of that type. The archive name will *not* have any
-            extension appended in any case. optional
-        archive_type : str
-            The type of the archive to create. optional
-        '''
-        from owmeta_core.datasource import DataSource
-        sid = self._owm_command._den3(source)
-        if not archive_type:
-            for ext in EXT_TO_ARCHIVE_FMT:
-                if archive.endswith(ext):
-                    archive_type = EXT_TO_ARCHIVE_FMT.get(ext)
-                    break
-
-        if not archive_type:
-            if ext:
-                msg = "The extension '{}', does not match any known archive format." \
-                        " Defaulting to TAR format"
-                L.warning(msg.format(ext))
-            archive_type = 'tar'
-
-        try:
-            sources = self._owm_command._default_ctx.stored(DataSource)(ident=sid).load()
-            for data_source in sources:
-                dd = self._owm_command._dsd[data_source]
-        except KeyError:
-            raise GenericUserError('Could not find data for {} ({})'.format(sid, source))
-
-        with self._owm_command._tempdir(prefix='owm-source-data-retrieve.') as d:
-            temp_archive = shutil.make_archive(pth_join(d, 'archive'), archive_type, dd)
-            rename(temp_archive, archive)
-
-
-EXT_TO_ARCHIVE_FMT = {
-    '.tar.bz2': 'bztar',
-    '.tar.gz': 'gztar',
-    '.tar.xz': 'xztar',
-    '.tar': 'tar',
-    '.zip': 'zip',
-}
-
-
 class OWMSource(object):
     ''' Commands for working with DataSource objects '''
-
-    data = SubCommand(OWMSourceData)
 
     def __init__(self, parent):
         self._parent = parent

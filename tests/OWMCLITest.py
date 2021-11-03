@@ -7,7 +7,7 @@ import os
 import re
 
 import transaction
-from pytest import mark
+from pytest import mark, fixture
 
 from owmeta_core import BASE_CONTEXT
 from owmeta_core.command import OWM
@@ -159,61 +159,72 @@ def test_translator_list_kinds(owm_project, core_bundle):
     assert set(output) == set(['<http://schema.openworm.org/2020/07/CSVDataTranslator>'])
 
 
-def test_translate_data_source_loader(owm_project):
+@fixture
+def lfds_with_file(owm_project):
     owm = owm_project.owm()
 
-    def print_graph(conn):
-        print(conn.rdf.serialize(format='nquads', encoding='utf-8').decode('utf-8'))
+    class Namespace(object):
+        file_name = 'DSfile'
+        ident = 'http://example.org/lfds'
+        file_contents = 'some stuff'
 
+    res = Namespace()
     with owm.connect() as conn:
         with transaction.manager:
             # Create data sources
             ctx = conn(Context)(ident='http://example.org/context')
             ctx(LFDS)(
-                ident='http://example.org/lfds',
-                file_name='DSFile',
+                ident=res.ident,
+                file_name=res.file_name,
             )
-            ctx.mapper.process_class(DT2)
-            ctx(DT2)(ident='http://example.org/trans1')
-            # Create a translator
-            ctx_id = conn.conf[DEFAULT_CONTEXT_KEY]
-            # print_graph(conn)
-            print("-------------------------")
-            print("DT2.definition_context",
-                  DT2.definition_context, id(DT2.definition_context))
 
-            DT2.definition_context.save(conn.rdf)
-            # print_graph(conn)
-            print("-------------------------")
             owm.save(DataSource.__module__)
             owm.save(LFDS.__module__)
-            owm.save(DT2.__module__)
             LFDS.definition_context.save(conn.rdf)
-            main_ctx = conn(Context)(ident=ctx_id)
+            main_ctx = owm.default_context
             main_ctx.add_import(ctx)
             main_ctx.add_import(LFDS.definition_context)
             main_ctx.save_imports()
             ctx.save()
             conn.mapper.save()
-            # print_graph(conn)
-    owm_project.make_module('tests')
-    modpath = owm_project.copy('tests/test_modules', 'tests/test_modules')
-    owm_project.writefile('DSFile', 'some stuff')
-    owm_project.writefile(p(modpath, 'OWMCLITest.py'),
-        'tests/test_modules/owmclitest01.py')
+    # We're relying on the WorkingDirectoryProvider to be able to load this file for the
+    # datasource defined above. writefile writes to the working directory for the `owm`
+    # execution below
+    owm_project.writefile(res.file_name, res.file_contents)
 
-    out_ds = owm_project.sh('owm --full-trace translate http://example.org/trans1 http://example.org/lfds').strip()
+    return res
+
+
+def test_translate_data_source_loader(owm_project, lfds_with_file):
     with owm_project.owm().connect() as conn:
-        ctx = conn(Context)(ident=ctx_id).stored
-        print('ds_id', repr(out_ds))
-        # print_graph(conn)
+        with transaction.manager:
+            # Create data sources
+            ctx = conn(Context)(ident='http://example.org/context')
+            ctx.mapper.process_class(DT2)
+            ctx(DT2)(ident='http://example.org/trans1')
+            # Create a translator
+
+            DT2.definition_context.save(conn.rdf)
+            conn.owm.save(DT2.__module__)
+            main_ctx = conn.owm.default_context
+            main_ctx.add_import(ctx)
+            main_ctx.save_imports()
+            ctx.save()
+            conn.mapper.save()
+    owm_project.make_module('tests')
+    owm_project.copy('tests/test_modules', 'tests/test_modules')
+
+    out_ds = owm_project.sh(f'owm --full-trace translate http://example.org/trans1 {lfds_with_file.ident}').strip()
+    with owm_project.owm().connect() as conn:
+        ctx = conn.owm.default_context.stored
+        print('ds_id', repr(out_ds), 'default_context', ctx)
         for loaded in ctx(DataSource)(ident=out_ds).load():
             break
         else: # no break
             raise Exception(f'Failed to load datasource for {out_ds}')
 
         with open(loaded.full_path()) as f:
-            assertRegexpMatches(f.read(), '^some stuff$')
+            assertRegexpMatches(f.read(), rf'^{lfds_with_file.file_contents}$')
 
 
 def test_translate_table_output(owm_project):
@@ -518,6 +529,11 @@ def test_subclass_across_bundles(tmp_path, owm_project):
         assert loaded == [c.identifier]
 
 
+def write_descriptor(descr, path):
+    with open(path, 'w') as f:
+        descr.dump(f)
+
+
 def test_namespace_list(owm_project):
     with owm_project.owm().connect() as conn:
         conn.rdf.namespace_manager.bind('test_namespace', EX)
@@ -525,8 +541,3 @@ def test_namespace_list(owm_project):
     namespaces = owm_project.sh('owm namespace list')
     assert 'prefix\ttest_namespace' in namespaces
     assert f'uri\t{EX}' in namespaces
-
-
-def write_descriptor(descr, path):
-    with open(path, 'w') as f:
-        descr.dump(f)

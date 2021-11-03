@@ -13,14 +13,14 @@ from pytest import mark, raises
 import git
 from owmeta_core.git_repo import GitRepoProvider, _CloneProgress
 
-from owmeta_core.command import (OWM, UnreadableGraphException, GenericUserError, StatementValidationError,
+from owmeta_core.command import (OWM, UnreadableGraphException, StatementValidationError,
                             OWMConfig, OWMSource, OWMTranslator,
                             DEFAULT_SAVE_CALLABLE_NAME, OWMDirDataSourceDirLoader, _DSD)
 from owmeta_core.context import (DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
                                  CLASS_REGISTRY_CONTEXT_KEY, Context)
 from owmeta_core.context_common import CONTEXT_IMPORTS
 from owmeta_core.bittorrent import BitTorrentDataSourceDirLoader
-from owmeta_core.command_util import IVar, PropertyIVar
+from owmeta_core.command_util import IVar, PropertyIVar, GenericUserError
 from owmeta_core.dataobject import DataObject
 from owmeta_core.datasource_loader import LoadFailed
 from owmeta_core.cli_command_wrapper import CLICommandWrapper
