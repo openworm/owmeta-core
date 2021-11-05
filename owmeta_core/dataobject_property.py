@@ -74,6 +74,7 @@ class ContextMappedPropertyClass(MappedClass, ContextualizableClass):
         ctx = find_class_context(self, dct, bases)
 
         self.linkName = dct.get('link_name', dct.get('linkName'))
+        self.link_name = self.linkName
 
         self.link = dct.get('link')
 

@@ -184,16 +184,6 @@ def main(*args):
             # In case someone forgets to add a helpful message for their user error
             s = 'Received error: ' + FCN(type(e))
         die(s)
-    finally:
-        # Call 'disconnect' to clean up. If our top_command doesn't have a disconnect(), we
-        # don't want to error-out, so check it actually exists.
-        connected = getattr(p, 'connected', False)
-        if connected:
-            if args:
-                cmd_args = args
-            else:
-                cmd_args = sys.argv
-            die(f"Connection left open on {p} with command {cmd_args}")
 
     if environ.get('OWM_CLI_PROFILE'):
         profiler.disable()

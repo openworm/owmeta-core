@@ -30,6 +30,8 @@ from collections import namedtuple
 from textwrap import dedent
 from tempfile import TemporaryDirectory
 import uuid
+import atexit
+import warnings
 
 from pkg_resources import iter_entry_points, DistributionNotFound
 import rdflib
@@ -95,21 +97,19 @@ class OWMSource(object):
         from .datasource import DataSource
 
         def generator():
-            with self._parent.connect():
-                if context is not None:
-                    ctx = self._parent._make_ctx(context)
-                else:
-                    ctx = self._parent._default_ctx
+            if context is not None:
+                ctx = self._parent._make_ctx(context)
+            else:
+                ctx = self._parent._default_ctx
 
-                kind_uri = self._parent._den3(kind or DataSource.rdf_type)
+            kind_uri = self._parent._den3(kind or DataSource.rdf_type)
 
-                dst = ctx.stored(ctx.stored.resolve_class(kind_uri))
-                if dst is None:
-                    raise GenericUserError('Could not resolve a Python class for ' + str(kind))
+            dst = ctx.stored(ctx.stored.resolve_class(kind_uri))
+            if dst is None:
+                raise GenericUserError('Could not resolve a Python class for ' + str(kind))
 
-                dsq = dst.query()
-                for ds in dsq.load():
-                    yield ds
+            for ds in dst.query().load():
+                yield ds
 
         def format_id(r):
             nm = self._parent.rdf.namespace_manager
@@ -123,12 +123,8 @@ class OWMSource(object):
                 return '\n'.join(comment)
             return ''
 
-        return GeneratorWithData(generator(),
-                                 text_format=format_id,
-                                 default_columns=('ID',),
-                                 columns=(format_id,
-                                          format_comment),
-                                 header=('ID', 'Comment'))
+        self._parent.connect(expect_cleanup=True)
+        return wrap_data_object_result(generator())
 
     def derivs(self, data_source):
         '''
@@ -177,10 +173,11 @@ class OWMSource(object):
         '''
         from owmeta_core.datasource import DataSource
 
-        for ds in data_source:
-            uri = self._parent._den3(ds)
-            for x in self._parent._default_ctx.stored(DataSource)(ident=uri).load():
-                self._parent.message(x.format_str(stored=True))
+        with self._parent.connect():
+            for ds in data_source:
+                uri = self._parent._den3(ds)
+                for x in self._parent._default_ctx.stored(DataSource)(ident=uri).load():
+                    self._parent.message(x.format_str(stored=True))
 
     def list_kinds(self, full=False):
         """
@@ -974,8 +971,7 @@ class OWM(object):
         self._data_source_directories = None
         self._changed_contexts = None
         self._owm_connection = None
-        self._connection = None
-        self._connection_count = 0
+        self._connections = set()
         self._context_change_tracker = None
 
         if owmdir:
@@ -988,6 +984,7 @@ class OWM(object):
         self._context = _ProjectContext(owm=self)
 
         self._cached_default_context = None
+        self.cleanup_manager = atexit
 
     def __str__(self):
         return f'{self.__class__.__name__}({self.owmdir})'
@@ -1250,8 +1247,7 @@ class OWM(object):
                     f.seek(0)
                     write_config(conf, f)
 
-            self.connect()
-            self.disconnect()
+            self.connect().disconnect()
             self._init_repository(reinit)
             if reinit:
                 self.message('Reinitialized owmeta-core project at %s' % abspath(self.owmdir))
@@ -1354,17 +1350,36 @@ class OWM(object):
 
         return self.graph_accessor_finder(url)
 
-    def connect(self, read_only=False):
-        if self._connection is None:
+    def connect(self, read_only=False, expect_cleanup=False):
+        '''
+        Create a connection to the project database.
+
+        Most commands will create their own connections where needed, but for multiple
+        commands you'll want to create one connection at the start. Multiple calls to this
+        method can be made without calling `disconnect` on the resulting connection object,
+        but only if `read_only` has the same value for all calls.
+
+        can be mad
+
+        Parameters
+        ----------
+        read_only : bool
+            if True, the resulting connection will be read-only
+        expect_cleanup : bool
+            if False, a warning will be issued if the `cleanup_manager` has to disconnect
+            the connection
+        '''
+        if self._owm_connection is None:
             conf = self._init_store(read_only=read_only)
             self._owm_connection = connect(conf=conf, mapper=self._context.mapper)
-            self._connection = _ProjectConnection(self, self._owm_connection)
-        self._connection_count += 1
-        return self._connection
+        conn = _ProjectConnection(self, self._owm_connection, self._connections,
+                expect_cleanup=expect_cleanup)
+        self._connections.add(conn)
+        return conn
 
     @property
     def connected(self):
-        return self._connection_count > 0
+        return len(self._connections) > 0
 
     def _conf(self, *args, read_only=False):
         from owmeta_core.data import Data
@@ -1435,14 +1450,14 @@ class OWM(object):
 
     def disconnect(self):
         from owmeta_core import disconnect
-        if self._connection_count == 1:
-            disconnect(self._owm_connection)
-            self._dat = None
-            self._owm_connection = None
-            self._connection = None
-            self._connection_count = 0
-        elif self._connection_count > 1:
-            self._connection_count -= 1
+        if self._owm_connection is not None:
+            if len(self._connections) == 0:
+                disconnect(self._owm_connection)
+                self._dat = None
+                self._owm_connection = None
+            elif len(self._connections) > 0:
+                warnings.warn('Attempted to close OWM connection prematurely:'
+                        f' still have {len(self._connections)} connection(s) ', ResourceWarning, stacklevel=2)
         else:
             raise AlreadyDisconnected(self)
 
@@ -2002,15 +2017,24 @@ class OWM(object):
 
 class _ProjectConnection(object):
 
-    def __init__(self, owm, connection):
+    def __init__(self, owm, connection, connections, *, expect_cleanup=True):
         self.owm = owm
         self.connection = connection
         self._context = owm._context
+        self._connections = connections
+        if owm.cleanup_manager is not None:
+            owm.cleanup_manager.register(self.disconnect, _unexpected=not expect_cleanup)
+        self._connected = True
 
     @property
     def mapper(self):
         # XXX: Maybe refactor this...
         return self._context.mapper
+
+    def __del__(self):
+        if self._connected:
+            warnings.warn('OWM connection deleted without being disconnected',
+                    ResourceWarning, source=self)
 
     def __getattr__(self, attr):
         return getattr(self.connection, attr)
@@ -2022,7 +2046,19 @@ class _ProjectConnection(object):
         return self
 
     def __exit__(self, *args):
-        self.owm.disconnect()
+        self.disconnect()
+
+    def disconnect(self, _unexpected=False):
+        if _unexpected:
+            warnings.warn('Unexpected cleanup by resource manager', ResourceWarning, source=self)
+        try:
+            self._connections.remove(self)
+            if len(self._connections) == 0:
+                self.owm.disconnect()
+            self._connected = False
+        finally:
+            if self.owm.cleanup_manager is not None:
+                self.owm.cleanup_manager.unregister(self.disconnect)
 
     def __str__(self):
         return f'{self.__class__.__name__}({self.owm}, {self.connection})'
@@ -2496,13 +2532,16 @@ def wrap_data_object_result(result, props=None, namespace_manager=None, shorten_
         if props is None:
             props = tuple(x.linkName for x in result.properties)
     else:
-        iterable = result
         if props is None:
-            iterable = list(iterable)
+            do_list = list(result)
             props = set()
-            for r in iterable:
+            for r in do_list:
                 props |= set(x.link_name for x in r.properties)
+                props |= set(x.link_name for x in type(r)._property_classes.values())
             props = tuple(sorted(props))
+            iterable = do_list
+        else:
+            iterable = result
 
     header = ('ID',) + tuple(props)
     columns = (format_id,) + tuple(format_value(propname) for propname in props)

@@ -915,7 +915,9 @@ class OWMSourceTest(unittest.TestCase):
         parent = MagicMock()
 
         # Mock the loading of DataObjects from the DataContext
-        def emptygen(): yield
+        def emptygen():
+            if False:
+                yield
         parent._default_ctx.stored(ANY).query(conf=ANY).load.return_value = emptygen()
         ps = OWMSource(parent)
         self.assertIsNone(next(ps.list(), None))
@@ -924,8 +926,9 @@ class OWMSourceTest(unittest.TestCase):
         parent = MagicMock()
 
         # Mock the loading of DataObjects from the DataContext
-        def gen(): yield Mock()
-        parent._default_ctx.stored(ANY).query(conf=ANY).load.return_value = gen()
+        def gen():
+            yield DataObject()
+        parent._default_ctx.stored(ANY).query().load.return_value = gen()
         ps = OWMSource(parent)
 
         self.assertIsNotNone(next(ps.list(), None))

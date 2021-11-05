@@ -277,6 +277,7 @@ def test_source_list(owm_project, core_bundle):
             ctx(LFDS)(
                 ident='http://example.org/lfds',
                 file_name='DSFile',
+                rdfs_comment='hello, world'
             )
 
             ctx.add_import(LFDS.definition_context)
@@ -288,8 +289,8 @@ def test_source_list(owm_project, core_bundle):
             ctx.save()
             conn.mapper.save()
 
-    assertRegexpMatches(owm_project.sh('owm source list'),
-            '<http://example.org/lfds>')
+    assertRegexpMatches(owm_project.sh('owm -o table --columns ID,file_name,rdfs_comment source list'),
+            'http://example.org/lfds +\'DSFile\' +\'hello, world\'')
 
 
 @bundle_versions('core_bundle', [1, 2])
@@ -331,6 +332,23 @@ def test_source_derivs(owm_project):
     derivs = owm_project.sh(f'owm source derivs {ds0.identifier}')
     assert f'{ds0.identifier} → {ds1.identifier}' in derivs
     assert f'{ds1.identifier} → {ds2.identifier}' in derivs
+
+
+def test_source_show(owm_project):
+    owm = owm_project.owm()
+    with owm.connect() as conn:
+        DS = owm.default_context(DataSource)
+        ds0 = DS(key='ds0')
+        owm.default_context.add_import(DataSource.definition_context)
+        conn.mapper.process_class(DataSource)
+        with transaction.manager:
+            owm.default_context.save()
+            owm.default_context.save_imports(transitive=False)
+            conn(DataSource.definition_context).save()
+            conn.mapper.save()
+        print(conn.rdf.serialize(format='n3'))
+    res = owm_project.sh(f'owm source show {ds0.identifier}')
+    assert 'ds0' in res
 
 
 def test_registry_list(owm_project):
