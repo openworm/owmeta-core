@@ -327,9 +327,10 @@ def _format_output(out, ns_handler):
         # have the attribute AND that the columns/header isn't an empty or tuple/list
         if getattr(out, 'columns', None) and getattr(out, 'header', None):
             if ns_handler.columns:
+                cols = columns_arg_to_list(ns_handler.columns)
                 selected_columns = [i for i, e in zip(range(len(out.header)), out.header)
-                                    if e in columns_arg_to_list(ns_handler.columns)]
-                if not selected_columns:
+                                    if e in cols]
+                if not selected_columns or len(selected_columns) != len(cols):
                     die('The given list of columns is not valid for this command')
             elif getattr(out, 'default_columns', None):
                 selected_columns = [i for i, e in zip(range(len(out.header)), out.header)
