@@ -15,7 +15,7 @@ from owmeta_core.context import Context, IMPORTS_CONTEXT_KEY, DEFAULT_CONTEXT_KE
 from owmeta_core.context_common import CONTEXT_IMPORTS
 from owmeta_core.data_trans.local_file_ds import LocalFileDataSource as LFDS
 from owmeta_core.dataobject import DataObject
-from owmeta_core.datasource import DataTranslator, DataSource
+from owmeta_core.datasource import DataTranslator, DataSource, Transformation, Translation
 from owmeta_core.bundle import Descriptor
 from owmeta_pytest_plugin import bundle_versions
 
@@ -349,6 +349,47 @@ def test_source_show(owm_project):
         print(conn.rdf.serialize(format='n3'))
     res = owm_project.sh(f'owm source show {ds0.identifier}')
     assert 'ds0' in res
+
+
+def test_source_rm_srcs_and_transformations(owm_project):
+    owm = owm_project.owm()
+    with owm.connect() as conn:
+        DS = owm.default_context(DataSource)
+        ds0 = DS(key='ds0')
+        tf1 = owm.default_context(Transformation)(key='tf1')
+        ds0.transformation(tf1)
+        owm.default_context.add_import(DataSource.definition_context)
+        conn.mapper.process_class(DataSource)
+        with transaction.manager:
+            owm.default_context.save()
+            owm.default_context.save_imports(transitive=False)
+            conn(DataSource.definition_context).save()
+            conn.mapper.save()
+        print(conn.rdf.serialize(format='n3'))
+    owm_project.sh(f'owm source rm {ds0.identifier}')
+    with owm_project.owm().connect(read_only=True) as conn:
+        assert [] == list(conn.rdf.triples((tf1.identifier, None, None)))
+        assert [] == list(conn.rdf.triples((ds0.identifier, None, None)))
+
+
+def test_source_rm_translations(owm_project):
+    owm = owm_project.owm()
+    with owm.connect() as conn:
+        DS = owm.default_context(DataSource)
+        ds0 = DS(key='ds0')
+        tl1 = owm.default_context(Translation)(key='tl1')
+        ds0.translation(tl1)
+        owm.default_context.add_import(DataSource.definition_context)
+        conn.mapper.process_class(DataSource)
+        with transaction.manager:
+            owm.default_context.save()
+            owm.default_context.save_imports(transitive=False)
+            conn(DataSource.definition_context).save()
+            conn.mapper.save()
+        print(conn.rdf.serialize(format='n3'))
+    owm_project.sh(f'owm source rm {ds0.identifier}')
+    with owm_project.owm().connect(read_only=True) as conn:
+        assert [] == list(conn.rdf.triples((tl1.identifier, None, None)))
 
 
 def test_registry_list(owm_project):

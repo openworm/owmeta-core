@@ -222,12 +222,12 @@ class OWMSource(object):
         '''
         import transaction
         from .datasource import DataSource
-        with transaction.manager:
+        with self._parent.connect(), transaction.manager:
             for ds in data_source:
                 uri = self._parent._den3(ds)
                 ctx = self._parent._default_ctx.stored
                 for x in ctx(DataSource).query(ident=uri).load():
-                    for trans in x.translation.get():
+                    for trans in x.transformation.get():
                         ctx(trans).retract()
                     ctx(x).retract()
 
