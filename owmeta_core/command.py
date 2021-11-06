@@ -282,12 +282,12 @@ class OWMTranslator(object):
             The translator to show
         '''
         from owmeta_core.datasource import DataTranslator
-        conf = self._parent._conf()
-        uri = self._parent._den3(translator)
-        dt = self._parent._default_ctx.stored(DataTranslator)(ident=uri, conf=conf)
-        for x in dt.load():
-            self._parent.message(x)
-            return
+        with self._parent.connect():
+            uri = self._parent._den3(translator)
+            dt = self._parent._default_ctx.stored(DataTranslator)(ident=uri)
+            for x in dt.load():
+                self._parent.message(x)
+                return
 
     def create(self, translator_type):
         '''

@@ -17,6 +17,7 @@ from owmeta_core.data_trans.local_file_ds import LocalFileDataSource as LFDS
 from owmeta_core.dataobject import DataObject
 from owmeta_core.datasource import DataTranslator, DataSource, Transformation, Translation
 from owmeta_core.bundle import Descriptor
+from owmeta_core.utils import FCN
 from owmeta_pytest_plugin import bundle_versions
 
 from .test_modules.owmclitest01 import DT2
@@ -116,23 +117,22 @@ class DT1(DataTranslator):
 
 def test_translator_list(owm_project):
     expected = URIRef('http://example.org/trans1')
-    with OWM(owmdir=p(owm_project.testdir, '.owm')).connect() as conn:
-        with transaction.manager:
-            # Create data sources
-            ctx = conn(Context)(ident='http://example.org/context')
-            conn.mapper.process_class(DT1)
+    with owm_project.owm().connect() as conn, transaction.manager:
+        # Create data sources
+        ctx = conn(Context)(ident='http://example.org/context')
+        conn.mapper.process_class(DT1)
 
-            DT1.definition_context.save(conn.rdf)
-            conn.mapper.declare_python_class_registry_entry(DT1, DataTranslator)
-            # Create a translator
-            ctx(DT1)(ident=expected)
+        DT1.definition_context.save(conn.rdf)
+        conn.mapper.declare_python_class_registry_entry(DT1, DataTranslator)
+        # Create a translator
+        ctx(DT1)(ident=expected)
 
-            ctx_id = conn.conf[DEFAULT_CONTEXT_KEY]
-            main_ctx = conn(Context)(ident=ctx_id)
-            main_ctx.add_import(ctx)
-            main_ctx.save_imports()
-            ctx.save()
-            conn.mapper.save()
+        ctx_id = conn.conf[DEFAULT_CONTEXT_KEY]
+        main_ctx = conn(Context)(ident=ctx_id)
+        main_ctx.add_import(ctx)
+        main_ctx.save_imports()
+        ctx.save()
+        conn.mapper.save()
 
     # List translators
     assertRegexpMatches(
@@ -148,15 +148,35 @@ def test_translator_list_kinds(owm_project, core_bundle):
     deps = [{'id': 'openworm/owmeta-core', 'version': 1}]
     owm.config.set('dependencies', json.dumps(deps))
 
-    with owm.connect() as conn:
-        with transaction.manager:
-            # Create data sources
-            defctx = conn(Context)(ident=owm_project.default_context_id)
-            defctx.add_import(BASE_CONTEXT)
-            defctx.save_imports()
+    with owm.connect() as conn, transaction.manager:
+        defctx = conn(Context)(ident=owm_project.default_context_id)
+        defctx.add_import(BASE_CONTEXT)
+        defctx.save_imports()
 
     output = owm_project.sh('owm translator list-kinds').strip().split('\n')
     assert set(output) == set(['<http://schema.openworm.org/2020/07/CSVDataTranslator>'])
+
+
+def test_translator_show(owm_project):
+    expected = URIRef('http://example.org/trans1')
+    with owm_project.owm().connect() as conn, transaction.manager:
+        # Create data Translator
+        ctx = conn(Context)(ident='http://example.org/context')
+        conn.mapper.process_class(DT1)
+
+        DT1.definition_context.save(conn.rdf)
+        conn.mapper.declare_python_class_registry_entry(DT1, DataTranslator)
+        # Create a translator
+        dt1 = ctx(DT1)(ident=expected)
+
+        ctx_id = conn.conf[DEFAULT_CONTEXT_KEY]
+        main_ctx = conn(Context)(ident=ctx_id)
+        main_ctx.add_import(ctx)
+        main_ctx.save_imports()
+        ctx.save()
+        conn.mapper.save()
+
+    assert str(dt1) == owm_project.sh(f'owm translator show {expected}').strip()
 
 
 @fixture
