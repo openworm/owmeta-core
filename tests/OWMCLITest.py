@@ -17,7 +17,6 @@ from owmeta_core.data_trans.local_file_ds import LocalFileDataSource as LFDS
 from owmeta_core.dataobject import DataObject
 from owmeta_core.datasource import DataTranslator, DataSource, Transformation, Translation
 from owmeta_core.bundle import Descriptor
-from owmeta_core.utils import FCN
 from owmeta_pytest_plugin import bundle_versions
 
 from .test_modules.owmclitest01 import DT2
@@ -118,7 +117,6 @@ class DT1(DataTranslator):
 def test_translator_list(owm_project):
     expected = URIRef('http://example.org/trans1')
     with owm_project.owm().connect() as conn, transaction.manager:
-        # Create data sources
         ctx = conn(Context)(ident='http://example.org/context')
         conn.mapper.process_class(DT1)
 
@@ -158,7 +156,7 @@ def test_translator_list_kinds(owm_project, core_bundle):
 
 
 def test_translator_show(owm_project):
-    expected = URIRef('http://example.org/trans1')
+    trans_id = URIRef('http://example.org/trans1')
     with owm_project.owm().connect() as conn, transaction.manager:
         # Create data Translator
         ctx = conn(Context)(ident='http://example.org/context')
@@ -167,7 +165,7 @@ def test_translator_show(owm_project):
         DT1.definition_context.save(conn.rdf)
         conn.mapper.declare_python_class_registry_entry(DT1, DataTranslator)
         # Create a translator
-        dt1 = ctx(DT1)(ident=expected)
+        dt1 = ctx(DT1)(ident=trans_id)
 
         ctx_id = conn.conf[DEFAULT_CONTEXT_KEY]
         main_ctx = conn(Context)(ident=ctx_id)
@@ -176,7 +174,46 @@ def test_translator_show(owm_project):
         ctx.save()
         conn.mapper.save()
 
-    assert str(dt1) == owm_project.sh(f'owm translator show {expected}').strip()
+    assert str(dt1) == owm_project.sh(f'owm translator show {trans_id}').strip()
+
+
+def test_translator_create(owm_project):
+    with owm_project.owm().connect() as conn, transaction.manager:
+        conn.mapper.process_class(DT1)
+
+        DT1.definition_context.save(conn.rdf)
+        conn.mapper.declare_python_class_registry_entry(DT1, DataTranslator)
+        conn.mapper.save()
+
+    ident = owm_project.sh(f'owm translator create {DT1.rdf_type}').strip()
+
+    with owm_project.owm().connect() as conn:
+        assert (rdflib.URIRef(ident), rdflib.RDF.type, DT1.rdf_type) in conn.rdf
+
+
+def test_translator_rm(owm_project):
+    trans_id = URIRef('http://example.org/trans1')
+    with owm_project.owm().connect() as conn, transaction.manager:
+        # Create data Translator
+        ctx = conn(Context)(ident='http://example.org/context')
+        conn.mapper.process_class(DT1)
+
+        DT1.definition_context.save(conn.rdf)
+        conn.mapper.declare_python_class_registry_entry(DT1, DataTranslator)
+        # Create a translator
+        ctx(DT1)(ident=trans_id)
+
+        ctx_id = conn.conf[DEFAULT_CONTEXT_KEY]
+        main_ctx = conn(Context)(ident=ctx_id)
+        main_ctx.add_import(ctx)
+        main_ctx.save_imports()
+        ctx.save()
+        conn.mapper.save()
+
+    owm_project.sh(f'owm translator rm {trans_id}')
+
+    with owm_project.owm().connect() as conn:
+        assert (trans_id, None, None) not in conn.rdf
 
 
 @fixture

@@ -356,7 +356,7 @@ class OWMTranslator(object):
         '''
         import transaction
         from .datasource import DataTranslator
-        with transaction.manager:
+        with self._parent.connect(), transaction.manager:
             for dt in translator:
                 uri = self._parent._den3(dt)
                 ctx = self._parent._default_ctx.stored
