@@ -283,7 +283,8 @@ def provide(ob, provs):
             provider = get_provider(ob, cap, provs)
             if not provider and required:
                 raise NoProviderAvailable(cap, ob, provs)
-            ob.accept_capability_provider(cap, provider)
+            if provider:
+                ob.accept_capability_provider(cap, provider)
 
 
 def get_provider(ob, cap, provs):
