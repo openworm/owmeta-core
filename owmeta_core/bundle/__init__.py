@@ -1370,7 +1370,7 @@ class Installer(object):
             included_context_ids.add(ctxid)
 
         for c in descriptor.empties:
-            included_context_ids.discard(URIRef(c))
+            included_context_ids.add(URIRef(c))
 
         # Compute imported contexts
         imported_contexts = set()
