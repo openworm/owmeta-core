@@ -144,7 +144,7 @@ class TDSDPHelper(FilePathProvider, OutputFilePathProvider):
                     self._committed_path, self._prev_version_path,
                     exc_info=True)
         finally:
-            self._file_lock.release()
+            self._release_lock()
 
     def abort(self, transaction):
         rmtree(self._uncommitted_path)
@@ -165,11 +165,21 @@ class TDSDPHelper(FilePathProvider, OutputFilePathProvider):
                     self._committed_path, self._prev_version_path,
                     exc_info=True)
         finally:
-            try:
-                self._file_lock.release()
-            except FileNotFoundError:
-                L.error('Lock file was deleted before being released: directory contents may be'
-                        ' inconsistent', exc_info=True)
+            self._release_lock()
+
+    def _release_lock(self):
+        try:
+            self._file_lock.release()
+        except FileNotFoundError:
+            L.error('Lock file was deleted before being released: directory contents may be'
+                    ' inconsistent', exc_info=True)
+        except PermissionError:
+            L.error('Lock file could not be released due to a permissions error: correct'
+                    ' file system permissions, check directory contents, and delete the'
+                    ' lock file.', exc_info=True)
+        except Exception:
+            L.error('Unknown error during lock file release: directory contents may be '
+                    ' inconsistent', exc_info=True)
 
     def sortKey(self):
         '''

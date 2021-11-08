@@ -2,6 +2,8 @@ from unittest.mock import Mock
 from os.path import join as pth_join
 import os
 import logging
+import stat
+import re
 
 import transaction
 import pytest
@@ -108,7 +110,7 @@ def test_lfds_no_input_provider_for_no_file(tempdir, transaction_manager):
         assert iprov is None
 
 
-def test_unlink_lock_file_during_transaction(tempdir, transaction_manager, caplog):
+def test_unlink_lock_file_during_tpc_finish(tempdir, transaction_manager, caplog):
     ds = LocalFileDataSource(ident="http://example.org/tdsdp-test",
             file_name='test.txt')
     txn = transaction_manager.begin()
@@ -122,10 +124,36 @@ def test_unlink_lock_file_during_transaction(tempdir, transaction_manager, caplo
     data_manager.tpc_begin(txn)
     data_manager.commit(txn)
     os.unlink(ds._output_file_path_provider._file_lock.fname)
+
     data_manager.tpc_finish(txn)
+
     assert ('owmeta_core.capability_providers', logging.ERROR,
             'Lock file was deleted before being released: directory contents may be inconsistent') \
                     in caplog.record_tuples
+
+
+def test_lock_file_parent_read_only_during_tpc_finish(tempdir, transaction_manager, caplog):
+    ds = LocalFileDataSource(ident="http://example.org/tdsdp-test",
+            file_name='test.txt')
+    txn = transaction_manager.begin()
+    cut = TDSDP(tempdir, transaction_manager)
+    provide(ds, [cut])
+    with open(ds.full_output_path(), 'w') as f:
+        f.write('hey')
+
+    # commit early, but do not finalize: we don't acquire the lock until we commit
+    data_manager = ds._output_file_path_provider
+    data_manager.tpc_begin(txn)
+    data_manager.commit(txn)
+    os.chmod(tempdir, stat.S_IREAD)
+
+    data_manager.tpc_finish(txn)
+    for rec in caplog.record_tuples:
+        if rec[:2] == ('owmeta_core.capability_providers', logging.ERROR):
+            assert re.match(r'Lock file could not be released due to a permissions error.*', rec[2])
+            break
+    else: # no break
+        assert False, "Did not find expected record"
 
 
 # Other tests to try:
