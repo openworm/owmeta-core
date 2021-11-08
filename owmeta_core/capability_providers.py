@@ -51,7 +51,6 @@ class TransactionalDataSourceDirProvider(OutputFilePathProvider, FilePathProvide
     def __init__(self, basedir, transaction_manager):
         self._basedir = basedir
         self.transaction_manager = transaction_manager
-
         self._providers = dict()
 
     def provides_to(self, obj, cap):
@@ -63,6 +62,8 @@ class TransactionalDataSourceDirProvider(OutputFilePathProvider, FilePathProvide
                 provider = TDSDPHelper(self._basedir, key, self.transaction_manager)
                 self._providers[key] = provider
             if cap == FilePathCapability():
+                # We need the file to already exist for FilePathCapability, so here we
+                # check for that
                 provider_file_path = provider.file_path()
                 if not exists(provider_file_path):
                     return None
@@ -164,7 +165,11 @@ class TDSDPHelper(FilePathProvider, OutputFilePathProvider):
                     self._committed_path, self._prev_version_path,
                     exc_info=True)
         finally:
-            self._file_lock.release()
+            try:
+                self._file_lock.release()
+            except FileNotFoundError:
+                L.error('Lock file was deleted before being released: directory contents may be'
+                        ' inconsistent', exc_info=True)
 
     def sortKey(self):
         '''

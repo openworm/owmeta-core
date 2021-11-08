@@ -26,6 +26,7 @@ class lock_file(object):
         self.fname = fname
         self.wait_interval = wait_interval
         self._have_lock = False
+        self.released = None
 
     def __enter__(self):
         self._acq_ll()
@@ -71,17 +72,22 @@ class lock_file(object):
         self._have_lock = have_lock
         return have_lock
 
-    def _rel_ll(self):
+    def release(self):
         if not self._have_lock:
             raise InvalidLockAccess(f'Attempted to release {self.fname} before it was'
                     ' acquired')
         if not self.released:
-            os.unlink(self.fname)
-            self._have_lock = False
+            try:
+                os.unlink(self.fname)
+                self._have_lock = False
+            except FileNotFoundError:
+                self._have_lock = False
+                raise
+            # If we fail above, we no longer have the lock, but we haven't really
+            # "released" the lock, so we leave the value as False. At this point, this
+            # variable only provides diagnostic info since we would only set _have_lock
+            # again when we actually do have the lock.
             self.released = True
-
-    def release(self):
-        self._rel_ll()
 
 
 class InvalidLockAccess(Exception):
