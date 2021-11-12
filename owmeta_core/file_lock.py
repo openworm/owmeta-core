@@ -65,6 +65,7 @@ class lock_file(object):
                 sleep(self.wait_interval)
             else:
                 os.write(fd, self._name)
+                os.fsync(fd)
                 os.close(fd)
                 have_lock = True
             if not block:
