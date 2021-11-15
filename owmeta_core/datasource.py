@@ -108,6 +108,17 @@ class Informational(object):
 
         self.cls = None
         self.subproperty_of = subproperty_of
+        self._docstr = None
+
+    @property
+    def __doc__(self):
+        return (self._docstr or (f'"{self.display_name}", a :class:`~owmeta_core.dataobject.{self.property_type}`' +
+            (f': {self.description}' if self.description else '') +
+            (f'\n\nDefault value: {self.default_value!r}' if self.default_value is not None else '')))
+
+    @__doc__.setter
+    def __doc__(self, docstring):
+        self._docstr = docstring
 
     def __get__(self, obj, owner):
         if obj is None:
@@ -695,11 +706,11 @@ class BaseDataTranslator(DataTransformer):
     def translate(self, *args, **kwargs):
         '''
         Notionally, this method takes one or more data sources, and translates them into
-        some other data source that captures essentially the same information, but in a
-        different format. Additional sources can be passed in as well for auxiliary
-        information which are not "translated" in their entirety into the output data
-        source. Such auxiliarry data sources should be distinguished from the primary ones
-        in the translation
+        some other data source that captures essentially the same information, but,
+        possibly, in a different format. Additional sources can be passed in as well for
+        auxiliary information which are not "translated" in their entirety into the output
+        data source. Such auxiliarry data sources should be distinguished from the primary
+        ones in the translation
 
         Parameters
         ----------
@@ -727,7 +738,7 @@ class BaseDataTranslator(DataTransformer):
         arguments to `translate` are (or are not) distinguished.
 
         The actual properties of a `Translation` subclass must be assigned within the
-        `transform` method
+        `translate` method
 
         Parameters
         ----------
@@ -802,7 +813,7 @@ def transform(transformer,
     Raises
     ------
     NoTranslatorFound
-        when a translator is not
+        when a translator is not found
     NoSourceFound
         when a source cannot be looked up in the given context
     ExtraSourceFound

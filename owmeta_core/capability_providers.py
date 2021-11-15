@@ -33,7 +33,7 @@ class WorkingDirectoryProvider(FilePathProvider):
         self.cwd = getcwd()
 
     def provides_to(self, obj, cap):
-        from owmeta_core.data_trans.local_file_ds import LocalFileDataSource
+        from .data_trans.local_file_ds import LocalFileDataSource
         file_name = obj.file_name.one()
         if not file_name:
             return None
@@ -47,7 +47,15 @@ class WorkingDirectoryProvider(FilePathProvider):
 
 
 class TransactionalDataSourceDirProvider(OutputFilePathProvider, FilePathProvider):
+    '''
+    Provides a DataSourceDirectoryProvider with transactional semantics.
 
+    Provides a `TDSDPHelper` for `.DataSource` objects, indexed by the `DataSource`
+    identifier. If asked to provide a `.FilePathCapability` (i.e, a directory for input),
+    and the `DataSource` is a `~.data_trans.local_file_ds.LocalFileDataSource`, then we'll
+    check that a file named with the value of `~.LocalFileDataSource.file_name` is in the
+    provided directory.
+    '''
     def __init__(self, basedir, transaction_manager):
         self._basedir = basedir
         self.transaction_manager = transaction_manager
@@ -60,7 +68,6 @@ class TransactionalDataSourceDirProvider(OutputFilePathProvider, FilePathProvide
             provider = self._providers.get(key)
             if provider is None:
                 provider = TDSDPHelper(self._basedir, key, self.transaction_manager)
-                self._providers[key] = provider
             if cap == FilePathCapability():
                 # We need the file to already exist for FilePathCapability, so here we
                 # check for that
@@ -71,11 +78,22 @@ class TransactionalDataSourceDirProvider(OutputFilePathProvider, FilePathProvide
                     file_name = obj.file_name.one()
                     if not exists(pth_join(provider_file_path, file_name)):
                         return None
+            self._providers[key] = provider
             return provider
         return None
 
 
 class TDSDPHelper(FilePathProvider, OutputFilePathProvider):
+    '''
+    This provider relies on the `transaction` library's machinery to manage the
+    transaction.
+
+    Consistency is NOT guaranteed in all cases: in particular, this provider uses a
+    file-based locking mechanism with a `"lock file" <.file_lock.lock_file>` in the given
+    base directory which, if it's deleted during the two-phase commit process, removes the
+    isolation of the changes made in the directory.
+    '''
+
     def __init__(self, basedir, key, transaction_manager):
         self._basedir = basedir
         self._key = key
