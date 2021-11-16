@@ -74,8 +74,12 @@ class AggregateStore(Store):
         return sum(len(store) for store in self.__stores)
 
     def contexts(self, triple=None):
+        seen = set()
         for store in self.__stores:
             for ctx in store.contexts(triple):
+                if ctx in seen:
+                    continue
+                seen.add(ctx)
                 yield ctx
 
     def prefix(self, namespace):

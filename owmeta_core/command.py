@@ -36,6 +36,7 @@ import warnings
 from pkg_resources import iter_entry_points, DistributionNotFound
 import rdflib
 from rdflib.term import URIRef, Identifier
+from rdflib.graph import DATASET_DEFAULT_GRAPH_ID
 
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
                            DEFAULT_OWM_DIR)
@@ -676,7 +677,7 @@ class OWMContexts(object):
                     g.remove((None, None, None))
                     parser.parse(create_input_source(source), g)
 
-    def list(self, include_dependencies=False):
+    def list(self, include_dependencies=False, include_default=False):
         '''
         List the set of contexts in the graph
 
@@ -684,13 +685,20 @@ class OWMContexts(object):
         ----------
         include_dependencies : bool
             If set, then contexts from dependencies will be included
+        include_default : bool
+            If set, then include the default graph in the results as well
         '''
-        if include_dependencies:
-            for c in self._parent.rdf.contexts():
-                yield c.identifier
-        else:
-            for c in self._parent.own_rdf.contexts():
-                yield c.identifier
+        with self._parent.connect():
+            if include_dependencies:
+                for c in self._parent.rdf.contexts():
+                    is_default = c.identifier == DATASET_DEFAULT_GRAPH_ID
+                    if not is_default or include_default:
+                        yield c.identifier
+            else:
+                for c in self._parent.own_rdf.contexts():
+                    is_default = c.identifier == DATASET_DEFAULT_GRAPH_ID
+                    if not is_default or include_default:
+                        yield c.identifier
 
     def list_changed(self):
         '''
@@ -1775,7 +1783,7 @@ class OWM(object):
         has_dependencies = self._conf('dependencies', None)
         if has_dependencies:
             return rdflib.Dataset(
-                    self._conf('rdf.graph').store.stores[0],
+                    self.rdf.store.stores[0],
                     default_union=True)
         else:
             return self._conf('rdf.graph')

@@ -2,6 +2,7 @@ from __future__ import print_function
 import json
 import rdflib
 from rdflib.term import URIRef
+from rdflib.graph import DATASET_DEFAULT_GRAPH_ID
 from os.path import join as p
 import os
 import re
@@ -565,6 +566,70 @@ def test_rm_context_removes_all_2(owm_project):
     owm_project.sh('owm contexts rm http://example.org/ctx1 http://example.org/ctx2')
     with owm.connect(read_only=True) as conn:
         assert set() == set(conn.rdf.triples((None, pred, None)))
+
+
+def test_contexts_list(owm_project):
+    owm = owm_project.owm()
+    ctx1_id = 'http://example.org/context#ctx1'
+    with owm.connect() as conn:
+        with transaction.manager:
+            # Create data sources
+            conn.rdf.get_context(URIRef(ctx1_id)).add(
+                    (EX.s, EX.p, EX.o))
+
+    output = owm_project.sh('owm contexts list').strip()
+    assert output.split('\n') == [ctx1_id]
+
+
+def test_contexts_list_include_default(owm_project):
+    owm = owm_project.owm()
+    ctx1_id = 'http://example.org/context#ctx1'
+    with owm.connect() as conn:
+        with transaction.manager:
+            # Create data sources
+            conn.rdf.get_context(URIRef(ctx1_id)).add(
+                    (EX.s, EX.p, EX.o))
+
+    output = owm_project.sh('owm contexts list --include-default').strip()
+    assert output.split('\n') == [ctx1_id, str(DATASET_DEFAULT_GRAPH_ID)]
+
+
+def test_contexts_list_include_deps(tmp_path, owm_project):
+
+    ctxa_id = 'http://example.org/context_a'
+    ctxb_id = 'http://example.org/context_b'
+
+    owm = owm_project.owm()
+    with owm.connect() as conn, transaction.manager:
+        conn.rdf.get_context(URIRef(ctxa_id)).add(
+                (EX.s0, EX.p, EX.o))
+
+    descr_a = Descriptor(
+        'test/abundle',
+        version=1,
+        includes=[ctxa_id])
+    apth = p(tmp_path, 'a.yml')
+    write_descriptor(descr_a, apth)
+    owm.bundle.install(apth)
+
+    owm_project.owmdir = p(owm_project.testdir, '.owm1')
+
+    owm1 = owm_project.owm(non_interactive=True)
+    default_ctxid = 'http://example.org/project_default_context'
+    owm1.init(default_context_id=default_ctxid)
+    owm1.config.set('dependencies', json.dumps([{'id': descr_a.id, 'version': descr_a.version}]))
+
+    with owm1.connect() as conn, transaction.manager:
+        conn.rdf.get_context(URIRef(ctxb_id)).add(
+                (EX.s1, EX.p, EX.o))
+
+    base_cmd = f'owm --owmdir={owm_project.owmdir} contexts list'
+
+    output = owm_project.sh(f'{base_cmd}').strip()
+    assert set(output.split('\n')) == set([ctxb_id])
+
+    output = owm_project.sh(f'{base_cmd} --include-dependencies').strip()
+    assert set(output.split('\n')) == set([ctxa_id, ctxb_id])
 
 
 def test_subclass_across_bundles(tmp_path, owm_project):
