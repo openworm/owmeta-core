@@ -722,3 +722,11 @@ def test_namespace_list(owm_project):
     namespaces = owm_project.sh('owm namespace list')
     assert 'prefix\ttest_namespace' in namespaces
     assert f'uri\t{EX}' in namespaces
+
+
+def test_declare(owm_project):
+    owm_project.sh(f'owm declare owmeta_core.dataobject:DataObject --id="{EX.bathtub}"')
+    with owm_project.owm().connect() as conn:
+        dctx = conn.owm.default_context
+        objs = list(dctx.stored(DataObject)().load())
+        assert objs[0].identifier == EX.bathtub

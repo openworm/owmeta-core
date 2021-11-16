@@ -2014,12 +2014,12 @@ class OWM(object):
             The identifier for the object
         '''
         import transaction
-        dctx = self._default_ctx
         cls = retrieve_provider(python_type)
-        ob = dctx.stored(cls)(ident=self._den3(id))
-        with transaction.manager:
+        with self.connect(), transaction.manager:
+            dctx = self._default_ctx
+            ob = dctx(cls)(ident=self._den3(id))
             for prop, val in attributes:
-                getattr(dctx(ob), prop)(val)
+                getattr(ob, prop)(val)
             dctx.save()
 
 
