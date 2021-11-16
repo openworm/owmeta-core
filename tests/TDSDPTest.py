@@ -147,13 +147,16 @@ def test_lock_file_parent_read_only_during_tpc_finish(tempdir, transaction_manag
     data_manager.commit(txn)
     os.chmod(tempdir, stat.S_IREAD)
 
-    data_manager.tpc_finish(txn)
-    for rec in caplog.record_tuples:
-        if rec[:2] == ('owmeta_core.capability_providers', logging.ERROR):
-            assert re.match(r'Lock file could not be released due to a permissions error.*', rec[2])
-            break
-    else: # no break
-        assert False, "Did not find expected record"
+    try:
+        data_manager.tpc_finish(txn)
+        for rec in caplog.record_tuples:
+            if rec[:2] == ('owmeta_core.capability_providers', logging.ERROR):
+                assert re.match(r'Lock file could not be released due to a permissions error.*', rec[2])
+                break
+        else: # no break
+            assert False, "Did not find expected record"
+    finally:
+        os.chmod(tempdir, stat.S_IREAD | stat.S_IWRITE | stat.S_IEXEC)
 
 
 # Other tests to try:
