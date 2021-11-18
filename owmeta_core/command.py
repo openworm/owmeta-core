@@ -1537,7 +1537,8 @@ class OWM(object):
             except IsADirectoryError:
                 shutil.rmtree(g)
 
-        self._regenerate_database()
+        with self.connect():
+            self._regenerate_database()
 
     def _regenerate_database(self):
         with self.progress_reporter(unit=' ctx', file=sys.stderr) as ctx_prog, \

@@ -730,3 +730,17 @@ def test_declare(owm_project):
         dctx = conn.owm.default_context
         objs = list(dctx.stored(DataObject)().load())
         assert objs[0].identifier == EX.bathtub
+
+
+def test_regendb(owm_project):
+    owm = owm_project.owm()
+    with owm.connect() as conn, transaction.manager:
+        conn.rdf.add((EX.s, EX.p, EX.o))
+    owm_project.sh('owm commit -m "commit 1"')
+    with owm.connect() as conn, transaction.manager:
+        conn.rdf.add((EX.s, EX.p, EX.o1))
+    owm_project.sh('owm regendb')
+
+    with owm.connect(read_only=True) as conn, transaction.manager:
+        assert (EX.s, EX.p, EX.o) in conn.rdf
+        assert (EX.s, EX.p, EX.o1) not in conn.rdf
