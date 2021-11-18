@@ -686,9 +686,17 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
 
         return res
 
-    def transform_part(self, translator_type, *sources, output_key=None,
+    def transform_with(self, translator_type, *sources, output_key=None,
             output_identifier=None,
             **named_sources):
+        '''
+        Transform with the given `DataTransformer` and sources.
+
+        This should be used in a `transform` implementation to compose multiple
+        transformations. An instance of the transformer will be created and contextualized
+        with the *this* transformer's context unless the given transformer already has a
+        context.
+        '''
         if translator_type.context is None:
             translator_type = translator_type.contextualize(self.context)
         return transform(
