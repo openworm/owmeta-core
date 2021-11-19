@@ -102,7 +102,7 @@ class Container(BaseDataObject):
         prop = getattr(self, f'_{index}', None)
         if isinstance(prop, ContainerMembershipProperty):
             return prop(item)
-        raise Exception(f'Non-ContainerMembershipProperty set at _{index}')
+        raise Exception(f'Non-ContainerMembershipProperty set at _{index}: {prop}')
 
 
 class ContainerValueConflict(Exception):

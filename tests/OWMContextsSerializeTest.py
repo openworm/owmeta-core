@@ -72,7 +72,6 @@ def test_serialize_whole_graph_with_context_error(owm_project):
     with pytest.raises(subprocess.CalledProcessError) as raised:
         owm_project.sh('owm contexts serialize -f n3 --whole-graph'
                 ' http://example.org/context', stderr=subprocess.STDOUT)
-    print(dir(raised), type(raised), raised.value)
     assertRegexpMatches(raised.value.output.decode('UTF-8'),
             r'whole.graph.*context|context.*whole.graph')
 

@@ -74,6 +74,7 @@ class ContextMappedPropertyClass(MappedClass, ContextualizableClass):
         ctx = find_class_context(self, dct, bases)
 
         self.linkName = dct.get('link_name', dct.get('linkName'))
+        self.link_name = self.linkName
 
         self.link = dct.get('link')
 
@@ -405,7 +406,7 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
 
         g = ZeroOrMoreTQLayer(rdfs_subclassof_zom, self.rdf)
         g = ContainerMembershipIsMemberTQLayer(g)
-        g = ZeroOrMoreTQLayer(rdfs_subpropertyof_zom(R.RDFS.member), g)
+        g = ZeroOrMoreTQLayer(rdfs_subpropertyof_zom(self.link), g)
         if owner.defined:
             results = set()
             ident = owner.identifier

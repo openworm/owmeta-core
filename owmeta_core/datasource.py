@@ -108,6 +108,17 @@ class Informational(object):
 
         self.cls = None
         self.subproperty_of = subproperty_of
+        self._docstr = None
+
+    @property
+    def __doc__(self):
+        return (self._docstr or (f'"{self.display_name}", a :class:`~owmeta_core.dataobject.{self.property_type}`' +
+            (f': {self.description}' if self.description else '') +
+            (f'\n\nDefault value: {self.default_value!r}' if self.default_value is not None else '')))
+
+    @__doc__.setter
+    def __doc__(self, docstring):
+        self._docstr = docstring
 
     def __get__(self, obj, owner):
         if obj is None:
@@ -327,6 +338,8 @@ class Translation(Transformation):
     In contrast to just a transformation, a translation wouldn't just pick out, say, one
     record within an input source containing several, but would have an output source with o
     '''
+    class_context = BASE_CONTEXT
+
     translator = ObjectProperty(subproperty_of=Transformation.transformer)
 
 
@@ -409,17 +422,17 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
             if v is not None:
                 ctxd_prop(v)
 
-    def commit(self):
+    def after_transform(self):
         '''
-        Commit the data source *locally*
+        Called after `Transformer.transform`.
 
-        This includes staging files such as they would be available for a translation. In general, a sub-class should
-        implement :meth:`commit_augment` rather than this method, or at least call this method via super
+        This method should handle any of the things that should happen for an output data
+        source after `Transformer.transform` (or `Translator.translate`). This can include
+        things like flushing output to files, closing file handles, and writing triples in
+        a Context.
+
+        NOTE: Be sure to call this method via super() in sub-classes
         '''
-        self.commit_augment()
-
-    def commit_augment(self):
-        pass
 
     def defined_augment(self):
         return self.transformation.has_defined_value() or self.translation.has_defined_value()
@@ -466,7 +479,8 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
             return sio.getvalue()
         except AttributeError:
             res = super(DataSource, self).__str__()
-            L.error('Failed while creating formatting string representation for %s', res)
+            L.error('Failed while creating formatting string representation for %s', res,
+                    exc_info=True)
             return res
 
 
@@ -573,7 +587,11 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
         Type of the `Transformation` record produced as a side-effect of transforming with
         this transformer
     output_key : str
-        The "key" for outputs from this transformer. See `IdentifierMixin`
+        The "key" for outputs from this transformer (see `IdentifierMixin`). Normally only
+        defined during execution of __call__
+    output_identifier : str
+        The identifier for outputs from this transformer. Normally only defined during
+        execution of __call__
     '''
 
     class_context = BASE_CONTEXT
@@ -582,11 +600,21 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
     output_type = DataSource
     transformation_type = Transformation
 
-    def __call__(self, *args, **kwargs):
-        self.output_key = kwargs.pop('output_key', None)
-        self.output_identifier = kwargs.pop('output_identifier', None)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.output_key = None
+        self.output_identifier = None
+
+    def __call__(self, *args, output_key=None,
+            output_identifier=None, **kwargs):
+        self.output_key = output_key
+        self.output_identifier = output_identifier
         try:
-            return self.transform(*args, **kwargs)
+            res = self.transform(*args, **kwargs)
+            res.after_transform()
+            res.context.save_context()
+            self.after_transform()
+            return res
         finally:
             self.output_key = None
             self.output_identifier = None
@@ -632,30 +660,65 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
         '''
         return self.transformation_type.contextualize(self.context)(transformer=self)
 
+    def after_transform(self):
+        '''
+        Called after `transform` runs in `__call__` and after the result
+        `DataSource.after_transform` is called.
+        '''
+
     def make_new_output(self, sources, *args, **kwargs):
         '''
-        Make a new output `DataSource`. Typically called within `transform`. The t
+        Make a new output `DataSource`. Typically called within `transform`.
         '''
         trans = self.make_transformation(sources)
+
+        if self.output_key:
+            kwargs['key'] = self.output_key
+
+        if self.output_identifier:
+            kwargs['ident'] = self.output_identifier
+
         res = self.output_type.contextualize(self.context)(*args, transformation=trans,
-                                                           ident=self.output_identifier,
-                                                           key=self.output_key, **kwargs)
+                                                           conf=self.conf,
+                                                           **kwargs)
         for s in sources:
             res.source(s)
 
         return res
 
+    def transform_with(self, translator_type, *sources, output_key=None,
+            output_identifier=None,
+            **named_sources):
+        '''
+        Transform with the given `DataTransformer` and sources.
+
+        This should be used in a `transform` implementation to compose multiple
+        transformations. An instance of the transformer will be created and contextualized
+        with the *this* transformer's context unless the given transformer already has a
+        context.
+        '''
+        if translator_type.context is None:
+            translator_type = translator_type.contextualize(self.context)
+        return transform(
+                translator_type(),
+                output_key=output_key,
+                output_identifier=output_identifier,
+                data_sources=sources,
+                named_data_sources=named_sources)
+
 
 class BaseDataTranslator(DataTransformer):
+
+    class_context = BASE_CONTEXT
 
     def translate(self, *args, **kwargs):
         '''
         Notionally, this method takes one or more data sources, and translates them into
-        some other data source that captures essentially the same information, but in a
-        different format. Additional sources can be passed in as well for auxiliary
-        information which are not "translated" in their entirety into the output data
-        source. Such auxiliarry data sources should be distinguished from the primary ones
-        in the translation
+        some other data source that captures essentially the same information, but,
+        possibly, in a different format. Additional sources can be passed in as well for
+        auxiliary information which are not "translated" in their entirety into the output
+        data source. Such auxiliarry data sources should be distinguished from the primary
+        ones in the translation
 
         Parameters
         ----------
@@ -683,7 +746,7 @@ class BaseDataTranslator(DataTransformer):
         arguments to `translate` are (or are not) distinguished.
 
         The actual properties of a `Translation` subclass must be assigned within the
-        `transform` method
+        `translate` method
 
         Parameters
         ----------
@@ -734,3 +797,91 @@ class PersonDataTranslator(BaseDataTranslator):
             __doc__='A person responsible for carrying out the translation.')
 
     # No translate impl is provided here since this is intended purely as a descriptive object
+
+
+def transform(transformer,
+              output_key=None, output_identifier=None,
+              data_sources=(), named_data_sources=None):
+    """
+    Do a translation with the named translator and inputs
+
+    Parameters
+    ----------
+    transformer : DataTransformer
+        transformer to execute
+    output_key : str
+        Output key. Used for generating the output's identifier. Exclusive with output_identifier
+    output_identifier : str
+        Output identifier. Exclusive with output_key
+    data_sources : list of DataSource
+        Input data sources
+    named_data_sources : dict
+        Named input data sources
+
+    Raises
+    ------
+    NoTranslatorFound
+        when a translator is not found
+    NoSourceFound
+        when a source cannot be looked up in the given context
+    ExtraSourceFound
+        when a more than one source is found in the given context for the given source
+        identifier
+    """
+    if named_data_sources is None:
+        named_data_sources = dict()
+
+    if transformer is None:
+        raise TypeError('No translator given')
+
+    positional_sources = []
+    for idx, psrc in enumerate(data_sources):
+        if psrc is None:
+            raise NoSourceFound(f'No source at position {idx}')
+        loaded_src = None
+        for m in psrc.load():
+            if loaded_src is not None:
+                raise ExtraSourceFound(f'Found more than one source for {psrc}: {loaded_src} AND {m}')
+            loaded_src = m
+        if loaded_src is None:
+            raise NoSourceFound(f'Unable to load source at position {idx} for {psrc}')
+        positional_sources.append(loaded_src)
+
+    named_sources = dict()
+    for key, nsrc in named_data_sources.items():
+        if nsrc is None:
+            raise NoSourceFound(f'No source for {key}')
+        named_sources[key] = nsrc
+
+    return transformer(*positional_sources,
+            output_identifier=output_identifier,
+            output_key=output_key,
+            **named_sources)
+
+
+def _lookup_translator(ctx, tname):
+    for x in ctx(DataTranslator)(ident=tname).load():
+        return x
+
+
+def _lookup_source(ctx, sname):
+    for x in ctx(DataSource)(ident=sname).load():
+        return x
+
+
+class NoTranslatorFound(Exception):
+    '''
+    Raised by `transform` when a translator cannot be found in the current context
+    '''
+
+
+class NoSourceFound(Exception):
+    '''
+    Raised by `transform` when a source cannot be found in the current context
+    '''
+
+
+class ExtraSourceFound(Exception):
+    '''
+    Raised by `transform` when more than one source is found in the current context
+    '''

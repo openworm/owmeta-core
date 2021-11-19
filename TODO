@@ -1,3 +1,7 @@
+- Make the OutputFilePath *provider* transactional such that the LFDS can just
+  write out whatever it wants and we commit by, say, renaming directories and
+  have it implement transaction.ITransactionManager
+
 - Finish the transformer super-classes
 - Make `subproperty_of` in class dict work to create rdfs_subpropertyof assignments.
 - Define un-zip transformer
@@ -41,4 +45,9 @@ or accepts on the command line, the fields for the data source
 
 - Write documentation describing the notion of the (current) data context and
 (current) imports context
+
+- Contextualize other QueryContext instances with the creating context's context
+- Test named data sources in .datasource.transform
+- Test project context imports empty bundle context
+- Test empty project context imports bundle context
 

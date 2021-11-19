@@ -21,20 +21,22 @@ from os.path import (exists,
         expanduser,
         expandvars)
 
-from os import makedirs, mkdir, listdir, rename, unlink, scandir
+from os import makedirs, mkdir, unlink, scandir
 
 import shutil
 import json
 import logging
-import errno
 from collections import namedtuple
 from textwrap import dedent
 from tempfile import TemporaryDirectory
 import uuid
+import atexit
+import warnings
 
 from pkg_resources import iter_entry_points, DistributionNotFound
 import rdflib
-from rdflib.term import URIRef
+from rdflib.term import URIRef, Identifier
+from rdflib.graph import DATASET_DEFAULT_GRAPH_ID
 
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
                            DEFAULT_OWM_DIR)
@@ -45,13 +47,18 @@ from .commands.bundle import OWMBundle
 from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
                       CLASS_REGISTRY_CONTEXT_KEY)
 from .context_common import CONTEXT_IMPORTS
-from .capability import provide
-from .capabilities import FilePathProvider, CacheDirectoryProvider
+from .capable_configurable import CAPABILITY_PROVIDERS_KEY
+from .capabilities import FilePathProvider
+from .dataobject import DataObject
 from .datasource_loader import DataSourceDirLoader, LoadFailed
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
 from .mapper import Mapper
-from .rdf_utils import BatchAddGraph
-from .utils import FCN
+from .capability_providers import (TransactionalDataSourceDirProvider,
+                                   SimpleCacheDirectoryProvider,
+                                   WorkingDirectoryProvider,
+                                   SimpleTemporaryDirectoryProvider)
+from .utils import FCN, retrieve_provider
+from .rdf_utils import ContextSubsetStore
 
 
 L = logging.getLogger(__name__)
@@ -63,69 +70,14 @@ Default name for the provider in the arguments to `OWM.save`
 
 DSDL_GROUP = 'owmeta_core.datasource_dir_loader'
 
-
-class OWMSourceData(object):
-    ''' Commands for saving and loading data for DataSources '''
-    def __init__(self, parent):
-        self._source_command = parent
-        self._owm_command = parent._parent
-
-    def retrieve(self, source, archive='data.tar', archive_type=None):
-        '''
-        Retrieves the data for the source
-
-        Parameters
-        ----------
-        source : str
-            The source for data
-        archive : str
-            The file name of the archive. If this ends with an extension like
-            '.zip', and no `archive_type` argument is given, then an archive
-            will be created of that type. The archive name will *not* have any
-            extension appended in any case. optional
-        archive_type : str
-            The type of the archive to create. optional
-        '''
-        from owmeta_core.datasource import DataSource
-        sid = self._owm_command._den3(source)
-        if not archive_type:
-            for ext in EXT_TO_ARCHIVE_FMT:
-                if archive.endswith(ext):
-                    archive_type = EXT_TO_ARCHIVE_FMT.get(ext)
-                    break
-
-        if not archive_type:
-            if ext:
-                msg = "The extension '{}', does not match any known archive format." \
-                        " Defaulting to TAR format"
-                L.warning(msg.format(ext))
-            archive_type = 'tar'
-
-        try:
-            sources = self._owm_command._default_ctx.stored(DataSource)(ident=sid).load()
-            for data_source in sources:
-                dd = self._owm_command._dsd[data_source]
-        except KeyError:
-            raise GenericUserError('Could not find data for {} ({})'.format(sid, source))
-
-        with self._owm_command._tempdir(prefix='owm-source-data-retrieve.') as d:
-            temp_archive = shutil.make_archive(pth_join(d, 'archive'), archive_type, dd)
-            rename(temp_archive, archive)
-
-
-EXT_TO_ARCHIVE_FMT = {
-    '.tar.bz2': 'bztar',
-    '.tar.gz': 'gztar',
-    '.tar.xz': 'xztar',
-    '.tar': 'tar',
-    '.zip': 'zip',
-}
+DSD_DIRKEY = 'owmeta_core.command.OWMDirDataSourceDirLoader'
+'''
+Key used for data source directory loader and file path provider
+'''
 
 
 class OWMSource(object):
     ''' Commands for working with DataSource objects '''
-
-    data = SubCommand(OWMSourceData)
 
     def __init__(self, parent):
         self._parent = parent
@@ -144,24 +96,24 @@ class OWMSource(object):
             Whether to (attempt to) shorten the source URIs by using the namespace manager
         """
         from .datasource import DataSource
-        conf = self._parent._conf()
-        if context is not None:
-            ctx = self._parent._make_ctx(context)
-        else:
-            ctx = self._parent._default_ctx
 
-        if kind is None:
-            kind = DataSource.rdf_type
-        kind_uri = self._parent._den3(kind)
+        def generator():
+            if context is not None:
+                ctx = self._parent._make_ctx(context)
+            else:
+                ctx = self._parent._default_ctx
 
-        dst = ctx.stored(ctx.stored.resolve_class(kind_uri))
-        if dst is None:
-            raise GenericUserError('Could not resolve a Python class for ' + str(kind))
+            kind_uri = self._parent._den3(kind or DataSource.rdf_type)
 
-        ds = dst.query()
-        nm = conf['rdf.graph'].namespace_manager
+            dst = ctx.stored(ctx.stored.resolve_class(kind_uri))
+            if dst is None:
+                raise GenericUserError('Could not resolve a Python class for ' + str(kind))
+
+            for ds in dst.query().load():
+                yield ds
 
         def format_id(r):
+            nm = self._parent.rdf.namespace_manager
             if full:
                 return r.identifier
             return nm.normalizeUri(r.identifier)
@@ -172,12 +124,8 @@ class OWMSource(object):
                 return '\n'.join(comment)
             return ''
 
-        return GeneratorWithData(ds.load(),
-                                 text_format=format_id,
-                                 default_columns=('ID',),
-                                 columns=(format_id,
-                                          format_comment),
-                                 header=('ID', 'Comment'))
+        self._parent.connect(expect_cleanup=True)
+        return wrap_data_object_result(generator())
 
     def derivs(self, data_source):
         '''
@@ -189,15 +137,20 @@ class OWMSource(object):
             The ID of the data source to find derivatives of
         '''
         from owmeta_core.datasource import DataSource
-        uri = self._parent._den3(data_source)
-        ctx = self._parent._default_ctx.stored
-        source = ctx(DataSource)(ident=uri)
+
+        def generator():
+            with self._parent.connect():
+                uri = self._parent._den3(data_source)
+                ctx = self._parent._default_ctx.stored
+                source = ctx(DataSource)(ident=uri)
+                for deriv in self._derivs(ctx, source):
+                    yield deriv
 
         def text_format(dat):
             source, derived = dat
             return '{} → {}'.format(source.identifier, derived.identifier)
 
-        return GeneratorWithData(self._derivs(ctx, source),
+        return GeneratorWithData(generator(),
                                  text_format=text_format,
                                  header=("Source", "Derived"),
                                  columns=(lambda x: x[0], lambda x: x[1]))
@@ -221,10 +174,11 @@ class OWMSource(object):
         '''
         from owmeta_core.datasource import DataSource
 
-        for ds in data_source:
-            uri = self._parent._den3(ds)
-            for x in self._parent._default_ctx.stored(DataSource)(ident=uri).load():
-                self._parent.message(x.format_str(stored=True))
+        with self._parent.connect():
+            for ds in data_source:
+                uri = self._parent._den3(ds)
+                for x in self._parent._default_ctx.stored(DataSource)(ident=uri).load():
+                    self._parent.message(x.format_str(stored=True))
 
     def list_kinds(self, full=False):
         """
@@ -244,19 +198,19 @@ class OWMSource(object):
         from .dataobject import RDFSClass
         from .rdf_query_modifiers import (ZeroOrMoreTQLayer,
                                           rdfs_subclassof_subclassof_zom_creator)
-        conf = self._parent._conf()
-        ctx = self._parent._default_ctx
-        rdfto = ctx.stored(DataSource.rdf_type_object)
-        sc = ctx.stored(RDFSClass)()
-        sc.rdfs_subclassof_property(rdfto)
-        nm = conf['rdf.graph'].namespace_manager
-        zom_matcher = rdfs_subclassof_subclassof_zom_creator(DataSource.rdf_type)
-        g = ZeroOrMoreTQLayer(zom_matcher, ctx.stored.rdf_graph())
-        for x in sc.load(graph=g):
-            if full:
-                yield x.identifier
-            else:
-                yield nm.normalizeUri(x.identifier)
+        with self._parent.connect():
+            ctx = self._parent._default_ctx
+            rdfto = ctx.stored(DataSource.rdf_type_object)
+            sc = ctx.stored(RDFSClass)()
+            sc.rdfs_subclassof_property(rdfto)
+            nm = self._parent.rdf.namespace_manager
+            zom_matcher = rdfs_subclassof_subclassof_zom_creator(DataSource.rdf_type)
+            g = ZeroOrMoreTQLayer(zom_matcher, ctx.stored.rdf_graph())
+            for x in sc.load(graph=g):
+                if full:
+                    yield x.identifier
+                else:
+                    yield nm.normalizeUri(x.identifier)
 
     def rm(self, *data_source):
         '''
@@ -269,12 +223,12 @@ class OWMSource(object):
         '''
         import transaction
         from .datasource import DataSource
-        with transaction.manager:
+        with self._parent.connect(), transaction.manager:
             for ds in data_source:
                 uri = self._parent._den3(ds)
                 ctx = self._parent._default_ctx.stored
                 for x in ctx(DataSource).query(ident=uri).load():
-                    for trans in x.translation.get():
+                    for trans in x.transformation.get():
                         ctx(trans).retract()
                     ctx(x).retract()
 
@@ -298,20 +252,25 @@ class OWMTranslator(object):
             Whether to (attempt to) shorten the source URIs by using the namespace manager
         '''
         from owmeta_core.datasource import DataTranslator
-        if context is not None:
-            ctx = self._parent._make_ctx(context)
-        else:
-            ctx = self._parent._default_ctx
-        dt = ctx.stored(DataTranslator).query()
-        nm = self._parent.rdf.namespace_manager
+
+        def generator():
+            with self._parent.connect():
+                if context is not None:
+                    ctx = self._parent._make_ctx(context)
+                else:
+                    ctx = self._parent._default_ctx
+                dtq = ctx.stored(DataTranslator).query()
+                for dt in dtq.load():
+                    yield dt
 
         def id_fmt(trans):
+            nm = self._parent.rdf.namespace_manager
             if full:
                 return str(trans.identifier)
             else:
                 return nm.normalizeUri(trans.identifier)
 
-        return GeneratorWithData(dt.load(), header=('ID',), columns=(id_fmt,),
+        return GeneratorWithData(generator(), header=('ID',), columns=(id_fmt,),
                 text_format=id_fmt)
 
     def show(self, translator):
@@ -324,12 +283,12 @@ class OWMTranslator(object):
             The translator to show
         '''
         from owmeta_core.datasource import DataTranslator
-        conf = self._parent._conf()
-        uri = self._parent._den3(translator)
-        dt = self._parent._default_ctx.stored(DataTranslator)(ident=uri, conf=conf)
-        for x in dt.load():
-            self._parent.message(x)
-            return
+        with self._parent.connect():
+            uri = self._parent._den3(translator)
+            dt = self._parent._default_ctx.stored(DataTranslator)(ident=uri)
+            for x in dt.load():
+                self._parent.message(x)
+                return
 
     def create(self, translator_type):
         '''
@@ -342,16 +301,18 @@ class OWMTranslator(object):
         '''
         import transaction
 
-        ctx = self._parent._default_ctx
-        translator_uri = self._parent._den3(translator_type)
-        translator_cls = ctx.stored.resolve_class(translator_uri)
-        if not translator_cls:
-            raise GenericUserError(f'Unable to find the class for {translator_type}')
-        with transaction.manager:
-            ctx(translator_cls)()
-            ctx.add_import(translator_cls.definition_context)
-            ctx.save()
-            ctx.save_imports(transitive=False)
+        with self._parent.connect():
+            ctx = self._parent._default_ctx
+            translator_uri = self._parent._den3(translator_type)
+            translator_cls = ctx.stored.resolve_class(translator_uri)
+            if not translator_cls:
+                raise GenericUserError(f'Unable to find the class for {translator_type}')
+            with transaction.manager:
+                res = ctx(translator_cls)()
+                ctx.add_import(translator_cls.definition_context)
+                ctx.save()
+                ctx.save_imports(transitive=False)
+            return res.identifier
 
     def list_kinds(self, full=False):
         """
@@ -371,19 +332,19 @@ class OWMTranslator(object):
         from .dataobject import RDFSClass
         from .rdf_query_modifiers import (ZeroOrMoreTQLayer,
                                           rdfs_subclassof_subclassof_zom_creator)
-        conf = self._parent._conf()
-        ctx = self._parent._default_ctx
-        rdfto = ctx.stored(DataTranslator.rdf_type_object)
-        sc = ctx.stored(RDFSClass)()
-        sc.rdfs_subclassof_property(rdfto)
-        nm = conf['rdf.graph'].namespace_manager
-        zom_matcher = rdfs_subclassof_subclassof_zom_creator(DataTranslator.rdf_type)
-        g = ZeroOrMoreTQLayer(zom_matcher, ctx.stored.rdf_graph())
-        for x in sc.load(graph=g):
-            if full:
-                yield x.identifier
-            else:
-                yield nm.normalizeUri(x.identifier)
+        with self._parent.connect():
+            ctx = self._parent._default_ctx
+            rdfto = ctx.stored(DataTranslator.rdf_type_object)
+            sc = ctx.stored(RDFSClass)()
+            sc.rdfs_subclassof_property(rdfto)
+            nm = self._parent._conf('rdf.graph').namespace_manager
+            zom_matcher = rdfs_subclassof_subclassof_zom_creator(DataTranslator.rdf_type)
+            g = ZeroOrMoreTQLayer(zom_matcher, ctx.stored.rdf_graph())
+            for x in sc.load(graph=g):
+                if full:
+                    yield x.identifier
+                else:
+                    yield nm.normalizeUri(x.identifier)
 
     def rm(self, *translator):
         '''
@@ -396,7 +357,7 @@ class OWMTranslator(object):
         '''
         import transaction
         from .datasource import DataTranslator
-        with transaction.manager:
+        with self._parent.connect(), transaction.manager:
             for dt in translator:
                 uri = self._parent._den3(dt)
                 ctx = self._parent._default_ctx.stored
@@ -424,17 +385,18 @@ class OWMTypes(object):
         import transaction
         from .dataobject import RDFSClass, RegistryEntry
         with transaction.manager:
-            for class_id in type:
-                uri = self._parent._den3(class_id)
-                ctx = self._parent._default_ctx.stored
-                tdo = ctx.stored(RDFSClass)(ident=uri)
-                ctx(tdo).retract()
+            with self._parent.connect() as conn:
+                for class_id in type:
+                    uri = self._parent._den3(class_id)
+                    ctx = self._parent._default_ctx.stored
+                    tdo = ctx.stored(RDFSClass)(ident=uri)
+                    ctx(tdo).retract()
 
-                crctx = self._parent.connect().mapper.class_registry_context
-                re = crctx.stored(RegistryEntry).query()
-                re.rdf_class(uri)
-                for x in re.load():
-                    crctx.stored(x).retract()
+                    crctx = conn.mapper.class_registry_context
+                    re = crctx.stored(RegistryEntry).query()
+                    re.rdf_class(uri)
+                    for x in re.load():
+                        crctx.stored(x).retract()
 
 
 class OWMNamespace(object):
@@ -448,14 +410,14 @@ class OWMNamespace(object):
         '''
         List namespace prefixes and URIs in the project
         '''
-        conf = self._parent._conf()
-        nm = conf['rdf.graph'].namespace_manager
-        return GeneratorWithData(
-                (dict(prefix=prefix, uri=uri)
-                    for prefix, uri in nm.namespaces()),
-                header=('Prefix', 'URI'),
-                columns=(lambda r: r['prefix'],
-                         lambda r: r['uri']))
+        with self._parent.connect() as conn:
+            nm = conn.rdf.namespace_manager
+            return GeneratorWithData(
+                    (dict(prefix=prefix, uri=uri)
+                        for prefix, uri in nm.namespaces()),
+                    header=('Prefix', 'URI'),
+                    columns=(lambda r: r['prefix'],
+                             lambda r: r['uri']))
 
 
 class _ProgressMock(object):
@@ -616,21 +578,22 @@ class OWMContexts(object):
             retstr = True
             destination = BytesIO()
 
-        if whole_graph:
-            if context is not None:
-                raise GenericUserError('Serializing the whole graph precludes selecting a'
-                        ' single context')
-            self._parent.rdf.serialize(destination, format=format)
-        else:
-            if context is None:
-                ctx = self._parent._default_ctx
+        with self._parent.connect():
+            if whole_graph:
+                if context is not None:
+                    raise GenericUserError('Serializing the whole graph precludes selecting a'
+                            ' single context')
+                self._parent.rdf.serialize(destination, format=format)
             else:
-                ctx = Context(ident=self._parent._den3(context), conf=self._parent._conf())
+                if context is None:
+                    ctx = self._parent._default_ctx
+                else:
+                    ctx = Context(ident=self._parent._den3(context), conf=self._parent._conf())
 
-            if include_imports:
-                ctx.stored.rdf_graph().serialize(destination, format=format)
-            else:
-                ctx.own_stored.rdf_graph().serialize(destination, format=format)
+                if include_imports:
+                    ctx.stored.rdf_graph().serialize(destination, format=format)
+                else:
+                    ctx.own_stored.rdf_graph().serialize(destination, format=format)
 
         if retstr:
             self._parent.message(destination.getvalue().decode(encoding='utf-8'))
@@ -714,7 +677,7 @@ class OWMContexts(object):
                     g.remove((None, None, None))
                     parser.parse(create_input_source(source), g)
 
-    def list(self, include_dependencies=False):
+    def list(self, include_dependencies=False, include_default=False):
         '''
         List the set of contexts in the graph
 
@@ -722,13 +685,20 @@ class OWMContexts(object):
         ----------
         include_dependencies : bool
             If set, then contexts from dependencies will be included
+        include_default : bool
+            If set, then include the default graph in the results as well
         '''
-        if include_dependencies:
-            for c in self._parent.rdf.contexts():
-                yield c.identifier
-        else:
-            for c in self._parent.own_rdf.contexts():
-                yield c.identifier
+        with self._parent.connect():
+            if include_dependencies:
+                for c in self._parent.rdf.contexts():
+                    is_default = c.identifier == DATASET_DEFAULT_GRAPH_ID
+                    if not is_default or include_default:
+                        yield c.identifier
+            else:
+                for c in self._parent.own_rdf.contexts():
+                    is_default = c.identifier == DATASET_DEFAULT_GRAPH_ID
+                    if not is_default or include_default:
+                        yield c.identifier
 
     def list_changed(self):
         '''
@@ -745,9 +715,10 @@ class OWMContexts(object):
         context : str
             The context to list imports for
         '''
-        ctx = self._parent._make_ctx(context).stored
-        for c in ctx.imports:
-            yield c.identifier
+        with self._parent.connect():
+            ctx = self._parent._make_ctx(context).stored
+            for c in ctx.imports:
+                yield c.identifier
 
     def list_importers(self, context):
         '''
@@ -796,11 +767,12 @@ class OWMContexts(object):
             An imported context
         '''
         import transaction
-        imports_ctxid = self._parent.imports_context()
-        imports_ctx = self._parent._context(Context)(imports_ctxid).stored
-        with transaction.manager:
-            for imp in imported:
-                imports_ctx.rdf_graph().remove((URIRef(importer), CONTEXT_IMPORTS, URIRef(imp)))
+        with self._parent.connect():
+            imports_ctxid = self._parent.imports_context()
+            imports_ctx = self._parent._context(Context)(imports_ctxid).stored
+            with transaction.manager:
+                for imp in imported:
+                    imports_ctx.rdf_graph().remove((URIRef(importer), CONTEXT_IMPORTS, URIRef(imp)))
 
     def bundle(self, context):
         '''
@@ -830,11 +802,12 @@ class OWMContexts(object):
             Context to remove
         '''
         import transaction
-        graph = self._parent.own_rdf
-        with transaction.manager:
-            for c in context:
-                c = self._parent._den3(c)
-                graph.remove_graph(c)
+        with self._parent.connect():
+            graph = self._parent.own_rdf
+            with transaction.manager:
+                for c in context:
+                    c = self._parent._den3(c)
+                    graph.remove_graph(c)
 
 
 class OWMRegistry(object):
@@ -863,43 +836,43 @@ class OWMRegistry(object):
             class name. Optional.
         '''
         from .dataobject import PythonClassDescription
-        mapper = self._parent.connect().mapper
 
         def registry_entries():
-            for re in mapper.load_registry_entries():
-                ident = re.identifier
-                cd = re.class_description()
-                re_rdf_type = re.rdf_class()
-                if not isinstance(cd, PythonClassDescription):
-                    continue
-                module_do = cd.module()
-                if re.namespace_manager:
-                    ident = re.namespace_manager.normalizeUri(ident)
-                if hasattr(module_do, 'name'):
-                    module_name = module_do.name()
-                re_class_name = cd.name()
+            with self._parent.connect() as conn:
+                for re in conn.mapper.load_registry_entries():
+                    ident = re.identifier
+                    cd = re.class_description()
+                    re_rdf_type = re.rdf_class()
+                    if not isinstance(cd, PythonClassDescription):
+                        continue
+                    module_do = cd.module()
+                    if re.namespace_manager:
+                        ident = re.namespace_manager.normalizeUri(ident)
+                    if hasattr(module_do, 'name'):
+                        module_name = module_do.name()
+                    re_class_name = cd.name()
 
-                if module is not None and module != module_name:
-                    continue
+                    if module is not None and module != module_name:
+                        continue
 
-                if rdf_type is not None and rdf_type != str(re_rdf_type):
-                    continue
+                    if rdf_type is not None and rdf_type != str(re_rdf_type):
+                        continue
 
-                if class_name is not None and class_name != str(re_class_name):
-                    continue
+                    if class_name is not None and class_name != str(re_class_name):
+                        continue
 
-                res = dict(id=ident,
-                        rdf_type=re_rdf_type,
-                        class_name=re_class_name,
-                        module_name=module_name)
+                    res = dict(id=ident,
+                            rdf_type=re_rdf_type,
+                            class_name=re_class_name,
+                            module_name=module_name)
 
-                if hasattr(module_do, 'package'):
-                    package = module_do.package()
-                    if package:
-                        res['package'] = dict(id=package.identifier,
-                                              name=package.name(),
-                                              version=package.version())
-                yield res
+                    if hasattr(module_do, 'package'):
+                        package = module_do.package()
+                        if package:
+                            res['package'] = dict(id=package.identifier,
+                                                  name=package.name(),
+                                                  version=package.version())
+                    yield res
 
         def fmt_text(entry, format=None):
             if format == 'pretty':
@@ -963,8 +936,6 @@ class OWM(object):
 
     graph_accessor_finder = IVar(doc='Finds an RDFLib graph from the given URL')
 
-    basedir = IVar('.', doc='The base directory. owmdir is resolved against this base')
-
     repository_provider = IVar(doc='The provider of the repository logic'
                                    ' (cloning, initializing, committing, checkouts)')
 
@@ -1008,6 +979,7 @@ class OWM(object):
         self._data_source_directories = None
         self._changed_contexts = None
         self._owm_connection = None
+        self._connections = set()
         self._context_change_tracker = None
 
         if owmdir:
@@ -1019,6 +991,12 @@ class OWM(object):
         self._bundle_dep_mgr = None
         self._context = _ProjectContext(owm=self)
 
+        self._cached_default_context = None
+        self.cleanup_manager = atexit
+
+    def __str__(self):
+        return f'{self.__class__.__name__}({self.owmdir})'
+
     @IVar.property(OWMETA_PROFILE_DIR)
     def userdir(self):
         '''
@@ -1029,6 +1007,17 @@ class OWM(object):
     @userdir.setter
     def userdir(self, val):
         self._userdir = val
+
+    @IVar.property('.')
+    def basedir(self):
+        '''
+        The base directory. owmdir is resolved against this base
+        '''
+        return self._basedir
+
+    @basedir.setter
+    def basedir(self, val):
+        self._basedir = realpath(expandvars(expanduser(val)))
 
     @IVar.property(DEFAULT_OWM_DIR)
     def owmdir(self):
@@ -1067,6 +1056,17 @@ class OWM(object):
     def store_name(self, val):
         self._store_name = val
 
+    @IVar.property('temp')
+    def temporary_directory(self):
+        ''' The base temporary directory for any operations that need one '''
+        if isabs(self._temporary_directory):
+            return self._temporary_directory
+        return pth_join(self.owmdir, self._temporary_directory)
+
+    @temporary_directory.setter
+    def temporary_directory(self, val):
+        self._temporary_directory = val
+
     def _ensure_owmdir(self):
         if not exists(self.owmdir):
             makedirs(self.owmdir)
@@ -1101,62 +1101,62 @@ class OWM(object):
         import transaction
         import importlib as IM
         from functools import wraps
-        conf = self._conf()
+        with self.connect() as conn:
+            conf = self._conf()
 
-        added_cwd = False
-        cwd = os.getcwd()
-        if cwd not in sys.path:
-            sys.path.append(cwd)
-            added_cwd = True
+            added_cwd = False
+            cwd = os.getcwd()
+            if cwd not in sys.path:
+                sys.path.append(cwd)
+                added_cwd = True
 
-        try:
-            mod = IM.import_module(module)
-            provider_not_set = provider is None
-            if not provider:
-                provider = DEFAULT_SAVE_CALLABLE_NAME
+            try:
+                mod = IM.import_module(module)
+                provider_not_set = provider is None
+                if not provider:
+                    provider = DEFAULT_SAVE_CALLABLE_NAME
 
-            conn = self.connect()
-            if not context:
-                ctx = conn(_OWMSaveContext)(self._default_ctx, mod)
-            else:
-                ctx = conn(_OWMSaveContext)(Context(ident=context, conf=conf), mod)
-            attr_chain = provider.split('.')
-            prov = mod
-            for x in attr_chain:
-                try:
-                    prov = getattr(prov, x)
-                except AttributeError:
-                    if provider_not_set and getattr(mod, '__yarom_mapped_classes__', None):
-                        def prov(*args, **kwargs):
-                            pass
-                        break
-                    raise
-            ns = OWMSaveNamespace(context=ctx)
+                if not context:
+                    ctx = conn(_OWMSaveContext)(self._default_ctx, mod)
+                else:
+                    ctx = conn(_OWMSaveContext)(Context(ident=context, conf=conf), mod)
+                attr_chain = provider.split('.')
+                prov = mod
+                for x in attr_chain:
+                    try:
+                        prov = getattr(prov, x)
+                    except AttributeError:
+                        if provider_not_set and getattr(mod, '__yarom_mapped_classes__', None):
+                            def prov(*args, **kwargs):
+                                pass
+                            break
+                        raise
+                ns = OWMSaveNamespace(context=ctx)
 
-            mapped_classes = getattr(mod, '__yarom_mapped_classes__', None)
-            if mapped_classes:
-                # It's a module with class definitions -- take each of the mapped
-                # classes and add their contexts so they're saved properly...
-                orig_prov = prov
-                mapper = self._owm_connection.mapper
+                mapped_classes = getattr(mod, '__yarom_mapped_classes__', None)
+                if mapped_classes:
+                    # It's a module with class definitions -- take each of the mapped
+                    # classes and add their contexts so they're saved properly...
+                    orig_prov = prov
+                    mapper = self._owm_connection.mapper
 
-                @wraps(prov)
-                def save_classes(ns):
-                    ns.include_context(mapper.class_registry_context)
-                    mapper.process_module(module, mod)
-                    mapper.declare_python_class_registry_entry(*mapped_classes)
-                    for mapped_class in mapped_classes:
-                        ns.include_context(mapped_class.definition_context)
-                    orig_prov(ns)
-                prov = save_classes
+                    @wraps(prov)
+                    def save_classes(ns):
+                        ns.include_context(mapper.class_registry_context)
+                        mapper.process_module(module, mod)
+                        mapper.declare_python_class_registry_entry(*mapped_classes)
+                        for mapped_class in mapped_classes:
+                            ns.include_context(mapped_class.definition_context)
+                        orig_prov(ns)
+                    prov = save_classes
 
-            with transaction.manager:
-                prov(ns)
-                ns.save(graph=conf['rdf.graph'])
-            return ns.created_contexts()
-        finally:
-            if added_cwd:
-                sys.path.remove(cwd)
+                with transaction.manager:
+                    prov(ns)
+                    ns.save(graph=conf['rdf.graph'])
+                return ns.created_contexts()
+            finally:
+                if added_cwd:
+                    sys.path.remove(cwd)
 
     def say(self, subject, property, object):
         '''
@@ -1255,7 +1255,7 @@ class OWM(object):
                     f.seek(0)
                     write_config(conf, f)
 
-            self._init_store()
+            self.connect().disconnect()
             self._init_repository(reinit)
             if reinit:
                 self.message('Reinitialized owmeta-core project at %s' % abspath(self.owmdir))
@@ -1348,10 +1348,9 @@ class OWM(object):
             If True, imports of the named context will be included. Has no
             effect if context is None.
         """
-        graph = self.fetch_graph(url)
-        dat = self._conf()
-
-        dat['rdf.graph'].addN(graph.quads((None, None, None, context)))
+        with self.connect():
+            graph = self.fetch_graph(url)
+            self._conf('rdf.graph').addN(graph.quads((None, None, None, context)))
 
     def _obtain_graph_accessor(self, url):
         if self.graph_accessor_finder is None:
@@ -1359,13 +1358,39 @@ class OWM(object):
 
         return self.graph_accessor_finder(url)
 
-    def connect(self, read_only=False):
-        self._init_store(read_only=read_only)
-        return _ProjectConnection(self, self._owm_connection)
+    def connect(self, read_only=False, expect_cleanup=False):
+        '''
+        Create a connection to the project database.
+
+        Most commands will create their own connections where needed, but for multiple
+        commands you'll want to create one connection at the start. Multiple calls to this
+        method can be made without calling `disconnect` on the resulting connection object,
+        but only if `read_only` has the same value for all calls.
+
+        can be mad
+
+        Parameters
+        ----------
+        read_only : bool
+            if True, the resulting connection will be read-only
+        expect_cleanup : bool
+            if False, a warning will be issued if the `cleanup_manager` has to disconnect
+            the connection
+        '''
+        if self._owm_connection is None:
+            conf = self._init_store(read_only=read_only)
+            self._owm_connection = connect(conf=conf, mapper=self._context.mapper)
+        conn = _ProjectConnection(self, self._owm_connection, self._connections,
+                expect_cleanup=expect_cleanup)
+        self._connections.add(conn)
+        return conn
+
+    @property
+    def connected(self):
+        return len(self._connections) > 0
 
     def _conf(self, *args, read_only=False):
         from owmeta_core.data import Data
-        import six
         dat = getattr(self, '_dat', None)
         if not dat or self._dat_file != self.config_file:
             if not exists(self.config_file):
@@ -1394,7 +1419,7 @@ class OWM(object):
                 ' configuration files at ' + self.config_file + ' or ' +
                 self.config.user_config_file + ' OWM repository may have been initialized'
                 ' incorrectly')
-            if (isinstance(store_conf, six.string_types) and
+            if (isinstance(store_conf, str) and
                     isabs(store_conf) and
                     not store_conf.startswith(abspath(self.owmdir))):
                 raise GenericUserError('rdf.store_conf must specify a path inside of ' +
@@ -1419,7 +1444,9 @@ class OWM(object):
                                                                remotes=project_remotes,
                                                                dependencies=lambda: deps)
 
-            self._owm_connection = connect(conf=dat)
+            providers = dat.get(CAPABILITY_PROVIDERS_KEY, [])
+            providers.extend(self._cap_provs())
+            dat[CAPABILITY_PROVIDERS_KEY] = providers
 
             self._dat = dat
             self._dat_file = self.config_file
@@ -1432,9 +1459,15 @@ class OWM(object):
     def disconnect(self):
         from owmeta_core import disconnect
         if self._owm_connection is not None:
-            disconnect(self._owm_connection)
-            self._dat = None
-            self._owm_connection = None
+            if len(self._connections) == 0:
+                disconnect(self._owm_connection)
+                self._dat = None
+                self._owm_connection = None
+            elif len(self._connections) > 0:
+                warnings.warn('Attempted to close OWM connection prematurely:'
+                        f' still have {len(self._connections)} connection(s) ', ResourceWarning, stacklevel=2)
+        else:
+            raise AlreadyDisconnected(self)
 
     def clone(self, url=None, update_existing_config=False, branch=None):
         """Clone a data store
@@ -1459,7 +1492,8 @@ class OWM(object):
                 self._init_config_file()
             self._init_store()
             self.message('Deserializing...', file=sys.stderr)
-            self._regenerate_database()
+            with self.connect():
+                self._regenerate_database()
             self.message('Done!', file=sys.stderr)
         except FileExistsError:
             raise
@@ -1503,7 +1537,8 @@ class OWM(object):
             except IsADirectoryError:
                 shutil.rmtree(g)
 
-        self._regenerate_database()
+        with self.connect():
+            self._regenerate_database()
 
     def _regenerate_database(self):
         with self.progress_reporter(unit=' ctx', file=sys.stderr) as ctx_prog, \
@@ -1514,6 +1549,7 @@ class OWM(object):
         import transaction
         from rdflib import plugin
         from rdflib.parser import Parser, create_input_source
+        from .rdf_utils import BatchAddGraph
         idx_fname = pth_join(self.owmdir, 'graphs', 'index')
         triples_read = 0
         if exists(idx_fname):
@@ -1591,49 +1627,66 @@ class OWM(object):
 
         Parameters
         ----------
-        translator : str or `.DataTranslator`
+        translator : str
             Translator identifier
         output_key : str
             Output key. Used for generating the output's identifier. Exclusive with output_identifier
         output_identifier : str
             Output identifier. Exclusive with output_key
-        data_sources : list of str or list of `.DataSource`
+        data_sources : list of str
             Input data sources
         named_data_sources : dict
             Named input data sources
         """
-        import transaction
+        with self.connect():
+            import transaction
+            from .datasource import transform, DataTransformer, DataSource
+            source_objs = []
+            srcctx = self._default_ctx.stored
+            for s in data_sources:
+                src_obj = next(srcctx(DataSource)(ident=self._den3(s)).load(), None)
+                if src_obj is None:
+                    raise GenericUserError(f'No source for "{s}"')
+                source_objs.append(src_obj)
 
-        if named_data_sources is None:
-            named_data_sources = dict()
+            named_data_source_objs = dict()
+            if named_data_sources is not None:
+                for key, ds in named_data_sources.items():
+                    src_obj = next(srcctx(DataSource)(ident=self._den3(ds)).load(), None)
+                    if src_obj is None:
+                        raise GenericUserError(f'No source for "{ds}", named {key}')
+                    named_data_source_objs[key] = src_obj
 
-        translator_obj = self._lookup_translator(translator)
-        if translator_obj is None:
-            raise GenericUserError(f'No translator for {translator}')
+            if isinstance(translator, str):
+                transformer_id = self._den3(translator)
+                transformer_obj = next(srcctx(DataTransformer)(ident=self._den3(transformer_id)).load(), None)
+                if transformer_obj is None:
+                    raise GenericUserError(f'No transformer for {translator}')
+                transformer_obj = self._default_ctx(transformer_obj)
 
-        positional_sources = [self._lookup_source(src) for src in data_sources]
-        if None in positional_sources:
-            raise GenericUserError(f'No source for "{data_sources[positional_sources.index(None)]}"')
-        named_sources = {k: self._lookup_source(src) for k, src in
-                named_data_sources.items()}
-        with self._tempdir(prefix='owm-translate.') as d:
-            orig_wd = os.getcwd()
-            with transaction.manager:
-                os.chdir(d)
-                try:
-                    res = self._default_ctx(translator_obj)(*positional_sources,
-                                         output_identifier=output_identifier,
-                                         output_key=output_key,
-                                         **named_sources)
-                finally:
-                    os.chdir(orig_wd)
-                res.commit()
-                res.context.save_context()
-                return res
+            try:
+                with transaction.manager:
+                    old_stdout = sys.stdout
+                    old_stderr = sys.stderr
+                    try:
+                        old_stdout.flush()
+                        old_stderr.flush()
+                        with open(os.devnull, 'w') as nullout:
+                            sys.stdout = nullout
+                            sys.stderr = nullout
+                            return wrap_data_object_result(transform(
+                                    transformer_obj,
+                                    data_sources=source_objs,
+                                    named_data_sources=named_data_source_objs))
+                    finally:
+                        sys.stdout = old_stdout
+                        sys.stderr = old_stderr
+            except Exception as e:
+                raise GenericUserError(f'Unable to complete translation: {e}') from e
 
     @contextmanager
     def _tempdir(self, *args, **kwargs):
-        td = pth_join(self.owmdir, 'temp')
+        td = self.temporary_directory
         if not exists(td):
             makedirs(td)
         kwargs['dir'] = td
@@ -1669,43 +1722,14 @@ class OWM(object):
                 pass
             self._data_source_directories = dsd
 
-    def _stage_translation_directory(self, source_directory, target_directory):
-        self.message('Copying files into {} from {}'.format(target_directory, source_directory))
-        # TODO: Add support for a selector based on a MANIFEST and/or ignore
-        # file to pass in as the 'ignore' option to copytree
-        for dirent in listdir(source_directory):
-            src = pth_join(source_directory, dirent)
-            dst = pth_join(target_directory, dirent)
-            self.message('Copying {} to {}'.format(src, dst))
-            try:
-                shutil.copytree(src, dst)
-            except OSError as e:
-                if e.errno == errno.ENOTDIR:
-                    shutil.copy2(src, dst)
-
-    def _lookup_translator(self, tname):
-        from owmeta_core.datasource import DataTranslator
-
-        if isinstance(tname, DataTranslator):
-            tname = tname.identifier
-
-        for x in self._default_ctx.stored(DataTranslator)(ident=self._den3(tname)).load():
-            return x
-
-    def _lookup_source(self, sname):
-        from owmeta_core.datasource import DataSource
-
-        if isinstance(sname, DataSource):
-            sname = sname.identifier
-
-        for x in self._default_ctx.stored(DataSource)(ident=self._den3(sname)).load():
-            provide(x, self._cap_provs())
-            return x
-
     def _cap_provs(self):
+        import transaction
         return [DataSourceDirectoryProvider(self._dsd),
                 WorkingDirectoryProvider(),
-                OWMCacheDirectoryProvider(pth_join(self.owmdir, 'cache'))]
+                TransactionalDataSourceDirProvider(pth_join(self.owmdir, 'ds_files'),
+                    transaction.manager),
+                SimpleCacheDirectoryProvider(pth_join(self.owmdir, 'cache')),
+                SimpleTemporaryDirectoryProvider(self.temporary_directory)]
 
     @property
     def _default_ctx(self):
@@ -1719,7 +1743,15 @@ class OWM(object):
             except KeyError:
                 raise ConfigMissingException(DEFAULT_CONTEXT_KEY)
 
-        return Context.contextualize(self._context)(ident=context)
+        if self._cached_default_context is not None:
+            cached_id = self._cached_default_context.identifier
+            current_id = URIRef(context)
+            if current_id == cached_id:
+                return self._cached_default_context
+
+        self._cached_default_context = self._make_ctx(context)
+
+        return self._cached_default_context
 
     default_context = _default_ctx
 
@@ -1752,7 +1784,7 @@ class OWM(object):
         has_dependencies = self._conf('dependencies', None)
         if has_dependencies:
             return rdflib.Dataset(
-                    self._conf('rdf.graph').store.stores[0],
+                    self.rdf.store.stores[0],
                     default_union=True)
         else:
             return self._conf('rdf.graph')
@@ -1767,7 +1799,8 @@ class OWM(object):
             commit message
         '''
         repo = self.repository_provider
-        self._serialize_graphs()
+        with self.connect():
+            self._serialize_graphs()
         repo.commit(message)
 
     def _changed_contexts_set(self):
@@ -1852,7 +1885,8 @@ class OWM(object):
 
         r = self.repository_provider
         try:
-            self._serialize_graphs(ignore_change_cache=False)
+            with self.connect():
+                self._serialize_graphs(ignore_change_cache=False)
         except Exception:
             r.reset()
             L.exception("Could not serialize graphs")
@@ -1966,18 +2000,50 @@ class OWM(object):
             l += os.linesep
             yield l
 
+    def declare(self, python_type, attributes=(), id=None):
+        '''
+        Create a new data object or update an existing one
+
+        Parameters
+        ----------
+        python_type : str
+            The path to the Python type for the object. Formatted like
+            "full.module.path:ClassName"
+        attributes : str
+            Attributes to set on the object before saving
+        id : str
+            The identifier for the object
+        '''
+        import transaction
+        cls = retrieve_provider(python_type)
+        with self.connect(), transaction.manager:
+            dctx = self._default_ctx
+            ob = dctx(cls)(ident=self._den3(id))
+            for prop, val in attributes:
+                getattr(ob, prop)(val)
+            dctx.save()
+
 
 class _ProjectConnection(object):
 
-    def __init__(self, owm, connection):
+    def __init__(self, owm, connection, connections, *, expect_cleanup=True):
         self.owm = owm
         self.connection = connection
         self._context = owm._context
+        self._connections = connections
+        if owm.cleanup_manager is not None:
+            owm.cleanup_manager.register(self.disconnect, _unexpected=not expect_cleanup)
+        self._connected = True
 
     @property
     def mapper(self):
         # XXX: Maybe refactor this...
         return self._context.mapper
+
+    def __del__(self):
+        if self._connected:
+            warnings.warn('OWM connection deleted without being disconnected',
+                    ResourceWarning, source=self)
 
     def __getattr__(self, attr):
         return getattr(self.connection, attr)
@@ -1989,7 +2055,22 @@ class _ProjectConnection(object):
         return self
 
     def __exit__(self, *args):
-        self.owm.disconnect()
+        self.disconnect()
+
+    def disconnect(self, _unexpected=False):
+        if _unexpected:
+            warnings.warn('Unexpected cleanup by resource manager', ResourceWarning, source=self)
+        try:
+            self._connections.remove(self)
+            if len(self._connections) == 0:
+                self.owm.disconnect()
+            self._connected = False
+        finally:
+            if self.owm.cleanup_manager is not None:
+                self.owm.cleanup_manager.unregister(self.disconnect)
+
+    def __str__(self):
+        return f'{self.__class__.__name__}({self.owm}, {self.connection})'
 
 
 class _ProjectContext(Context):
@@ -2010,6 +2091,27 @@ class _ProjectContext(Context):
         if self._mapper is None:
             self._mapper = _ProjectMapper(owm=self.owm)
         return self._mapper
+
+    def imports_graph(self):
+        return rdflib.ConjunctiveGraph(store=_ProjectImportStore(self.owm, store=self.rdf.store))
+
+
+class _ProjectImportStore(ContextSubsetStore):
+    def __init__(self, owm, **kwargs):
+        super().__init__(**kwargs)
+        self.owm = owm
+
+    def init_contexts(self):
+        res = set([URIRef(self.owm.imports_context())])
+        dep_mgr = self.owm._bundle_dep_mgr
+        if dep_mgr is not None:
+            for bnd in dep_mgr.load_dependencies_transitive():
+                with bnd:
+                    res.add(URIRef(bnd.conf[IMPORTS_CONTEXT_KEY]))
+        return res
+
+    def __str__(self):
+        return f'{type(self).__name__}({self.owm})'
 
 
 class _ProjectMapper(Mapper):
@@ -2048,49 +2150,6 @@ class _ProjectMapper(Mapper):
                         self._resolved_classes[(rdf_type, context.identifier)] = resolved_class
                         return resolved_class
         return None
-
-
-class WorkingDirectoryProvider(FilePathProvider):
-    '''
-    Provides file paths from the current working directory for
-    `.data_trans.local_file_ds.LocalFileDataSource` instances.
-    '''
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.cwd = os.getcwd()
-
-    def provides_to(self, obj):
-        from owmeta_core.data_trans.local_file_ds import LocalFileDataSource
-        file_name = obj.file_name.one()
-        if not file_name:
-            return None
-        if (isinstance(obj, LocalFileDataSource) and
-                exists(pth_join(self.cwd, file_name))):
-            return self
-        return None
-
-    def file_path(self):
-        return self.cwd
-
-
-class OWMCacheDirectoryProvider(CacheDirectoryProvider):
-    '''
-    Provides a directory in the OWM project directory for caching remote resources as
-    local files
-    '''
-
-    def __init__(self, cache_directory, **kwargs):
-        super().__init__(**kwargs)
-        self._cache_directory = cache_directory
-
-    def provides_to(self, obj):
-        return self
-
-    def cache_directory(self, cache_key):
-        res = pth_join(self._cache_directory, cache_key)
-        makedirs(res)
-        return res
 
 
 class _OWMSaveContext(Context):
@@ -2255,7 +2314,7 @@ class DataSourceDirectoryProvider(FilePathProvider):
     def __init__(self, dsd):
         self._dsd = dsd
 
-    def provides_to(self, ob):
+    def provides_to(self, ob, cap):
         try:
             path = self._dsd[ob]
         except KeyError:
@@ -2274,7 +2333,7 @@ class _DSDP(FilePathProvider):
 
 class OWMDirDataSourceDirLoader(DataSourceDirLoader):
     def __init__(self, *args, **kwargs):
-        super(OWMDirDataSourceDirLoader, self).__init__(*args, **kwargs)
+        super(OWMDirDataSourceDirLoader, self).__init__(*args, directory_key=DSD_DIRKEY, **kwargs)
         self._index = dict()
 
     @property
@@ -2451,3 +2510,60 @@ class ConfigMissingException(GenericUserError):
         super(ConfigMissingException, self).__init__(
                 'Missing "%s" in configuration' % key)
         self.key = key
+
+
+def wrap_data_object_result(result, props=None, namespace_manager=None, shorten_urls=False):
+    def format_id(r):
+        if not shorten_urls or not namespace_manager:
+            return r.identifier
+        return namespace_manager.normalizeUri(r.identifier)
+
+    def format_value(propname):
+        def f(r):
+            prop = getattr(r, propname, None)
+            if prop is None:
+                return ""
+            vals = prop.get()
+            val_strs = set()
+            for v in vals:
+                if isinstance(v, DataObject):
+                    val_strs.add(v.identifier)
+                elif isinstance(v, Identifier):
+                    val_strs.add(v)
+                else:
+                    val_strs.add(repr(v))
+            return ' '.join(val_strs)
+        return f
+
+    props = None
+    if isinstance(result, DataObject):
+        iterable = (result,)
+        if props is None:
+            props = tuple(x.linkName for x in result.properties)
+    else:
+        if props is None:
+            do_list = list(result)
+            props = set()
+            for r in do_list:
+                props |= set(x.link_name for x in r.properties)
+                props |= set(x.link_name for x in type(r)._property_classes.values())
+            props = tuple(sorted(props))
+            iterable = do_list
+        else:
+            iterable = result
+
+    header = ('ID',) + tuple(props)
+    columns = (format_id,) + tuple(format_value(propname) for propname in props)
+    return GeneratorWithData(iterable,
+            default_columns=('ID',),
+            header=header,
+            text_format=format_id,
+            columns=columns)
+
+
+class AlreadyDisconnected(Exception):
+    '''
+    Thrown when OWM is already disconnected but a request is made to disconnect again
+    '''
+    def __init__(self, owm):
+        super().__init__(f'Already disconnected {owm}')

@@ -93,10 +93,11 @@ class NoBundleLoader(FetchFailed):
     Thrown when a loader can't be found for a bundle
     '''
 
-    def __init__(self, bundle_id, bundle_version=None):
+    def __init__(self, bundle_id, bundle_version=None, message=None):
         super(NoBundleLoader, self).__init__(
-            'No loader could be found for "%s"%s' % (bundle_id,
-                (' at version ' + str(bundle_version)) if bundle_version is not None else ''))
+            'No loader could be found for "%s"%s%s' % (bundle_id,
+                f' at version {bundle_version}' if bundle_version is not None else '',
+                f': {message}' if message else ''))
         self.bundle_id = bundle_id
         self.bundle_version = bundle_version
 

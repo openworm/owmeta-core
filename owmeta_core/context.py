@@ -159,6 +159,8 @@ class Context(six.with_metaclass(ContextMeta,
         self._stored_context = None
         self._own_stored_context = None
 
+        self._stopper = None  #: flag value to prevent recursion
+
     @property
     def mapper(self):
         if self.__mapper is None:
@@ -510,11 +512,34 @@ class Context(six.with_metaclass(ContextMeta,
         rdflib.graph.ConjunctiveGraph
         '''
         return ConjunctiveGraph(identifier=self.identifier,
-                store=RDFContextStore(self, imports_graph=self._imports_graph()))
+                store=RDFContextStore(self, imports_graph=self.imports_graph()))
 
-    def _imports_graph(self):
-        ctxid = self.conf.get(IMPORTS_CONTEXT_KEY, None)
-        return ctxid and self.rdf.get_context(URIRef(ctxid))
+    def imports_graph(self):
+        context_imports_graph = None
+
+        init = False
+        try:
+            if self.context is not None and self._stopper is not self:
+                if self._stopper is None:
+                    init = True
+                    self._stopper = self
+                context_imports_graph = self.context.imports_graph()
+
+                if context_imports_graph is not None:
+                    return context_imports_graph
+
+            ctxid = self.conf.get(IMPORTS_CONTEXT_KEY, None)
+            if ctxid:
+                ctx_uriref = URIRef(ctxid)
+                graph = self.rdf.get_context(ctx_uriref)
+                imports_ctx = Context.contextualize(self.context)(ctx_uriref, conf=self.conf)
+                return ConjunctiveGraph(identifier=ctx_uriref,
+                        store=RDFContextStore(imports_ctx, imports_graph=graph))
+            else:
+                return None
+        finally:
+            if init:
+                self._stopper = None
 
     def rdf_graph(self):
         '''
@@ -549,7 +574,7 @@ class Context(six.with_metaclass(ContextMeta,
         '''
         return ConjunctiveGraph(identifier=self.identifier,
                                 store=ContextStore(context=self, include_stored=True,
-                                    imports_graph=self._imports_graph()))
+                                    imports_graph=self.imports_graph()))
 
     def load_staged_graph(self):
         '''
@@ -619,7 +644,7 @@ class Context(six.with_metaclass(ContextMeta,
         load_graph_from_configured_store : Defines the principal graph for this context
         '''
         if self._stored_context is None:
-            self._stored_context = QueryContext(
+            self._stored_context = QueryContext.contextualize(self.context)(
                     mapper=self.mapper,
                     graph=self.load_graph_from_configured_store(),
                     ident=self.identifier,
@@ -671,9 +696,7 @@ class QueryContext(Context):
 
     @property
     def imports(self):
-        ctxid = self.conf.get(IMPORTS_CONTEXT_KEY, None)
-
-        imports_graph = ctxid and self.rdf.get_context(URIRef(ctxid))
+        imports_graph = self.imports_graph()
         if imports_graph is None:
             return
         for t in imports_graph.triples((self.identifier, CONTEXT_IMPORTS, None)):

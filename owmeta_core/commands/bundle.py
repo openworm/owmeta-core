@@ -379,16 +379,17 @@ class OWMBundle(object):
         if not descr:
             raise GenericUserError('Could not find bundle with id {}'.format(bundle))
 
-        imports_ctx = self._parent._conf(IMPORTS_CONTEXT_KEY, None)
-        default_ctx = self._parent._conf(DEFAULT_CONTEXT_KEY, None)
-        class_registry_ctx = self._parent._conf(CLASS_REGISTRY_CONTEXT_KEY, None)
-        bi = Installer(self._parent.basedir,
-                       self._bundles_directory(),
-                       self._parent.rdf,
-                       imports_ctx=imports_ctx,
-                       default_ctx=default_ctx,
-                       class_registry_ctx=class_registry_ctx)
-        return self._install_helper(bi, descr)
+        with self._parent.connect():
+            imports_ctx = self._parent._conf(IMPORTS_CONTEXT_KEY, None)
+            default_ctx = self._parent._conf(DEFAULT_CONTEXT_KEY, None)
+            class_registry_ctx = self._parent._conf(CLASS_REGISTRY_CONTEXT_KEY, None)
+            bi = Installer(self._parent.basedir,
+                           self._bundles_directory(),
+                           self._parent.rdf,
+                           imports_ctx=imports_ctx,
+                           default_ctx=default_ctx,
+                           class_registry_ctx=class_registry_ctx)
+            return self._install_helper(bi, descr)
 
     def _install_helper(self, bi, descr):
         try:
@@ -452,14 +453,19 @@ class OWMBundle(object):
             print('{descr.id} {file_name}\n'.format(**vars()), file=f)
 
     def _get_bundle_descr_fname(self, bundle_id):
-        with open(p(self._parent.owmdir, 'bundles'), 'r') as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                idx_id, fn = line.split(' ', 1)
-                if bundle_id == idx_id:
-                    return fn
+        try:
+            fh = open(p(self._parent.owmdir, 'bundles'), 'r')
+        except FileNotFoundError:
+            return None
+        else:
+            with fh as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    idx_id, fn = line.split(' ', 1)
+                    if bundle_id == idx_id:
+                        return fn
 
     def deregister(self, bundle_id):
         '''

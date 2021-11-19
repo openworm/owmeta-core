@@ -29,7 +29,7 @@ from ..file_match import match_files
 from ..file_lock import lock_file
 from ..file_utils import hash_file
 from ..graph_serialization import write_canonical_to_file
-from ..rdf_utils import transitive_lookup, BatchAddGraph
+from ..rdf_utils import BatchAddGraph
 from ..utils import FCN, aslist
 
 from .archive import Unarchiver
@@ -288,6 +288,30 @@ class Descriptor(object):
         else:
             raise NotADescriptor()
 
+    def dump(self, output):
+        '''
+        Save a descriptor to a file as a YAML record
+
+        Parameters
+        ----------
+        output : :term:`file object`
+            The file to save the descriptor to
+        '''
+        dct = dict()
+        dct['id'] = self.id
+        dct['name'] = self.name
+        dct['version'] = self.version
+        dct['description'] = self.description
+        dct['patterns'] = sorted(('rgx:' if isinstance(RegexURIPattern, p) else '') + p._pattern
+                for p in self.patterns)
+        dct['includes'] = sorted(str(inc.include) for inc in self.includes)
+        # XXX: Test this
+        dct['includes'].extend({inc: {'empty': True}} for inc in sorted(self.empties))
+        dct['dependencies'] = [dict(d._asdict()) for d in self.dependencies]
+        if self.files is not None:
+            dct['files'] = self.files.to_dict()
+        yaml.dump(dct, output)
+
     def _set(self, obj):
         self.name = obj.get('name', self.id)
         self.version = obj.get('version', 1)
@@ -523,7 +547,7 @@ class Bundle(object):
         Bundle
             A direct dependency of this bundle
         '''
-        return self._bundle_dep_mgr._load_dependencies()
+        return self._bundle_dep_mgr.load_dependencies()
 
     def _lookup_context_bundle(self, context_id):
         owner = self._bundle_dep_mgr.lookup_context_bundle(
@@ -635,7 +659,7 @@ class BundleDependentStoreConfigBuilder(object):
     '''
     Builds an RDFLib store configuration that depends on bundles.
 
-    The process of building the store configurationi requires traversing the graph of
+    The process of building the store configuration requires traversing the graph of
     dependencies so that duplicate dependencies in the graph can be omitted. To support
     this process, this builder will fetch bundles as needed to resolve transitive
     dependencies
@@ -717,7 +741,7 @@ class BundleDependentStoreConfigBuilder(object):
                         manifest_data = json.load(mf)
                     break
                 except (BundleNotFound, FileNotFoundError):
-                    bundle_directory = self._fetch_bundle(dep_ident, dep_version)
+                    self._fetch_bundle(dep_ident, dep_version)
                     tries += 1
 
             # We don't want to include items in the configuration that aren't specified by
@@ -855,7 +879,8 @@ class _RemoteHandlerMixin(object):
             yield rem
 
         if not has_remote:
-            raise NoRemoteAvailable()
+            raise NoRemoteAvailable(f'No valid remote from {remotes} among {self.remotes}'
+                    f' for {self}')
 
 
 class Fetcher(_RemoteHandlerMixin):
@@ -921,7 +946,7 @@ class Fetcher(_RemoteHandlerMixin):
         .FetchTargetIsNotEmpty
             Thrown when the requested bundle is already in the cache
         '''
-        if remotes:
+        if remotes is not None:
             remotes = list(remotes)
         given_bundle_version = bundle_version
         loaders = self._get_bundle_loaders(bundle_id, given_bundle_version, remotes)
@@ -992,10 +1017,19 @@ class Fetcher(_RemoteHandlerMixin):
             raise FetchTargetIsNotEmpty(bdir)
 
     def _get_bundle_loaders(self, bundle_id, bundle_version, remotes):
-        for rem in self._get_remotes(remotes):
-            for loader in rem.generate_loaders():
-                if loader.can_load(bundle_id, bundle_version):
-                    yield loader
+        try:
+            retrieved_remotes = self._get_remotes(remotes)
+        except NoRemoteAvailable as e:
+            raise NoBundleLoader(bundle_id, bundle_version,
+                    'Could not get any remotes to generate loaders from') from e
+        else:
+            for rem in retrieved_remotes:
+                for loader in rem.generate_loaders():
+                    if loader.can_load(bundle_id, bundle_version):
+                        yield loader
+
+    def __str__(self):
+        return f'{self.__class__.__name__}(bundles_root={self.bundles_root}, remotes={self.remotes})'
 
 
 class Deployer(_RemoteHandlerMixin):
@@ -1335,14 +1369,15 @@ class Installer(object):
         for ctxid in self._write_graphs(graphs_directory, *contexts):
             included_context_ids.add(ctxid)
 
+        for c in descriptor.empties:
+            included_context_ids.add(URIRef(c))
+
         # Compute imported contexts
         imported_contexts = set()
         for ctxid in included_context_ids:
             if imports_ctxg is not None:
-                imported_contexts |= transitive_lookup(imports_ctxg,
-                                                       ctxid,
-                                                       CONTEXT_IMPORTS,
-                                                       seen=imported_contexts)
+                for t in imports_ctxg.triples((ctxid, CONTEXT_IMPORTS, None)):
+                    imported_contexts.add(t[2])
         uncovered_contexts = imported_contexts - included_context_ids
         if self.class_registry_ctx:
             uncovered_contexts.discard(URIRef(self.class_registry_ctx))
@@ -1499,10 +1534,6 @@ class Installer(object):
                 uncovered_contexts.discard(URIRef(c))
                 if not uncovered_contexts:
                     break
-        for c in descriptor.empties:
-            uncovered_contexts.discard(URIRef(c))
-            if not uncovered_contexts:
-                break
         return uncovered_contexts
 
 
@@ -1533,10 +1564,20 @@ class FilesDescriptor(object):
     @classmethod
     def make(cls, obj):
         if not obj:
-            return
+            return None
         res = cls()
         res.patterns = set(obj.get('patterns', ()))
         res.includes = set(obj.get('includes', ()))
+        return res
+
+    def to_dict(self):
+        res = {}
+        if res.patterns:
+            res['patterns'] = list(res.patterns)
+
+        if res.includes:
+            res['includes'] = list(res.includes)
+
         return res
 
 

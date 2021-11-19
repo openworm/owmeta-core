@@ -108,10 +108,11 @@ class HTTPURLConfig(URLConfig):
         return retrieve_provider(self.session_provider)()
 
     def save_session(self):
-        sfname = expanduser(self.session_file_name)
-        with open(sfname + '.tmp', 'wb') as session_file:
-            pickle.dump(self._session, session_file)
-        os.rename(sfname + '.tmp', sfname)
+        if self.session_file_name:
+            sfname = expanduser(self.session_file_name)
+            with open(sfname + '.tmp', 'wb') as session_file:
+                pickle.dump(self._session, session_file)
+            os.rename(sfname + '.tmp', sfname)
 
     def __getstate__(self):
         state = self.__dict__.copy()

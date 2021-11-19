@@ -114,9 +114,9 @@ class Connection(object):
         try:
             conf.init_database()
         except DatabaseConflict as e:
-            raise ConnectionFailError(e, "It looks like a connection is already opened by a living process")
+            raise ConnectionFailError(e, "It looks like a connection is already opened by a living process") from e
         except Exception as e:
-            raise ConnectionFailError(e)
+            raise ConnectionFailError(e) from e
 
         logging.getLogger('owmeta_core').info("Connected to database")
 

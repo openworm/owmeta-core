@@ -59,7 +59,18 @@ CLI_HINTS = {
         'non_interactive': {
             'names': ['--non-interactive', '-b']
         },
-        'IGNORE': ['message', 'progress_reporter', 'prompt', 'connect', 'disconnect', 'rdf', 'default_context']
+        'declare': {
+            (METHOD_NAMED_ARG, 'python_type'): {
+                'names': ['python_type']
+            },
+            (METHOD_NAMED_ARG, 'attributes'): {
+                'names': ['attr'],
+                'kvlist': True,
+                'nargs': '*'
+            },
+        },
+        'IGNORE': ['message', 'progress_reporter', 'prompt', 'connect', 'disconnect', 'rdf', 'default_context',
+                'connected', 'cleanup_manager']
     },
     'owmeta_core.command.OWMContexts': {
         'list_imports': {
@@ -209,16 +220,6 @@ CLI_HINTS = {
         'derivs': {
             (METHOD_NAMED_ARG, 'data_source'): {
                 'names': ['data_source'],
-            },
-        },
-    },
-    'owmeta_core.command.OWMSourceData': {
-        'retrieve': {
-            (METHOD_NAMED_ARG, 'source'): {
-                'names': ['source'],
-            },
-            (METHOD_NAMED_ARG, 'archive'): {
-                'names': ['archive'],
             },
         },
     },

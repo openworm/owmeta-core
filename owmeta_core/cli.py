@@ -47,6 +47,9 @@ def additional_args(parser):
             help='Progress reporter to use. Default is \'tqdm\'',
             choices=['tqdm', 'none'],
             default='tqdm')
+    parser.add_argument('--full-trace',
+            help='Show full stack trace for all uncaught exceptions.',
+            action='store_true')
 
 
 def parse_progress(s):
@@ -86,6 +89,7 @@ class NSHandler(object):
         self.opts['text_record_terminator'] = ns.text_record_terminator
         self.opts['text_format'] = ns.text_format
         self.opts['columns'] = ns.columns
+        self.opts['full_trace'] = ns.full_trace
         prog = parse_progress(ns.progress)
         if prog:
             self.command.progress_reporter = prog
@@ -116,7 +120,7 @@ def columns_arg_to_list(arg):
     return [s.strip() for s in arg.split(',')]
 
 
-def main():
+def main(*args):
     '''
     Entry point for the command line interface.
 
@@ -152,6 +156,11 @@ def main():
     across installations. See `owmeta_core.cli_hints` source for the format of hints.
 
     See `CLICommandWrapper` for more details on how the command line options are constructed.
+
+    Parameters
+    ----------
+    *args
+        Arguments to the command. Used instead of `sys.argv`
     '''
     logging.basicConfig()
 
@@ -167,7 +176,7 @@ def main():
         profiler.enable()
 
     try:
-        _helper(p)
+        _helper(p, args=(args or None))
     except (CLIUserError, GenericUserError) as e:
         s = str(e)
         if not s:
@@ -175,12 +184,6 @@ def main():
             # In case someone forgets to add a helpful message for their user error
             s = 'Received error: ' + FCN(type(e))
         die(s)
-    finally:
-        # Call 'disconnect' to clean up. If our top_command doesn't have a disconnect(), we
-        # don't want to error-out, so check it actually exists.
-        disconnect_method = getattr(p, 'disconnect', None)
-        if disconnect_method:
-            disconnect_method()
 
     if environ.get('OWM_CLI_PROFILE'):
         profiler.disable()
@@ -256,17 +259,26 @@ def _augment_subcommands_from_entry_points():
     return command_map[()]
 
 
-def _helper(p):
+def _helper(p, args=None):
     ns_handler = NSHandler(p)
 
     hints = _gather_hints_from_entry_points(dict(**CLI_HINTS))
 
-    out = CLICommandWrapper(p, hints_map=hints).main(
-            argument_callback=additional_args,
-            argument_namespace_callback=ns_handler)
+    try:
+        out = CLICommandWrapper(p, hints_map=hints).main(
+                args=args,
+                argument_callback=additional_args,
+                argument_namespace_callback=ns_handler)
 
-    if out is not None:
-        _format_output(out, ns_handler)
+        if out is not None:
+            _format_output(out, ns_handler)
+    except (GenericUserError, CLIUserError):
+        try:
+            if ns_handler.full_trace:
+                import traceback
+                traceback.print_exc()
+        finally:
+            raise
 
 
 def _format_output(out, ns_handler):
@@ -305,9 +317,10 @@ def _format_output(out, ns_handler):
         # have the attribute AND that the columns/header isn't an empty or tuple/list
         if getattr(out, 'columns', None) and getattr(out, 'header', None):
             if ns_handler.columns:
+                cols = columns_arg_to_list(ns_handler.columns)
                 selected_columns = [i for i, e in zip(range(len(out.header)), out.header)
-                                    if e in columns_arg_to_list(ns_handler.columns)]
-                if not selected_columns:
+                                    if e in cols]
+                if not selected_columns or len(selected_columns) != len(cols):
                     die('The given list of columns is not valid for this command')
             elif getattr(out, 'default_columns', None):
                 selected_columns = [i for i, e in zip(range(len(out.header)), out.header)

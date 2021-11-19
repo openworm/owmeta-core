@@ -1,8 +1,5 @@
-from os.path import join as pth_join
 from contextlib import contextmanager
 import csv
-
-from rdflib.namespace import Namespace
 
 from .. import BASE_CONTEXT
 from ..datasource import Informational, DataTranslator
@@ -23,7 +20,8 @@ class CSVDataSource(LocalFileDataSource):
 
     csv_header = Informational(display_name='Header column names', multiple=False)
 
-    csv_field_delimiter = Informational(display_name='CSV field delimiter')
+    csv_field_delimiter = Informational(display_name='CSV field delimiter',
+            default_value=',')
 
 
 class CSVHTTPFileDataSource(HTTPFileDataSource):

@@ -256,14 +256,36 @@ class Data(Configuration):
     Provides configuration for access to the database.
 
     Usually doesn't need to be accessed directly
+
+    .. confval:: rdf.graph
+
+        An RDFLib `~rdflib.ConjunctiveGraph`, possibly a `~rdflib.Dataset`. Configured
+        according to :confval:`rdf.source` and any other variables used by the
+        `.RDFSource` corresponding
+
+    .. confval:: rdf.namespace
+
+        Default namespace bound to an empty string in the the namespace manager,
+        :confval:`rdf.namespace_manager`
+
+    .. confval:: rdf.namespace_manager
+
+        RDFLib Namespace Manager
+
+    .. confval:: rdf.source
+
+        A string corresponding to a key in `.SOURCES`
+
     """
 
     def __init__(self, conf=None, **kwargs):
         """
         Parameters
         ----------
-        conf : Configuration
-            A Configuration object
+        conf : .Configuration
+            The base configuration from which this configuration will be built. This
+            configuration will be copied into this one, but no direct reference will be
+            retained
         """
         super(Data, self).__init__(**kwargs)
 
@@ -357,16 +379,7 @@ class Data(Configuration):
         self['rdf.source'] = self.get('rdf.source', 'default')
         self['rdf.store'] = self.get('rdf.store', 'default')
         self['rdf.store_conf'] = self.get('rdf.store_conf', 'default')
-
-        # XXX:The conf=self can probably be removed
-        self.sources = {'sparql_endpoint': SPARQLSource,
-                        'sleepycat': SleepyCatSource,
-                        'default': DefaultSource,
-                        'zodb': ZODBSource,
-                        'sqlite': SQLiteSource,
-                        'mysql': MySQLSource,
-                        'postgresql': PostgreSQLSource}
-        source = self.sources[self['rdf.source'].lower()](conf=self)
+        source = SOURCES[self['rdf.source'].lower()](conf=self)
         self.source = source
 
         self.link('semantic_net_new', 'semantic_net', 'rdf.graph')
@@ -396,8 +409,8 @@ def modification_date(filename):
 
 
 class RDFSource(Configurable, ConfigValue):
-
-    """ Base class for data sources.
+    """
+    Base class for data sources.
 
     Alternative sources should dervie from this class
     """
@@ -640,3 +653,15 @@ class MySQLSource(SQLSource):
 
 class PostgreSQLSource(SQLSource):
     store_name = 'postgresql'
+
+
+SOURCES = {'sparql_endpoint': SPARQLSource,
+           'sleepycat': SleepyCatSource,
+           'default': DefaultSource,
+           'zodb': ZODBSource,
+           'sqlite': SQLiteSource,
+           'mysql': MySQLSource,
+           'postgresql': PostgreSQLSource}
+'''
+Table of possible sources for :confval:`rdf.source`
+'''

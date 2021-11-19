@@ -12,15 +12,16 @@ from rdflib.term import URIRef
 from pytest import mark, raises
 import git
 from owmeta_core.git_repo import GitRepoProvider, _CloneProgress
-from owmeta_core.command import (OWM, UnreadableGraphException, GenericUserError, StatementValidationError,
+
+from owmeta_core.command import (OWM, UnreadableGraphException, StatementValidationError,
                             OWMConfig, OWMSource, OWMTranslator,
                             DEFAULT_SAVE_CALLABLE_NAME, OWMDirDataSourceDirLoader, _DSD)
 from owmeta_core.context import (DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
                                  CLASS_REGISTRY_CONTEXT_KEY, Context)
 from owmeta_core.context_common import CONTEXT_IMPORTS
 from owmeta_core.bittorrent import BitTorrentDataSourceDirLoader
-from owmeta_core.command_util import IVar, PropertyIVar
-from owmeta_core.datasource import DataTranslator, DataSource
+from owmeta_core.command_util import IVar, PropertyIVar, GenericUserError
+from owmeta_core.dataobject import DataObject
 from owmeta_core.datasource_loader import LoadFailed
 from owmeta_core.cli_command_wrapper import CLICommandWrapper
 from owmeta_core.cli_common import METHOD_NAMED_ARG
@@ -41,7 +42,6 @@ class BaseTest(unittest.TestCase):
     def tearDown(self):
         os.chdir(self.startdir)
         shutil.rmtree(self.testdir)
-        self.cut.disconnect()
 
     def _init_conf(self, conf=None):
         my_conf = dict(self._default_conf)
@@ -151,32 +151,34 @@ class OWMTest(BaseTest):
         self._init_conf()
 
         self.cut.graph_accessor_finder = lambda url: m
-        self.cut.add_graph("http://example.org/ImAGraphYesSiree")
-        self.assertIn(q, self.cut._conf()['rdf.graph'])
+        with self.cut.connect():
+            self.cut.add_graph("http://example.org/ImAGraphYesSiree")
+            graph = self.cut._conf('rdf.graph')
+            self.assertIn(q, graph)
 
     def test_conf_connection(self):
         self._init_conf()
         self.cut.config.user = True
         self.cut.config.set('key', '10')
-        self.assertEqual(self.cut._conf()['key'], 10)
+        self.assertEqual(self.cut._conf('key'), 10)
 
     def test_user_config_in_main_config(self):
         self._init_conf()
         self.cut.config.user = True
         self.cut.config.set('key', '10')
-        self.assertEqual(self.cut._conf()['key'], 10)
+        self.assertEqual(self.cut._conf('key'), 10)
 
     def test_conifg_set_get(self):
         self._init_conf()
         self.cut.config.set('key', '11')
-        self.assertEqual(self.cut._conf()['key'], 11)
+        self.assertEqual(self.cut._conf('key'), 11)
 
     def test_user_conifg_set_get_override(self):
         self._init_conf()
         self.cut.config.set('key', '11')
         self.cut.config.user = True
         self.cut.config.set('key', '10')
-        self.assertEqual(self.cut._conf()['key'], 10)
+        self.assertEqual(self.cut._conf('key'), 10)
 
     def test_context_set_config_get(self):
         c = 'http://example.org/context'
@@ -517,8 +519,6 @@ class OWMTest(BaseTest):
         self._init_conf({DEFAULT_CONTEXT_KEY: 'http://example.org/mdc',
                          CLASS_REGISTRY_CONTEXT_KEY: 'http://example.org/crc'})
 
-        from owmeta_core.dataobject import DataObject
-
         class A(DataObject):
             unmapped = True
 
@@ -536,7 +536,7 @@ class OWMTest(BaseTest):
         imported_context_id = URIRef('http://example.org/new_ctx')
         self._init_conf({DEFAULT_CONTEXT_KEY: default_context,
                          IMPORTS_CONTEXT_KEY: imports_context})
-        with patch('importlib.import_module') as im:
+        with self.cut.connect(), patch('importlib.import_module') as im:
             def f(ns):
                 ctx = ns.context
                 new_ctx = Context(ident=imported_context_id)
@@ -544,8 +544,8 @@ class OWMTest(BaseTest):
 
             im().test = f
             self.cut.save('tests', 'test')
-        trips = set(self.cut._conf()['rdf.graph'].triples((None, None, None),
-                                                          context=URIRef(imports_context)))
+            trips = set(self.cut._conf('rdf.graph').triples((None, None, None),
+                                                              context=URIRef(imports_context)))
         self.assertIn((URIRef(default_context), CONTEXT_IMPORTS, imported_context_id), trips)
 
     def test_context_on_default_ctx(self):
@@ -557,10 +557,7 @@ class OWMTest(BaseTest):
 class OWMTranslatorTest(unittest.TestCase):
 
     def test_translator_list(self):
-        parent = Mock()
-        dct = dict()
-        dct['rdf.graph'] = Mock()
-        parent._conf.return_value = dct
+        parent = MagicMock()
         # Mock the loading of DataObjects from the DataContext
         parent._default_ctx.stored(ANY).query(conf=ANY).load.return_value = [Mock()]
         ps = OWMTranslator(parent)
@@ -585,17 +582,6 @@ class OWMTranslateTest(BaseTest):
         with self.assertRaisesRegexp(GenericUserError, re.escape(translator)):
             self.cut.translate(translator, imports_context_ident)
 
-    def test_translate_unknown_translator_object_message(self):
-        '''
-        Should exit with a message indicating the translator type
-        cannot be found in the graph
-        '''
-
-        translator = DataTranslator(ident='http://example.org/translator')
-        imports_context_ident = 'http://example.org/imports'
-        with self.assertRaisesRegexp(GenericUserError, re.escape(translator.identifier)):
-            self.cut.translate(translator, imports_context_ident)
-
     def test_translate_unknown_source_message(self):
         '''
         Should exit with a message indicating the source type cannot
@@ -605,22 +591,20 @@ class OWMTranslateTest(BaseTest):
         translator = 'http://example.org/translator'
         source = 'http://example.org/source'
         imports_context_ident = 'http://example.org/imports'
-        self.cut._lookup_translator = lambda *args, **kwargs: Mock()
         with self.assertRaisesRegexp(GenericUserError, re.escape(source)):
             self.cut.translate(translator, imports_context_ident, data_sources=(source,))
 
-    def test_translate_unknown_source_object_message(self):
+    def test_translate_unknown_named_source_message(self):
         '''
         Should exit with a message indicating the source type cannot
         be found in the graph
         '''
 
         translator = 'http://example.org/translator'
-        source = DataSource(ident='http://example.org/source')
+        source = 'http://example.org/source'
         imports_context_ident = 'http://example.org/imports'
-        self.cut._lookup_translator = lambda *args, **kwargs: Mock()
-        with self.assertRaisesRegexp(GenericUserError, re.escape(source.identifier)):
-            self.cut.translate(translator, imports_context_ident, data_sources=(source,))
+        with self.assertRaisesRegexp(GenericUserError, f'{re.escape(source)}.*key'):
+            self.cut.translate(translator, imports_context_ident, named_data_sources={'key': source})
 
     # Test saving a translator ensures the input and output types are saved source is saved
 
@@ -928,26 +912,23 @@ class ConfigTest(unittest.TestCase):
 
 class OWMSourceTest(unittest.TestCase):
     def test_list(self):
-        parent = Mock()
-        dct = dict()
-        dct['rdf.graph'] = Mock()
-        parent._conf.return_value = dct
+        parent = MagicMock()
 
         # Mock the loading of DataObjects from the DataContext
-        def emptygen(): yield
+        def emptygen():
+            if False:
+                yield
         parent._default_ctx.stored(ANY).query(conf=ANY).load.return_value = emptygen()
         ps = OWMSource(parent)
         self.assertIsNone(next(ps.list(), None))
 
     def test_list_with_entry(self):
-        parent = Mock()
-        dct = dict()
-        dct['rdf.graph'] = Mock()
-        parent._conf.return_value = dct
+        parent = MagicMock()
 
         # Mock the loading of DataObjects from the DataContext
-        def gen(): yield Mock()
-        parent._default_ctx.stored(ANY).query(conf=ANY).load.return_value = gen()
+        def gen():
+            yield DataObject()
+        parent._default_ctx.stored(ANY).query().load.return_value = gen()
         ps = OWMSource(parent)
 
         self.assertIsNotNone(next(ps.list(), None))
@@ -1139,3 +1120,7 @@ class CLICommandWrapperTest(unittest.TestCase):
 
 class _TestException(Exception):
     pass
+
+
+# TODO: Test project context imports empty bundle context
+# TODO: Test empty project context imports bundle context

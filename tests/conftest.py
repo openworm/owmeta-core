@@ -8,6 +8,7 @@ import tempfile
 
 from owmeta_core.bundle import Descriptor, Installer
 from owmeta_core.bundle.archive import Archiver
+from owmeta_core.context import Context
 from owmeta_pytest_plugin import bundle_fixture_helper
 from pytest import fixture
 from rdflib.term import URIRef
@@ -147,3 +148,8 @@ def bundle_archive_helper(*args, pre_pack_callback=None, **kwargs):
                 bundle_directory=bundle_data.bundle_directory,
                 target_file_name='bundle.tar.xz')
         yield bundle_data
+
+
+@fixture
+def context():
+    return Context('http://example.org/test-context')
