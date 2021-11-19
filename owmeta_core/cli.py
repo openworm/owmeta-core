@@ -48,7 +48,7 @@ def additional_args(parser):
             choices=['tqdm', 'none'],
             default='tqdm')
     parser.add_argument('--full-trace',
-            help='So full stack trace for all exceptions.',
+            help='Show full stack trace for all uncaught exceptions.',
             action='store_true')
 
 
