@@ -392,12 +392,6 @@ class Data(Configuration):
                 hashlib.sha224(
                     str(data)).hexdigest()])
 
-    def __setitem__(self, k, v):
-        return Configuration.__setitem__(self, k, v)
-
-    def __getitem__(self, k):
-        return Configuration.__getitem__(self, k)
-
 
 class ContextChangedEvent(Event):
     pass
