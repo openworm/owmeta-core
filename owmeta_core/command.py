@@ -50,6 +50,7 @@ from .context_common import CONTEXT_IMPORTS
 from .capable_configurable import CAPABILITY_PROVIDERS_KEY
 from .capabilities import FilePathProvider
 from .dataobject import DataObject
+from .dataobject_property import ObjectProperty, UnionProperty
 from .datasource_loader import DataSourceDirLoader, LoadFailed
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
 from .mapper import Mapper
@@ -1304,6 +1305,12 @@ class OWM(object):
                 self.repository_provider.commit('Initial commit')
 
     def _den3(self, s):
+        r = self._den3_safe(s)
+        if r is None:
+            r = URIRef(s)
+        return r
+
+    def _den3_safe(self, s):
         if not s:
             return s
         from rdflib.namespace import is_ncname
@@ -1312,12 +1319,15 @@ class OWM(object):
         if s.startswith('<') and s.endswith('>'):
             return URIRef(s.strip(u'<>'))
         parts = s.split(':')
+        expanded = None
         if len(parts) > 1 and is_ncname(parts[1]):
             for pref, ns in nm.namespaces():
                 if pref == parts[0]:
-                    s = URIRef(ns + parts[1])
+                    expanded = URIRef(ns + parts[1])
                     break
-        return URIRef(s)
+        if expanded is not None:
+            return expanded
+        return None
 
     def fetch_graph(self, url):
         """
@@ -2016,11 +2026,34 @@ class OWM(object):
         '''
         import transaction
         cls = retrieve_provider(python_type)
-        with self.connect(), transaction.manager:
+        with self.connect() as conn, transaction.manager:
             dctx = self._default_ctx
             ob = dctx(cls)(ident=self._den3(id))
             for prop, val in attributes:
-                getattr(ob, prop)(val)
+                prop_obj = getattr(ob, prop)
+                if isinstance(prop_obj, (ObjectProperty, UnionProperty)):
+                    if prop_obj.value_rdf_type is not None:
+                        value_type = conn.mapper.resolve_class(
+                                prop_obj.value_rdf_type,
+                                dctx)
+
+                    if value_type is None:
+                        value_type = DataObject
+
+                    if isinstance(prop, UnionProperty):
+                        val_ident = self._den3_safe(val)
+                    else:
+                        val_ident = self._den3(val)
+
+                    if val_ident is not None:
+                        for val in dctx.stored(value_type)(ident=val_ident).load():
+                            break
+                        else:  # no break
+                            msg = ('Unable to find an object with the'
+                                    f' ID {val_ident} of type {value_type}')
+                            raise GenericUserError(msg)
+                print("setting", ob, prop_obj, repr(val))
+                prop_obj(val)
             dctx.save()
 
 

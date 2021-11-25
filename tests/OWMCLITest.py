@@ -144,6 +144,7 @@ def test_translator_list(owm_project):
 def test_translator_list_kinds(owm_project, core_bundle):
     owm_project.fetch(core_bundle)
     owm = owm_project.owm()
+    # TODO: Fix this so we use the correct version of the core bundle
     deps = [{'id': 'openworm/owmeta-core', 'version': 1}]
     owm.config.set('dependencies', json.dumps(deps))
 
