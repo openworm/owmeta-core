@@ -117,7 +117,7 @@ class HTTPURLConfig(URLConfig):
     def __getstate__(self):
         state = self.__dict__.copy()
         # We're storing the session in a separate file (if at all), so obviously we don't
-        # to persist it with the HTTPURLConfig
+        # persist it with the HTTPURLConfig
         del state['_session']
         return state
 

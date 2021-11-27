@@ -1421,7 +1421,7 @@ class OWM(object):
                 ' incorrectly')
             if (isinstance(store_conf, str) and
                     isabs(store_conf) and
-                    not store_conf.startswith(abspath(self.owmdir))):
+                    not abspath(store_conf).startswith(abspath(self.owmdir))):
                 raise GenericUserError('rdf.store_conf must specify a path inside of ' +
                         self.owmdir + ' but instead it is ' + store_conf)
 
