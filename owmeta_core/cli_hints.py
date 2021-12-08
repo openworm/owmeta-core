@@ -204,6 +204,10 @@ CLI_HINTS = {
             (METHOD_NAMED_ARG, 'bundle_id'): {
                 'names': ['bundle_id'],
             },
+            (METHOD_NAMED_ARG, 'remotes'): {
+                'names': ['-r', '--remote'],
+                'action': 'append',
+            },
         },
         'checkout': {
             (METHOD_NAMED_ARG, 'bundle_id'): {

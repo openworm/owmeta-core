@@ -492,7 +492,7 @@ class OWMBundle(object):
                     continue
                 print(line, file=f)
 
-    def deploy(self, bundle_id, version=None, remotes=None):
+    def deploy(self, bundle_id, bundle_version=None, remotes=None):
         '''
         Deploys a bundle to a remote. The target remotes come from project and user
         settings or, if provided, the `remotes` parameter
@@ -501,13 +501,14 @@ class OWMBundle(object):
         ----------
         bundle_id : str
             ID of the bundle to deploy
-        version : int
+        bundle_version : int
             Version of the bundle to deploy. optional.
         remotes : str
             Names of the remotes to deploy to. optional.
         '''
+        print("remotes", repr(remotes))
         bundles_directory = self._bundles_directory()
-        bundle_path = find_bundle_directory(bundles_directory, bundle_id)
+        bundle_path = find_bundle_directory(bundles_directory, bundle_id, bundle_version)
         Deployer(remotes=self._retrieve_remotes()).deploy(bundle_path, remotes=remotes)
 
     def checkout(self, bundle_id):

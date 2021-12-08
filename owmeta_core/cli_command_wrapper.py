@@ -502,6 +502,18 @@ class CLICommandWrapper(object):
                     if is_kvlist:
                         argument_args['key'] = _KVLIST_ARG
 
+                    action_hint = arg_hints.get('action')
+                    hinted_action = None
+                    if 'append' == action_hint:
+                        hinted_action = CLIAppendAction
+                    elif 'store_true' == action_hint:
+                        hinted_action = CLIStoreTrueAction
+                    elif 'store' == action_hint:
+                        hinted_action = CLIStoreAction
+
+                    if hinted_action is not None:
+                        argument_args['action'] = hinted_action
+
                 subparser.add_argument(*names,
                                        **argument_args)
                 argcount += 1
