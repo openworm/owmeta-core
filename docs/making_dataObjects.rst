@@ -3,7 +3,7 @@
 Making data objects
 ====================
 To make a new object type like you just need to make a subclass of
-`~owmeta_core.dataobject.DataObject` with the appropriate.
+`~owmeta_core.dataobject.DataObject` with the appropriate properties.
 
 Say, for example, that I want to record some information about drug reactions
 in dogs. I make ``Drug``, ``Experiment``, and ``Dog`` classes to describe drug
