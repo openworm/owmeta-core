@@ -134,6 +134,16 @@ CLI_HINTS = {
             }
         },
     },
+    'owmeta_core.command.OWMNamespace': {
+        'bind': {
+            (METHOD_NAMED_ARG, 'prefix'): {
+                'names': ['prefix'],
+            },
+            (METHOD_NAMED_ARG, 'uri'): {
+                'names': ['uri'],
+            },
+        },
+    },
     'owmeta_core.commands.bundle.OWMBundleRemote': {
         'show': {
             (METHOD_NAMED_ARG, 'name'): {

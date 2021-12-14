@@ -725,6 +725,12 @@ def test_namespace_list(owm_project):
     assert f'uri\t{EX}' in namespaces
 
 
+def test_namespace_bind(owm_project):
+    owm_project.sh(f'owm namespace bind test_namespace {EX}')
+    with owm_project.owm().connect() as conn:
+        assert ('test_namespace', URIRef(EX)) in set(conn.rdf.namespace_manager.namespaces())
+
+
 def test_declare(owm_project):
     owm_project.sh(f'owm declare owmeta_core.dataobject:DataObject --id="{EX.bathtub}"')
     with owm_project.owm().connect() as conn:

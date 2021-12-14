@@ -407,6 +407,20 @@ class OWMNamespace(object):
     def __init__(self, parent):
         self._parent = parent
 
+    def bind(self, prefix, uri):
+        '''
+        Bind a prefix to a namespace URI
+
+        Parameters
+        ----------
+        prefix : str
+            Prefix to bind to a namespace URI
+        uri : str
+            Namespace URI to bind to a prefix
+        '''
+        with self._parent.connect():
+            self._parent.own_rdf.namespace_manager.bind(prefix, uri)
+
     def list(self):
         '''
         List namespace prefixes and URIs in the project
