@@ -602,7 +602,7 @@ class Context(six.with_metaclass(ContextMeta,
         rdf_graph
         load_mixed_graph : Defines the principal graph for this context
         '''
-        return QueryContext(
+        return QueryContext.contextualize(self.context)(
                 mapper=self.mapper,
                 graph=self.load_mixed_graph(),
                 ident=self.identifier,
@@ -622,7 +622,7 @@ class Context(six.with_metaclass(ContextMeta,
         rdf_graph
         load_staged_graph : Defines the principal graph for this context
         '''
-        return QueryContext(
+        return QueryContext.contextualize(self.context)(
                 mapper=self.mapper,
                 graph=self.load_staged_graph(),
                 ident=self.identifier,
@@ -667,7 +667,7 @@ class Context(six.with_metaclass(ContextMeta,
         load_own_graph_from_configured_store : Defines the principal graph for this context
         '''
         if self._own_stored_context is None:
-            self._own_stored_context = QueryContext(
+            self._own_stored_context = QueryContext.contextualize(self.context)(
                     mapper=self.mapper,
                     graph=self.load_own_graph_from_configured_store(),
                     ident=self.identifier,

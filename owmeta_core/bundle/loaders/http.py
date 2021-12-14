@@ -535,7 +535,7 @@ class HTTPBundleUploader(Uploader):
                     conn.request("POST", "", body=f,
                             headers={'Content-Type': BUNDLE_ARCHIVE_MIME_TYPE})
                     completed = True
-                except BrokenPipeError:
+                except (BrokenPipeError, ssl.SSLEOFError):
                     if retries >= self.max_retries:
                         raise
                     L.warn('Failed to upload bundle to %s. Will retry %d more times.',
