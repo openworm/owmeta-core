@@ -765,9 +765,9 @@ class OWMContexts(object):
         import transaction
 
         importer_ctx = self._parent._context(Context)(importer)
-        for imp in imported:
-            importer_ctx.add_import(Context(imp))
-        with transaction.manager:
+        with self._parent.connect(), transaction.manager:
+            for imp in imported:
+                importer_ctx.add_import(Context(imp))
             importer_ctx.save_imports()
 
     def rm_import(self, importer, imported):

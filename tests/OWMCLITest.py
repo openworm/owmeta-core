@@ -534,6 +534,19 @@ def test_contexts_rm_import_not_listed(owm_project):
     assert owm_project.sh(f'owm contexts list-imports {ctx1_id}') == ''
 
 
+def test_contexts_add_import(owm_project):
+    owm = owm_project.owm()
+    ctx1_id = 'http://example.org/context#ctx1'
+    ctx2_id = 'http://example.org/context#ctx2'
+
+    owm_project.sh(f'owm contexts add-import {ctx1_id} {ctx2_id}')
+    with owm.connect() as conn:
+        with transaction.manager:
+            # Create data sources
+            ctx1 = conn(Context)(ident=ctx1_id)
+            assert URIRef(ctx2_id) in [x.identifier for x in ctx1.stored.imports]
+
+
 def test_rm_context_removes_all_1(owm_project):
     owm = owm_project.owm()
     pred = URIRef('http://example.org/p')
