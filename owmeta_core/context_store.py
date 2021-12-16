@@ -1,4 +1,5 @@
 from itertools import chain
+import logging
 
 from rdflib.store import Store, VALID_STORE, NO_STORE
 try:
@@ -11,6 +12,9 @@ from rdflib.term import Variable, URIRef
 
 from .context_common import CONTEXT_IMPORTS
 from .rdf_utils import transitive_lookup, ContextSubsetStore
+
+
+L = logging.getLogger(__name__)
 
 
 class ContextStoreException(Exception):
@@ -178,6 +182,8 @@ class RDFContextStore(ContextSubsetStore):
                 else:
                     query_graph = self.__store
 
+                L.debug('Searching for imports of %r in %r of %s', self.__context.identifier,
+                        context, query_graph)
                 return transitive_lookup(
                         query_graph,
                         self.__context.identifier,
@@ -189,3 +195,6 @@ class RDFContextStore(ContextSubsetStore):
                 # case though if self.__include_imports is True, we could have an empty
                 # set of imports => we query against everything
                 return set([self.__context.identifier])
+
+    def __str__(self):
+        return f'{type(self).__name__}(context={self.__context}, store={self.__store})'
