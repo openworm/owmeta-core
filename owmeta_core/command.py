@@ -2153,8 +2153,9 @@ class _ProjectImportStore(ContextSubsetStore):
         dep_mgr = self.owm._bundle_dep_mgr
         if dep_mgr is not None:
             for bnd in dep_mgr.load_dependencies_transitive():
-                with bnd:
-                    res.add(URIRef(bnd.conf[IMPORTS_CONTEXT_KEY]))
+                imports_ctx = bnd.manifest_data.get(IMPORTS_CONTEXT_KEY)
+                if imports_ctx is not None:
+                    res.add(URIRef(imports_ctx))
         return res
 
     def __str__(self):
