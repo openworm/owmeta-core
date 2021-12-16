@@ -98,10 +98,10 @@ class GraphObjectChecker(object):
 
     def __call__(self):
         tripler = ComponentTripler(self.query_object)
-        L.debug('GOC: Checking {}'.format(self.query_object))
+        L.debug('GOC: Checking %s', self.query_object)
         for x in sorted(tripler()):
             if x not in self.graph:
-                L.debug('GOC: Failed on {}'.format(x))
+                L.debug('GOC: Failed on %s', x)
                 return False
         return True
 
@@ -202,9 +202,9 @@ class GraphObjectQuerier(object):
         self.hop_scorer = hop_scorer
 
     def do_query(self):
-        L.debug('do_query: Graph {}'.format(self.graph))
+        L.debug('do_query: Graph %s', self.graph)
         if self.query_object.defined:
-            L.debug('do_query: Query object {} is already defined'.format(self.query_object))
+            L.debug('do_query: Query object %s is already defined', self.query_object)
             gv = GraphObjectChecker(self.query_object, self.graph)
             if gv():
                 return set([self.query_object.identifier])
@@ -217,7 +217,8 @@ class GraphObjectQuerier(object):
         if len(paths) == 0:
             return EMPTY_SET
         h = self.merge_paths(paths)
-        L.debug('do_query: merge_paths_result:\n{}'.format(self._format_merged(h)))
+        if L.isEnabledFor(logging.DEBUG):
+            L.debug('do_query: merge_paths_result:\n%s', self._format_merged(h))
         return self.query_path_resolver(h)
 
     def merge_paths(self, l):
@@ -233,7 +234,8 @@ class GraphObjectQuerier(object):
                  e: {d: {}}}}
         """
         res = dict()
-        L.debug("merge_paths: path {}".format(_format_paths(l)))
+        if L.isEnabledFor(logging.DEBUG):
+            L.debug("merge_paths: path %s", _format_paths(l))
         for x in l:
             if len(x) > 0:
                 tmp = res.get(x[0], [])
@@ -264,12 +266,12 @@ class GraphObjectQuerier(object):
         if len(join_args) == 1:
             return join_args[0]
         elif len(join_args) > 0:
-            L.debug("Joining {} args on {}".format(len(join_args), goal))
+            L.debug("Joining %s args on %s", len(join_args), goal)
             join_args = sorted(join_args, key=len)
             res = join_args[0]
             res.intersection_update(*join_args[1:])
-            L.debug("Joined {}(sizes={}) args on {}. Result size = {}".format(len(join_args),
-                [len(s) for s in join_args], goal, len(res)))
+            L.debug("Joined %s(sizes=%s) args on %s. Result size = %s", len(join_args),
+                [len(s) for s in join_args], goal, len(res))
             return res
         else:
             return EMPTY_SET
