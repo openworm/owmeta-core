@@ -187,7 +187,6 @@ class ContextSubsetStore(Store):
         super(ContextSubsetStore, self).__init__(**kwargs)
         self.__store = store
         self.__context_ids = None
-        self.__query_perctx = None
 
     def init_contexts(self):
         raise NotImplementedError
@@ -195,13 +194,6 @@ class ContextSubsetStore(Store):
     def __init_contexts(self):
         if self.__context_ids is None:
             self.__context_ids = self.init_contexts()
-
-        if self.__store is not None and self.__query_perctx is None:
-            total_triples = self.__store.__len__()
-            per_ctx_triples = sum(self.__store.__len__(context=ctx)
-                    for ctx in self.__context_ids)
-
-            self.__query_perctx = total_triples > per_ctx_triples
 
     def triples(self, pattern, context=None):
         self.__init_contexts()
@@ -212,22 +204,14 @@ class ContextSubsetStore(Store):
 
         # If the sum of lengths of the selected contexts is less than total number of
         # triples, query each context in series
-        if pattern == (None, None, None) and ctx is None and self.__query_perctx:
-            imports = self.__context_ids
-            store = self.__store
-            for ctx0 in imports:
-                for t, tctxs in store.triples(pattern, ctx0):
-                    contexts = set(getattr(c, 'identifier', c) for c in tctxs)
-                    yield t, imports & contexts
-        else:
-            for t in self.__store.triples(pattern, ctx):
-                contexts = set(getattr(c, 'identifier', c) for c in t[1])
-                if self.__context_ids:
-                    inter = self.__context_ids & contexts
-                else:
-                    inter = contexts
-                if inter:
-                    yield t[0], inter
+        for t in self.__store.triples(pattern, ctx):
+            contexts = set(getattr(c, 'identifier', c) for c in t[1])
+            if self.__context_ids:
+                inter = self.__context_ids & contexts
+            else:
+                inter = contexts
+            if inter:
+                yield t[0], inter
 
     def remove(self, pattern, context=None):
         self.__init_contexts()
