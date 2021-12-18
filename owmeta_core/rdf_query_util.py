@@ -40,6 +40,7 @@ def load_base(graph, idents, target_type, context, resolver):
     grouped_types = dict()
     # We don't use a subclassof ZOM layer for this query since we are going to get the
     # "most specific" type, which will have to be one declared explicitly
+    L.debug("querying %s types in %s", idents, graph)
     for ident, _, rdf_type in graph.triples_choices((list(idents),
                                                      rdflib.RDF['type'],
                                                      None)):
@@ -79,7 +80,7 @@ def load_terms(graph, start, target_type):
         URI of the target type. Any result will be a sub-class of this type
     '''
 
-    L.debug("load: start %s, target_type %s, graph %s", start, target_type, graph)
+    L.debug("load: start %s, target_type %s, graph %s", start, target_type, graph.store)
     graph = ZeroOrMoreTQLayer(rdfs_subclassof_zom_creator(target_type), graph)
     return GraphObjectQuerier(start, graph, hop_scorer=goq_hop_scorer)()
 

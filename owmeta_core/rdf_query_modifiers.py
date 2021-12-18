@@ -225,6 +225,7 @@ class ZeroOrMoreTQLayer(TQLayer):
                                              context,
                                              match.direction))
             qx[match.index] = matches
+        L.debug('augmented query %s', qx)
         results = self.next.triples_choices(tuple(qx), context)
         return self._zom_result_helper(results, match, context, set(matches))
 
@@ -270,7 +271,7 @@ class ZeroOrMoreTQLayer(TQLayer):
         direction = DOWN if match.direction is UP else DOWN
         predicate = match.predicate
         index = match.index
-        L.debug('ZeroOrMoreTQLayer: start %s', match)
+        L.debug('ZeroOrMoreTQLayer: start %r direction %s', match, direction)
         # The results from the original query are augmented here to "entail" results in
         # the "reverse" direction that are implied by the "forward" direction. For
         # instance, if I request everything with a type that's rdfs:Resource, I'll get all
@@ -278,6 +279,7 @@ class ZeroOrMoreTQLayer(TQLayer):
         # I'll be missing the inferred types. We rectify that below
         #
         for tr in results:
+            L.debug('ZeroOrMoreTQLayer: match %r result %r', match, tr)
             zoms = zomses.get(tr[index])
             if zoms is None:
                 zoms = set(transitive_subjects(self.next, tr[index], predicate, context, direction))

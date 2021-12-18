@@ -2,11 +2,14 @@ from __future__ import print_function
 import sys
 import json
 from os import environ
+from os.path import splitext
 from itertools import groupby
+import logging.config as LC
 import logging
 
 import six
 from tqdm import tqdm
+import yaml
 from pkg_resources import iter_entry_points, DistributionNotFound
 
 from .cli_command_wrapper import CLICommandWrapper, CLIUserError
@@ -50,6 +53,11 @@ def additional_args(parser):
     parser.add_argument('--full-trace',
             help='Show full stack trace for all uncaught exceptions.',
             action='store_true')
+    parser.add_argument('--logging-config',
+            help='Set the logging config file')
+    parser.add_argument('--log-level',
+            help='Set the root log level. Default is \'WARNING\'',
+            default='WARNING')
 
 
 def parse_progress(s):
@@ -93,6 +101,23 @@ class NSHandler(object):
         prog = parse_progress(ns.progress)
         if prog:
             self.command.progress_reporter = prog
+        if ns.log_level is not None:
+            logging.getLogger().setLevel(getattr(logging, ns.log_level.upper()))
+
+        if ns.logging_config:
+            cfg_fname = ns.logging_config
+            try:
+                _, ext = splitext(cfg_fname)
+                if ext in ('.yml', '.yaml', '.json'):
+                    with open(cfg_fname) as f:
+                        LC.dictConfig(yaml.safe_load(f))
+                else:
+                    LC.fileConfig(ns.logging_config)
+            except Exception:
+                print('Unable to load logging configuration from a file')
+                raise
+        else:
+            logging.basicConfig()
 
     def __str__(self):
         return 'NSHandler' + str(self.opts)
@@ -162,11 +187,8 @@ def main(*args):
     *args
         Arguments to the command. Used instead of `sys.argv`
     '''
-    logging.basicConfig()
-
     top_command = _augment_subcommands_from_entry_points()
     p = top_command()
-    p.log_level = 'WARN'
     p.message = print
     p.repository_provider = GitRepoProvider()
     p.non_interactive = False

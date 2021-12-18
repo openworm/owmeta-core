@@ -1086,15 +1086,6 @@ class OWM(object):
         if not exists(self.owmdir):
             makedirs(self.owmdir)
 
-    @IVar.property
-    def log_level(self):
-        ''' Log level '''
-        return logging.getLevelName(logging.getLogger().getEffectiveLevel())
-
-    @log_level.setter
-    def log_level(self, level):
-        logging.getLogger().setLevel(getattr(logging, level.upper()))
-
     def save(self, module, provider=None, context=None):
         '''
         Save the data in the given context
@@ -2064,9 +2055,9 @@ class OWM(object):
                             break
                         else:  # no break
                             msg = ('Unable to find an object with the'
-                                    f' ID {val_ident} of type {value_type}')
+                                    f' ID {val_ident!r} of type {value_type!r}')
                             raise GenericUserError(msg)
-                print("setting", ob, prop_obj, repr(val))
+                self.message(f"setting {ob!r} {prop_obj!r} {val!r}")
                 prop_obj(val)
             dctx.save()
 
