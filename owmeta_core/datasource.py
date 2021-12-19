@@ -446,7 +446,39 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
                 or self.make_identifier(self.translation.defined_values[0].identifier.n3()))
 
     def __str__(self):
-        return self.format_str(False)
+        try:
+            sio = six.StringIO()
+            print(self.__class__.__name__, end='', file=sio)
+            if self.defined:
+                ident = self.identifier
+                if self.namespace_manager:
+                    ident = self.namespace_manager.normalizeUri(ident)
+                print(f'({ident}', end='', file=sio)
+
+            for info in self.info_fields.values():
+                attr = getattr(self, info.name)
+                attr_vals = FormatUtil.collect_values(attr, False)
+                if attr_vals:
+                    print(f', {info.display_name}=', end='', file=sio)
+                    vals = {}
+                    for val in sorted(attr_vals):
+                        if isinstance(val, (DataSource, GenericTranslation)):
+                            valstr = str(val)
+                        elif isinstance(val, URIRef):
+                            valstr = val.n3()
+                        elif isinstance(val, six.string_types):
+                            valstr = repr(val)
+                        else:
+                            valstr = str(val)
+                        vals.add(valstr)
+                    print(vals, end='', file=sio)
+            print(')', end='', file=sio)
+            return sio.getvalue()
+        except AttributeError:
+            res = super(DataSource, self).__str__()
+            L.error('Failed while creating formatting string representation for %s', res,
+                    exc_info=True)
+            return res
 
     def format_str(self, stored):
         try:
