@@ -788,6 +788,12 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
                     self.context,
                     _Resolver.get_instance())
 
+    def load_one(self, graph=None):
+        '''
+        Load a single `.DataObject`
+        '''
+        return next(self.load(graph), None)
+
     @property
     def expr(self):
         '''
