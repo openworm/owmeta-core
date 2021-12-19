@@ -182,13 +182,15 @@ class RDFContextStore(ContextSubsetStore):
                 else:
                     query_graph = self.__store
 
-                L.debug('Searching for imports of %r in %r of %s', self.__context.identifier,
-                        context, query_graph)
-                return transitive_lookup(
+                res = transitive_lookup(
                         query_graph,
                         self.__context.identifier,
                         CONTEXT_IMPORTS,
                         context)
+                if L.isEnabledFor(logging.DEBUG):
+                    L.debug('Imports of %r in %r of %s: %s', self.__context.identifier,
+                            context, query_graph, ', '.join(str(s) for s in res))
+                return res
             else:
                 # XXX we should maybe check that the provided context actually exists in
                 # the backing graph -- at this point, it's more-or-less assumed in this
