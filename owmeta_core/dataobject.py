@@ -949,16 +949,20 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
             raise TypeError('No owner')
         return owner.attach_property(cls._create_property_class(*args, **kwargs), name=attr_name)
 
-    def attach_property(self, c, name=None, ephemeral=False, **kwargs):
+    def attach_property(self, prop_cls, name=None, ephemeral=False, **kwargs):
         '''
         Parameters
         ----------
-        name : str
+        prop_cls : type
+            The property class to attach to this dataobject
+        name : str, optional
             The name to use for attaching to this dataobject
-        ephemeral : bool
+        ephemeral : bool, optional
             If `True`, the property will not be set as an attribute on the object
+        **kwargs
+            Arguments to pass to the initializer of the property class
         '''
-        ctxd_pclass = c.contextualize_class(self.context)
+        ctxd_pclass = prop_cls.contextualize_class(self.context)
         res = ctxd_pclass(owner=self,
                           conf=self.conf,
                           resolver=_Resolver.get_instance(),
