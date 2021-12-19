@@ -6,6 +6,7 @@ from rdflib.graph import DATASET_DEFAULT_GRAPH_ID
 from os.path import join as p
 import os
 import re
+from subprocess import CalledProcessError, PIPE
 
 import transaction
 from pytest import mark, fixture, raises
@@ -752,10 +753,44 @@ def test_declare(owm_project):
         assert objs[0].identifier == EX.bathtub
 
 
-def test_declare_unknown_property_class(owm_project):
+def test_declare_unknown_property_class_1(owm_project):
     cname = 'not.a.module:NotAClass'
-    with raises(Exception, match=cname):
-        owm_project.sh(f'owm declare owmeta_core.dataobject:DataObject {cname}=123 --id="{EX.duck}"')
+    with raises(CalledProcessError) as e:
+        owm_project.sh(f'owm declare owmeta_core.dataobject:DataObject {cname}=123 --id="{EX.duck}"',
+                stderr=PIPE)
+    assertRegexpMatches(e.value.stderr.decode('utf-8'), cname)
+
+
+def test_declare_unknown_property_class_2(owm_project):
+    cname = 'owmeta.dataobject:NotAClass'
+    with raises(CalledProcessError) as e:
+        owm_project.sh(f'owm declare owmeta_core.dataobject:DataObject {cname}=123 --id="{EX.duck}"',
+                stderr=PIPE)
+    assertRegexpMatches(e.value.stderr.decode('utf-8'), cname)
+
+
+def test_declare_unknown_attribute(owm_project):
+    pname = 'not_a_known_property'
+    with raises(CalledProcessError) as e:
+        owm_project.sh(f'owm declare owmeta_core.dataobject:DataObject {pname}=123 --id="{EX.horse}"',
+                stderr=PIPE)
+    assertRegexpMatches(e.value.stderr.decode('utf-8'), pname)
+
+
+def test_declare_unknown_class_1(owm_project):
+    cname = 'bad.module.name:BadClassName'
+    with raises(CalledProcessError) as e:
+        owm_project.sh(f'owm declare {cname} rdfs_label="Hello, world" --id="{EX.monkey}"',
+                stderr=PIPE)
+    assertRegexpMatches(e.value.stderr.decode('utf-8'), cname)
+
+
+def test_declare_unknown_class_2(owm_project):
+    cname = 'owmeta.dataobject:BadClassName'
+    with raises(CalledProcessError) as e:
+        owm_project.sh(f'owm declare {cname} rdfs_label="Hello, world" --id="{EX.monkey}"',
+                stderr=PIPE)
+    assertRegexpMatches(e.value.stderr.decode('utf-8'), cname)
 
 
 def test_regendb(owm_project):

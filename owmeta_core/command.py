@@ -2034,7 +2034,11 @@ class OWM(object):
             The identifier for the object
         '''
         import transaction
-        cls = retrieve_provider(python_type)
+        try:
+            cls = retrieve_provider(python_type)
+        except (AttributeError, ModuleNotFoundError) as e:
+            raise GenericUserError(f'No class found for {python_type}') from e
+
         with self.connect() as conn, transaction.manager:
             dctx = self._default_ctx
             dctx.add_import(cls.definition_context)
@@ -2043,14 +2047,14 @@ class OWM(object):
                 if PROVIDER_PATH_RE.match(prop):
                     try:
                         prop_cls = retrieve_provider(prop)
-                    except AttributeError:
-                        raise GenericUserError(f'No class found for {prop}')
+                    except (AttributeError, ModuleNotFoundError) as e:
+                        raise GenericUserError(f'No class found for {prop}') from e
                     prop_obj = ob.attach_property(prop_cls)
                 else:
                     try:
                         prop_obj = getattr(ob, prop)
-                    except AttributeError:
-                        raise GenericUserError(f'No property named {prop}')
+                    except AttributeError as e:
+                        raise GenericUserError(f'No property named {prop}') from e
 
                 if isinstance(prop_obj, (ObjectProperty, UnionProperty)):
                     if prop_obj.value_rdf_type is not None:
