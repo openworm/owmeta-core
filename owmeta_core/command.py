@@ -58,7 +58,7 @@ from .capability_providers import (TransactionalDataSourceDirProvider,
                                    SimpleCacheDirectoryProvider,
                                    WorkingDirectoryProvider,
                                    SimpleTemporaryDirectoryProvider)
-from .utils import FCN, retrieve_provider
+from .utils import FCN, retrieve_provider, PROVIDER_PATH_RE
 from .rdf_utils import ContextSubsetStore
 
 
@@ -1153,6 +1153,10 @@ class OWM(object):
                         mapper.declare_python_class_registry_entry(*mapped_classes)
                         for mapped_class in mapped_classes:
                             ns.include_context(mapped_class.definition_context)
+                            # N.B.: We don't add an import of the class to the current
+                            # context because there aren't necessarily any statements that
+                            # use the class. An import should be added when a statement
+                            # using the class is added to the importing context.
                         orig_prov(ns)
                     prov = save_classes
 
@@ -2033,9 +2037,21 @@ class OWM(object):
         cls = retrieve_provider(python_type)
         with self.connect() as conn, transaction.manager:
             dctx = self._default_ctx
+            dctx.add_import(cls.definition_context)
             ob = dctx(cls)(ident=self._den3(id))
             for prop, val in attributes:
-                prop_obj = getattr(ob, prop)
+                if PROVIDER_PATH_RE.match(prop):
+                    try:
+                        prop_cls = retrieve_provider(prop)
+                    except AttributeError:
+                        raise GenericUserError(f'No class found for {prop}')
+                    prop_obj = ob.attach_property(prop_cls)
+                else:
+                    try:
+                        prop_obj = getattr(ob, prop)
+                    except AttributeError:
+                        raise GenericUserError(f'No property named {prop}')
+
                 if isinstance(prop_obj, (ObjectProperty, UnionProperty)):
                     if prop_obj.value_rdf_type is not None:
                         value_type = conn.mapper.resolve_class(
@@ -2057,9 +2073,11 @@ class OWM(object):
                             msg = ('Unable to find an object with the'
                                     f' ID {val_ident!r} of type {value_type!r}')
                             raise GenericUserError(msg)
+
                 self.message(f"setting {ob!r} {prop_obj!r} {val!r}")
                 prop_obj(val)
             dctx.save()
+            dctx.save_imports()
 
 
 class _ProjectConnection(object):

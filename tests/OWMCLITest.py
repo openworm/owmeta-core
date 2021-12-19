@@ -8,7 +8,7 @@ import os
 import re
 
 import transaction
-from pytest import mark, fixture
+from pytest import mark, fixture, raises
 
 from owmeta_core import BASE_CONTEXT
 from owmeta_core.command import OWM
@@ -750,6 +750,12 @@ def test_declare(owm_project):
         dctx = conn.owm.default_context
         objs = list(dctx.stored(DataObject)().load())
         assert objs[0].identifier == EX.bathtub
+
+
+def test_declare_unknown_property_class(owm_project):
+    cname = 'not.a.module:NotAClass'
+    with raises(Exception, match=cname):
+        owm_project.sh(f'owm declare owmeta_core.dataobject:DataObject {cname}=123 --id="{EX.duck}"')
 
 
 def test_regendb(owm_project):
