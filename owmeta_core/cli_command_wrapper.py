@@ -4,6 +4,7 @@ import types
 import argparse
 import copy as _copy
 import functools
+from textwrap import wrap
 
 from .utils import FCN
 from .docscrape import parse as npdoc_parse
@@ -310,27 +311,45 @@ class CLICommandWrapper(object):
         self.program_name = program_name
 
     def extract_args(self, val):
+        '''
+        Extract arguments from the method or class docstring
+
+        In the return value (see below), the ``summary`` is a `str` used in listing out
+        sub-commands.  The ``detail`` is for the sub-command usage information and should,
+        generally, include the ``summary``. The ``params`` are a list
+        `~owmeta_core.docscrape.ParamInfo` objects describing the parameters.
+
+        Parameters
+        ----------
+        val : object
+            The object with the documentation
+
+        Returns
+        -------
+        tuple
+            a triple, ``(summary, detail, params)``
+        '''
         docstring = getattr(val, '__doc__', '')
         if not docstring:
             docstring = ''
         npdoc = npdoc_parse(docstring)
         params = npdoc.get('parameters')
-        paragraphs = self._split_paras(docstring)
-        if (len(paragraphs) == 1 and not params) or len(paragraphs) > 1:
+        paragraphs = self._split_paras(npdoc.get('desc') or '')
+
+        if len(paragraphs) >= 1:
             summary = paragraphs[0]
         else:
             summary = ''
 
-        if params: # Assuming the Parameters section is the last 'paragraph'
-            paragraphs = paragraphs[:-1]
-        detail = '\n \n'.join(x for x in paragraphs if x)
+        detail = '\n \n'.join('\n'.join(wrap(x, width=80)) for x in paragraphs if x)
 
         return summary, detail, params
 
     def _split_paras(self, docstring):
         paragraphs = []
         temp = ''
-        for ln in docstring.split('\n'):
+        spit = docstring.split('\n')
+        for ln in spit:
             ln = ln.strip()
             if ln:
                 temp += '\n' + ln
