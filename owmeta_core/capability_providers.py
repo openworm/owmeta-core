@@ -278,7 +278,7 @@ class SimpleCacheDirectoryProvider(CacheDirectoryProvider):
 
     def cache_directory(self, cache_key):
         res = pth_join(self._cache_directory, cache_key)
-        makedirs(res)
+        makedirs(res, exist_ok=True)
         return res
 
 
