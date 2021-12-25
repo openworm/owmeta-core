@@ -406,7 +406,7 @@ class RDFSource(Configurable, ConfigValue):
     """
     Base class for data sources.
 
-    Alternative sources should dervie from this class
+    Alternative sources should derive from this class
     """
 
     def __init__(self, **kwargs):
@@ -504,8 +504,9 @@ class DefaultSource(RDFSource):
 
 class ZODBSourceOpenFailError(OpenFailError):
     def __init__(self, openstr, *args):
-        super(ZODBSourceOpenFailError, self).__init__('Could not open the database file "{}"'.format(openstr),
-                                                      *args)
+        super(ZODBSourceOpenFailError, self).__init__(
+                f'Could not open the database file "{openstr}"',
+                *args)
         self.openstr = openstr
 
 

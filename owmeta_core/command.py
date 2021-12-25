@@ -1678,7 +1678,7 @@ class OWM(object):
 
             if isinstance(translator, str):
                 transformer_id = self._den3(translator)
-                transformer_obj = next(srcctx(DataTransformer)(ident=self._den3(transformer_id)).load(), None)
+                transformer_obj = srcctx(DataTransformer)(ident=self._den3(transformer_id)).load_one()
                 if transformer_obj is None:
                     raise GenericUserError(f'No transformer for {translator}')
                 transformer_obj = self._default_ctx(transformer_obj)
