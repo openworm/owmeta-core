@@ -71,7 +71,7 @@ file storage, etc.), and `owmeta_core.bundle.archive.Archiver` can help with
 that. 
 <!--TODO: Describe deploying bundles-->
 <!--TODO: Describe the RDF <-> Python object mapping-->
-TODO: Describe DataSource / DataTransformer
+<!--TODO: Describe DataSource / DataTransformer-->
 
 [rdflib]: https://rdflib.readthedocs.io/en/stable/
 
