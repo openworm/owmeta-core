@@ -77,7 +77,7 @@ TODO: Describe DataSource / DataTransformer
 
 Notes
 -----
-<a id="#note-1"></a>
+<a id="note-1"></a>
 1. You can also create an `rdflib.graph.Graph` rather than a `Dataset` by
    defining a new `owmeta_core.data.RDFSource` and assigning it to
    `conn.conf["rdf.graph"]`. This turns out to not be especially useful in
