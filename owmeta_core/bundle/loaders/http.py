@@ -512,7 +512,7 @@ class HTTPBundleUploader(Uploader):
 
     def upload(self, bundle_path):
         '''
-        Attempt to upload the bundle. Retries will be attempted for BrokenPipeErrors
+        Attempt to upload the bundle. Retries will be attempted when `BrokenPipeError` is
         thrown by the http client
         '''
         with ensure_archive(bundle_path) as archive_path:

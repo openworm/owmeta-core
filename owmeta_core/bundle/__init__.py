@@ -174,7 +174,7 @@ class Remote(object):
             accessors=accessors)
 
     def __repr__(self):
-        return f'{FCN(type(self))}({repr(self.name)}, {repr(self.accessor_configs)})'
+        return f'{FCN(type(self))}({self.name!r}, {self.accessor_configs!r})'
 
 
 class DependencyDescriptor(namedtuple('_DependencyDescriptor',
@@ -188,7 +188,7 @@ class DependencyDescriptor(namedtuple('_DependencyDescriptor',
 class AccessorConfig(object):
     '''
     Configuration for accessing a `Remote`. `Loaders <Loader>` are added to a remote according to
-    which accessors are avaialble
+    which accessors are available
     '''
 
     def __eq__(self, other):

@@ -23,7 +23,7 @@ First of all, owmeta-core wraps [RDFLib][rdflib]:
         conn.rdf
 
 That means you can do several of the same things as you would do with RDFLib
-alone.<sup><a href="#note-1">1</a></sup> You can configure different backing stores as well:
+alone.[^1] You can configure different backing stores as well:
 
     with connect({"rdf.store": "FileStorageZODB",
                   "rdf.store_conf": "./example.db"}) as conn:
@@ -43,15 +43,16 @@ them in a particular file structure. Here's how you can do that:
     with connect() as conn:
         # add some stuff to http://example.org/ctx ...
         inst = Installer('.', './bundles', conn.rdf)
-        desc = Descriptor("aBundle",
+        desc = Descriptor("a-bundle",
                 version=1,
                 includes=['http://example.org/ctx'])
-        inst.install(desc)
+        bundle_directory = inst.install(desc)
 ```
 So, let's unpack that a little. First we add some things to named graphs. How
 you do this is up to you, but this is a trivial example of adding a statement
 to the graph that we'll ultimately include in the bundle:
 
+    from rdflib.term import URIRef
     g = conn.rdf.graph(URIRef('http://example.org/ctx'))
     g.add((URIRef('http://example.org/s'),
            URIRef('http://example.org/p'),
@@ -60,16 +61,71 @@ to the graph that we'll ultimately include in the bundle:
 Then, we create an `Installer` that will install bundles to the directory
 "bundles" in the current working directory. Installers get instructed on what
 to install through `Descriptor` objects. We create a bundle descriptor that
-says what the bundle identifier is ("aBundle") what version of the bundle we're
+says what the bundle identifier is ("a-bundle") what version of the bundle we're
 installing (1) and which contexts we're including in the bundle (just
 `http://example.org/ctx`). We pass the descriptor to the installer's `install`
 method and it does creates the bundle file structure under `bundles`.
 
-We haven't *shared* the bundle with any one yet with the above. You may choose
+We haven't *shared* the bundle with anyone yet with the above. You may choose
 to package the bundle into an archive and share that somehow (E-mail, shared
 file storage, etc.), and `owmeta_core.bundle.archive.Archiver` can help with
-that. 
-<!--TODO: Describe deploying bundles-->
+that:
+
+    from owmeta_core.bundle.archive import Archiver
+
+    # Save a bundle a-bundle.tar.xz in the current working directory
+    Archiver('.').pack(
+            bundle_directory=bundle_directory,
+            target_file_name='a-bundle.tar.xz')
+
+There are, however, facilities for uploading and downloading bundles through
+owmeta-core. owmeta-core has the concept of "Remotes" which are places bundles
+can be sent to or retrieved from. A remote has a set of "accessor configs"
+(ACs) which provide information for getting bundles. An AC may include a URL
+or other pieces of information, like authentication credentials. A remote may
+be set up as the upload target or download source for a single bundle or
+multiple bundles, and it may have multiple ACs for different protocols or for
+the same protocol (e.g., for download mirrors). Here's how we can define a
+remote:
+
+    from owmeta_core.bundle import Remote, URLConfig
+
+    a_remote = Remote('a-bundle-server',
+        [URLConfig('https://example.org/bundle-server')])
+
+Here's how we can upload to a remote:
+
+    from owmeta_core.bundle import Deployer
+
+    deployer = Deployer([a_remote])
+    deployer.deploy(bundle_directory)
+
+<!--TODO: Make this one actually work-->
+Assuming that `a_remote` reflects an actual HTTP server that can accept POST
+requests with bundle archives in the request body, this would upload the
+bundle. Downloading bundles is similar:
+
+    from owmeta_core.bundle import Fetcher
+
+    # Fetch version 3 of "another-bundle" and install it to "./bundles"
+    fetcher = Fetcher('./bundles', [a_remote])
+    fetcher.fetch('another-bundle', version=3)
+
+Of course, once we can fetch bundles from remotes, we might want to actually
+use them. While it is possible to parse the serialized graphs from the
+"./bundles" directory, that would discard some useful information about the
+bundle, including dependencies between bundles (not discussed above).[^2]
+Instead, it's recommended to use `Bundle` objects to access bundle data. Here's
+an example:
+
+    from owmeta_core.bundle import Bundle
+
+    with Bundle('a-bundle', version=1, bundles_directory='./bundles') as bnd:
+        assert (URIRef('http://example.org/s'),
+                URIRef('http://example.org/p'),
+                URIRef('http://example.org/o')) in bnd.rdf.graph('http://example.org/ctx')
+
+
 <!--TODO: Describe the RDF <-> Python object mapping-->
 <!--TODO: Describe DataSource / DataTransformer-->
 
@@ -77,8 +133,11 @@ that.
 
 Notes
 -----
-<a id="note-1"></a>
-1. You can also create an `rdflib.graph.Graph` rather than a `Dataset` by
+[^1]: You can also create an `rdflib.graph.Graph` rather than a `Dataset` by
    defining a new `owmeta_core.data.RDFSource` and assigning it to
    `conn.conf["rdf.graph"]`. This turns out to not be especially useful in
    owmeta-core, but it is possible.
+[^2]: Bundle dependency information isn't stored as RDF. It likely will be
+   eventually, to allow other software to query bundle relationships without
+   needing to understand the particular format of bundle manifests and the
+   bundle cache file tree.
