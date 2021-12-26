@@ -923,8 +923,9 @@ class Fetcher(_RemoteHandlerMixin):
         ----------
         bundle_id : str
             The id of the bundle to retrieve
-        bundle_version : int
-            The version of the bundle to retrieve. optional
+        bundle_version : int, optional
+            The version of the bundle to retrieve. If not provided, attempt to fetch the
+            latest version available
         remotes : iterable of Remote or str
             A subset of remotes and additional remotes to fetch from. If an entry in the
             iterable is a string, then it will be looked for amongst the remotes passed in
@@ -994,7 +995,12 @@ class Fetcher(_RemoteHandlerMixin):
     def _find_latest_remote_bundle_versions(self, bundle_id, loaders_list):
         latest_bundle_version = 0
         for loader in loaders_list:
-            versions = loader.bundle_versions(bundle_id)
+            try:
+                versions = loader.bundle_versions(bundle_id)
+            except NotImplementedError:
+                L.debug('Loader %s does not support listing available versions of %s',
+                        loader, bundle_id)
+                continue
             if not versions:
                 L.warning('Loader %s does not have any versions of the bundle %s', loader, bundle_id)
                 continue
