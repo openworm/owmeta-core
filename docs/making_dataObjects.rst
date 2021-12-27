@@ -3,13 +3,13 @@
 Making data objects
 ====================
 To make a new object type, you just need to make a subclass of
-`~owmeta_core.dataobject.DataObject` with the appropriate properties.
+`~owmeta_core.dataobject.BaseDataObject` with the appropriate properties.
 
 Say, for example, that I want to record some information about drug reactions
 in dogs. I make ``Drug``, ``Experiment``, and ``Dog`` classes to describe drug
 reactions::
 
-    >>> from owmeta_core.dataobject import (DataObject,
+    >>> from owmeta_core.dataobject import (BaseDataObject,
     ...                                     DatatypeProperty,
     ...                                     ObjectProperty,
     ...                                     Alias)
@@ -18,16 +18,16 @@ reactions::
 
     >>> module_context = 'http://example.com/animals'
 
-    >>> class Dog(DataObject):
+    >>> class Dog(BaseDataObject):
     ...     breed = DatatypeProperty()
 
-    >>> class Drug(DataObject):
+    >>> class Drug(BaseDataObject):
     ...     name = DatatypeProperty()
     ...     drug_name = Alias(name)
     ...     key_property = 'name'
     ...     direct_key = True
 
-    >>> class Experiment(DataObject):
+    >>> class Experiment(BaseDataObject):
     ...     drug = ObjectProperty(value_type=Drug)
     ...     subject = ObjectProperty(value_type=Dog)
     ...     route_of_entry = DatatypeProperty()

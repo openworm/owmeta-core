@@ -1058,7 +1058,7 @@ class Deployer(_RemoteHandlerMixin):
 
     def deploy(self, bundle_path, remotes=None):
         '''
-        Deploy a bundle
+        Deploy a bundle to *all* remotes that are configured to accept uploads
 
         Parameters
         ----------

@@ -1301,7 +1301,7 @@ class Module(DataObject):
     Most modern programming languages organize code into importable modules of one kind or
     another. This is basically the nearest level above a *class* in the language.
 
-    Modules are accessable by one or more `ModuleAccessor`
+    Modules are accessible by one or more `ModuleAccessor`
     '''
     class_context = BASE_SCHEMA_URL
 
