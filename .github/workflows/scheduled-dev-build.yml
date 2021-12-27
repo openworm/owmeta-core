@@ -2,8 +2,7 @@ name: Build develop
 
 on:
   schedule:
-    # minute 39 of every hour
-    - cron:  '39 * * * *'
+    - cron:  '27 8,14,20,2 * * *'
 
 jobs:
   test:
