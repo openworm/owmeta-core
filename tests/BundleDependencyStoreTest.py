@@ -532,7 +532,7 @@ def test_open_open_close_query(tempdir):
             URIRef('http://example.org/b'),
             URIRef('http://example.org/c'))
     store.add(trip, context=None)
-    store.close()
+    store.close(commit_pending_transaction=True)
 
     conf = dict(
         type='FileStorageZODB',
