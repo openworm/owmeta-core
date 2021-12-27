@@ -510,6 +510,9 @@ class HTTPBundleUploader(Uploader):
                 (accessor_config.url.startswith('https://') or
                     accessor_config.url.startswith('http://')))
 
+    def can_upload(self, bundle_path):
+        return True
+
     def upload(self, bundle_path):
         '''
         Attempt to upload the bundle. Retries will be attempted when `BrokenPipeError` is
