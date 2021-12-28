@@ -6,7 +6,7 @@ import uuid
 import rdflib as R
 
 from .dataobject import (BaseDataObject, DataObject, RegistryEntry,
-                         PythonClassDescription, PythonModule, ClassDescription,
+                         PythonClassDescription, Module, PythonModule, ClassDescription,
                          ClassResolutionFailed, ModuleResolutionFailed)
 from .utils import FCN
 from .configure import Configurable
@@ -84,8 +84,6 @@ class Mapper(Configurable):
         return self.__class_registry_context
 
     def _bootstrap_mappings(self):
-        from .dataobject import Module
-
         # Add classes needed for resolving other classes...
         # XXX: Smells off...probably don't want to have to do this.
         self.process_classes(BaseDataObject, DataObject, PythonClassDescription, Module,
@@ -165,9 +163,9 @@ class Mapper(Configurable):
         if ymc and cls in ymc:
             return
 
-        L.warning('While saving the registry entry of {}, we found that its'
+        L.warning(('While saving the registry entry of {}, we found that its'
                   ' module, {}, does not have "{}" in its'
-                  ' namespace'.format(cls, cls.__module__, cls.__name__))
+                  ' namespace').format(cls, cls.__module__, cls.__name__))
 
     def save(self):
         self.declare_python_class_registry_entry(*self._rdf_type_table.values())
