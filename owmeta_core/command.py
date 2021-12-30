@@ -825,11 +825,43 @@ class OWMContexts(object):
                     graph.remove_graph(c)
 
 
+class OWMRegistryModuleAccessDeclare:
+    '''
+    Commands for module access declarations
+    '''
+
+    def __init__(self, parent):
+        self._parent = parent
+        self._module_access = self._parent
+        self._registry = self._parent._parent
+        self._owm = self._parent._parent._parent
+
+
+class OWMRegistryModuleAccess:
+    '''
+    Commands for manipulating software module access in the class registry
+    '''
+
+    declare = SubCommand(OWMRegistryModuleAccessDeclare)
+
+    def __init__(self, parent):
+        self._parent = parent
+        self._registry = self._parent
+        self._owm = self._parent._parent
+
+
 class OWMRegistry(object):
     '''
-    Commands for dealing with the class registry, a mapping of RDF types to classes in
-    imperative programming languages
+    Commands for dealing with the class registry, a mapping of RDF types to constructs in
+    programming languages
+
+    Although it is called the "*class* registry", the registry can map RDF types to
+    constructs other than classes in the target programming language, particularly in
+    languages that don't have classes (e.g., C) or where the use of classes is not
+    preferred in that language.
     '''
+
+    module_access = SubCommand(OWMRegistryModuleAccess)
 
     def __init__(self, parent):
         self._parent = parent

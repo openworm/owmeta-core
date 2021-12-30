@@ -1314,7 +1314,12 @@ class Module(DataObject):
 
 class ClassDescription(DataObject):
     '''
-    Describes a class in the programming language
+    Describes a class in the programming language.
+
+    Note that, in other languages, there may not actually be classes per se. In such
+    cases, the `ClassDescription` may instead indicate a function. The conventions for how
+    that function accepts a URI for the sake of creating an "instance" of is up to the
+    associated software module.
     '''
     class_context = BASE_SCHEMA_URL
 
