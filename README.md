@@ -125,8 +125,7 @@ an example:
     ...    g = bnd.rdf.get_context('http://example.org/ctx')
     ...    assert (URIRef('http://example.org/s'),
     ...            URIRef('http://example.org/p'),
-    ...            URIRef('http://example.org/o')) in g # .get_context('http://example.org/ctx')
-
+    ...            URIRef('http://example.org/o')) in g
 
 <!--TODO: Describe DataSource / DataTransformer-->
 
@@ -138,11 +137,21 @@ When sharing data we have the problem of data independence: dealing with schema
 changes of the underlying RDF. owmeta-core tries to deal with this problem by
 providing tools for constructing adaptable two-way mappings between RDF and
 Python objects. These mappings relate [RDF classes][rdf_class] to Python
-classes, which classes are constrained to be sub-classes of
-`owmeta_core.dataobject.BaseDataObject`.
+classes, which classes are constrained to be sub-classes of `BaseDataObject`.
+
+Tools to support evolution of these mappings are still being developed, but
+here are a few recommendations:
+
+ - In order to keep old code working through upgrades of your package, try to
+   create a new Python class for a new version of an RDF class and publish both
+   in new versions of your software package. If instances of the old class are
+   valid instances of the new one, then you can add the `rdf:type` triples
+   pointing to the new class from those instances. A similar thing can be done
+   if instances of the new RDF class can be handled with the old Python class.
+ - Indicate the required software packages in the `description` field of your
+   bundle.
 
 [rdf_class]: https://www.w3.org/TR/rdf-schema/#ch_classes
-
 
 
 Notes
