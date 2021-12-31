@@ -49,7 +49,8 @@ from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
 from .context_common import CONTEXT_IMPORTS
 from .capable_configurable import CAPABILITY_PROVIDERS_KEY
 from .capabilities import FilePathProvider
-from .dataobject import DataObject
+from .dataobject import (DataObject, RDFSClass, RegistryEntry, PythonClassDescription,
+                         PIPInstall, PythonPackage, PythonModule)
 from .dataobject_property import ObjectProperty, UnionProperty
 from .datasource_loader import DataSourceDirLoader, LoadFailed
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
@@ -196,7 +197,6 @@ class OWMSource(object):
             Whether to (attempt to) shorten the source URIs by using the namespace manager
         """
         from .datasource import DataSource
-        from .dataobject import RDFSClass
         from .rdf_query_modifiers import (ZeroOrMoreTQLayer,
                                           rdfs_subclassof_subclassof_zom_creator)
         with self._parent.connect():
@@ -330,7 +330,6 @@ class OWMTranslator(object):
             Whether to (attempt to) shorten the translator URIs by using the namespace manager
         """
         from .datasource import DataTranslator
-        from .dataobject import RDFSClass
         from .rdf_query_modifiers import (ZeroOrMoreTQLayer,
                                           rdfs_subclassof_subclassof_zom_creator)
         with self._parent.connect():
@@ -384,7 +383,6 @@ class OWMTypes(object):
             Types to remove
         '''
         import transaction
-        from .dataobject import RDFSClass, RegistryEntry
         with transaction.manager:
             with self._parent.connect() as conn:
                 for class_id in type:
@@ -836,6 +834,56 @@ class OWMRegistryModuleAccessDeclare:
         self._registry = self._parent._parent
         self._owm = self._parent._parent._parent
 
+    def python_pip(self, package_name=None, package_version=None, index=None,
+            module_name=None, module_id=None):
+        '''
+        Declare access with a Python pip package
+
+        The given module should already have been defined in the class registry. This may
+        be achieved by the "owm save" command
+
+        Parameters
+        ----------
+        package_name : str
+            Name of the package. optional
+        package_version : str
+            Version of the package. optional
+        module_name : str
+            Name of the module. optional
+        module_id : str
+            URI identifier of the module. optional
+        '''
+        # We don't allow or expect arbitrary requirements specifications here for a couple of
+        # reasons:
+        #
+        # 1. we want to create PythonPackage statements
+        # 2. only a '==' specification is acceptable since we're meant to record exactly
+        #    which version the bundle was tested with.
+        #
+        # We also don't include platform information like which version of Python and
+        # which operating system. Our concept of usage implies that the user of a given
+        # data set sees which packages they need to download, they'll look at the
+        # documentation for installation instructions for the packages when needed.
+        #
+        # More generally, platform information should be added to artifacts of
+        # computations to indicate how to redo the computation. Moreover, a given
+        # module access description could "diffract" into different platform and OS
+        # specifications depending on which context they are employed in. In other words,
+        # we don't have sufficient information to meaningfully add platform info here.
+        import transaction
+
+        with self._owm.connect() as conn, transaction.manager:
+            pymod_q = conn.mapper.class_registry_context.stored(PythonModule).query(ident=module_id)
+
+            if module_name is not None:
+                pymod_q.name(module_name)
+
+            for pymod in pymod_q.load():
+                pymod
+            else:  # no break
+                raise GenericUserError(
+                        f'No Python module was found {module_name or module_id}')
+
 
 class OWMRegistryModuleAccess:
     '''
@@ -882,7 +930,6 @@ class OWMRegistry(object):
             If provided, limits the registry entries returned to those that have the given
             class name. Optional.
         '''
-        from .dataobject import PythonClassDescription
 
         def registry_entries():
             with self._parent.connect() as conn:
@@ -966,7 +1013,6 @@ class OWMRegistry(object):
             Registry entry to remove
         '''
         import transaction
-        from .dataobject import RegistryEntry
 
         with transaction.manager:
             for re in registry_entry:
