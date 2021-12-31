@@ -5,6 +5,7 @@ import argparse
 import copy as _copy
 import functools
 from textwrap import wrap
+import logging
 
 from .utils import FCN
 from .docscrape import parse as npdoc_parse
@@ -20,6 +21,8 @@ from .cli_common import (INSTANCE_ATTRIBUTE,
 
 from .cli_hints import CLI_HINTS
 
+
+L = logging.getLogger(__name__)
 
 ARGUMENT_TYPES = {
     'int': int
@@ -39,6 +42,7 @@ class CLIUserError(Exception):
 
 
 def _method_runner(runner, key):
+    L.debug('Getting method %s from %s', key, runner)
     method = getattr(runner, key)
 
     @functools.wraps(method)
@@ -103,6 +107,7 @@ class CLIArgMapper(object):
         except StopIteration:
             nargs = ()
 
+        L.debug('Looking up runner %s from %s', self.methodname, self.runners)
         runmethod = self.runners.get(self.methodname, None)
 
         def continuation():
@@ -430,9 +435,10 @@ class CLICommandWrapper(object):
                 sub_runner = getattr(self.runner, key)
                 sub_mapper = CLIArgMapper()
 
-                self.mapper.runners[key] = _sc_runner(sub_mapper, sub_runner)
+                command_name = key.replace('_', '-')
+                self.mapper.runners[command_name] = _sc_runner(sub_mapper, sub_runner)
 
-                subparser = sp().add_parser(key, help=summary, description=detail)
+                subparser = sp().add_parser(command_name, help=summary, description=detail)
                 type(self)(sub_runner, sub_mapper, hints_map=self.hints_map).parser(subparser)
             elif isinstance(val, IVar):
                 doc = getattr(val, '__doc__', None)
