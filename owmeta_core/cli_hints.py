@@ -70,7 +70,7 @@ CLI_HINTS = {
             },
         },
         'IGNORE': ['message', 'progress_reporter', 'prompt', 'connect', 'disconnect', 'rdf', 'default_context',
-                'connected', 'cleanup_manager']
+                'connected', 'cleanup_manager', 'own_rdf']
     },
     'owmeta_core.command.OWMContexts': {
         'list_imports': {
