@@ -471,10 +471,11 @@ class ClassRegistryMissingClassTest(_DataTest):
             pass
         ident = R.URIRef('http://openworm.org/entities/TDO01')
         g = R.ConjunctiveGraph()
-        self.crctx = g.get_context(self.mapper.class_registry_context.identifier)
+        crctx_id = 'http://example.org/crctx'
+        self.crctx = g.get_context(R.URIRef(crctx_id))
         ctx = g.get_context(self.context.identifier)
         self.TestConfig['rdf.graph'] = g
-        self.TestConfig[CLASS_REGISTRY_CONTEXT_KEY] = self.crctx.identifier
+        self.TestConfig[CLASS_REGISTRY_CONTEXT_KEY] = crctx_id
         trips = [(ident, rdftype, tdo),
                  (tdo, sc, DataObject.rdf_type)]
         for tr in trips:
