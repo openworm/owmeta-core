@@ -60,7 +60,7 @@ from .capability_providers import (TransactionalDataSourceDirProvider,
                                    WorkingDirectoryProvider,
                                    SimpleTemporaryDirectoryProvider)
 from .utils import FCN, retrieve_provider, PROVIDER_PATH_RE
-from .rdf_utils import ContextSubsetStore
+from .rdf_utils import ContextSubsetStore, BatchAddGraph
 
 
 L = logging.getLogger(__name__)
@@ -877,7 +877,8 @@ class OWMRegistryModuleAccessDeclare:
         import transaction
 
         dist = None
-        if not package_version:
+
+        def get_dist():
             try:
                 from importlib.metadata import distribution
             except ImportError:
@@ -885,8 +886,11 @@ class OWMRegistryModuleAccessDeclare:
                         'Package name and package version must be defined.'
                         ' They cannot be looked up in this version of Python')
             else:
-                dist = distribution(package_name)
-                package_version = dist.version
+                return distribution(package_name)
+
+        if not package_version:
+            dist = get_dist()
+            package_version = dist.version
 
         self._owm.message('Declaring accessors for any modules of'
                 f' {package_name}=={package_version}')
@@ -894,6 +898,8 @@ class OWMRegistryModuleAccessDeclare:
             from importlib import import_module
             from pkgutil import walk_packages
             module_names = set()
+            if dist is None:
+                dist = get_dist()
             for pkg in (dist.read_text('top_level.txt') or '').split():
                 mod = import_module(pkg)
                 for m in walk_packages(mod.__path__, pkg + '.'):
@@ -908,16 +914,16 @@ class OWMRegistryModuleAccessDeclare:
                 pymod_q.name(module_name)
 
                 for pymod in pymod_q.load():
-                    pip_install = crctx(PIPInstall)(
-                            name=package_name,
-                            version=package_version,
-                            index_url=index)
-                    crctx(pymod).accessor(pip_install)
-
                     package = crctx(PythonPackage)(
                             name=package_name,
                             version=package_version)
                     crctx(pymod).package(package)
+
+                    pip_install = crctx(PIPInstall)(
+                            package=package,
+                            index_url=index)
+                    crctx(pymod).accessor(pip_install)
+
                     self._owm.message(f'Adding {package} to {pymod} accessed by {pip_install}')
             crctx.save()
 
@@ -1692,7 +1698,6 @@ class OWM(object):
         import transaction
         from rdflib import plugin
         from rdflib.parser import Parser, create_input_source
-        from .rdf_utils import BatchAddGraph
         idx_fname = pth_join(self.owmdir, 'graphs', 'index')
         triples_read = 0
         if exists(idx_fname):

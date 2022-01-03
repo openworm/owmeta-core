@@ -1429,16 +1429,12 @@ class PIPInstall(ModuleAccessor):
     '''
     class_context = BASE_SCHEMA_URL
 
-    name = DatatypeProperty(
-            __doc__='Name of the package to retrieve')
-
-    version = DatatypeProperty(
-            __doc__='Version of the package to retrieve')
+    package = ObjectProperty(value_type=PythonPackage)
 
     index_url = DatatypeProperty(
             __doc__='URL of the index from which the package should be retrieved')
 
-    key_properties = (name, version, OptionalKeyValue(index_url))
+    key_properties = (package, OptionalKeyValue(index_url))
 
 
 class PythonClassDescription(ClassDescription):
