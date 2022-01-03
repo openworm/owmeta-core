@@ -834,24 +834,28 @@ class OWMRegistryModuleAccessDeclare:
         self._registry = self._parent._parent
         self._owm = self._parent._parent._parent
 
-    def python_pip(self, package_name=None, package_version=None, index=None,
-            module_name=None, module_id=None):
+    def python_pip(self, package_name, package_version=None, index=None,
+            module_names=None, module_id=None):
         '''
         Declare access with a Python pip package
 
         The given module should already have been defined in the class registry. This may
-        be achieved by the "owm save" command
+        be achieved by the "owm save" command.
 
         Parameters
         ----------
         package_name : str
-            Name of the package. optional
+            Name of the package
         package_version : str
-            Version of the package. optional
-        module_name : str
-            Name of the module. optional
+            Version of the package. If not provided, will attempt to find the active
+            version in package metadata
+        index : str
+            The index to get the package from. Optional
+        module_names : str
+            Name of the module. If not provided, will attempt to find the modules from
+            package metadata
         module_id : str
-            URI identifier of the module. optional
+            URI identifier of the module. Cannot be specified along with `module_name`
         '''
         # We don't allow or expect arbitrary requirements specifications here for a couple of
         # reasons:
@@ -872,17 +876,50 @@ class OWMRegistryModuleAccessDeclare:
         # we don't have sufficient information to meaningfully add platform info here.
         import transaction
 
-        with self._owm.connect() as conn, transaction.manager:
-            pymod_q = conn.mapper.class_registry_context.stored(PythonModule).query(ident=module_id)
+        dist = None
+        if not package_version:
+            try:
+                from importlib.metadata import distribution
+            except ImportError:
+                raise GenericUserError(
+                        'Package name and package version must be defined.'
+                        ' They cannot be looked up in this version of Python')
+            else:
+                dist = distribution(package_name)
+                package_version = dist.version
 
-            if module_name is not None:
+        self._owm.message('Declaring accessors for any modules of'
+                f' {package_name}=={package_version}')
+        if not (module_names or module_id):
+            from importlib import import_module
+            from pkgutil import walk_packages
+            module_names = set()
+            for pkg in (dist.read_text('top_level.txt') or '').split():
+                mod = import_module(pkg)
+                for m in walk_packages(mod.__path__, pkg + '.'):
+                    module_names.add(m.name)
+
+        with self._owm.connect() as conn, transaction.manager:
+            crctx = conn.mapper.class_registry_context
+
+            for module_name in module_names:
+                # TODO: Use property alternatives when that works
+                pymod_q = crctx.stored(PythonModule).query(ident=module_id)
                 pymod_q.name(module_name)
 
-            for pymod in pymod_q.load():
-                pymod
-            else:  # no break
-                raise GenericUserError(
-                        f'No Python module was found {module_name or module_id}')
+                for pymod in pymod_q.load():
+                    pip_install = crctx(PIPInstall)(
+                            name=package_name,
+                            version=package_version,
+                            index_url=index)
+                    crctx(pymod).accessor(pip_install)
+
+                    package = crctx(PythonPackage)(
+                            name=package_name,
+                            version=package_version)
+                    crctx(pymod).package(package)
+                    self._owm.message(f'Adding {package} to {pymod} accessed by {pip_install}')
+            crctx.save()
 
 
 class OWMRegistryModuleAccess:
@@ -1017,9 +1054,10 @@ class OWMRegistry(object):
         with transaction.manager:
             for re in registry_entry:
                 uri = self._parent._den3(re)
-                crctx = self._parent.connect().mapper.class_registry_context
-                for x in crctx(RegistryEntry).query(ident=uri).load():
-                    crctx.stored(x).retract()
+                with self._parent.connect() as conn:
+                    crctx = conn.mapper.class_registry_context
+                    for x in crctx(RegistryEntry).query(ident=uri).load():
+                        crctx.stored(x).retract()
 
 
 class OWM(object):

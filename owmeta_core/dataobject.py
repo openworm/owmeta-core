@@ -61,6 +61,22 @@ Prefix for property attribute names
 '''
 
 
+def _identity(x):
+    return x
+
+
+class OptionalKeyValue:
+    '''
+    An optional key value to use in `key_properties`
+    '''
+    def __init__(self, prop):
+        self.prop = prop
+
+
+class _OKV(str):
+    ''' marker for optional key value names '''
+
+
 class PropertyProperty(Contextualizable, property):
     def __init__(self, cls=None, *args, cls_thunk=None):
         super(PropertyProperty, self).__init__(*args)
@@ -304,10 +320,15 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             self.direct_key = False
             new_key_properties = []
             for kp in key_properties:
+                wrapper = _identity
+                if isinstance(kp, OptionalKeyValue):
+                    kp = kp.prop
+                    wrapper = _OKV
+
                 if isinstance(kp, PThunk):
                     for k, p in self._property_classes.items():
                         if p is kp.result:
-                            new_key_properties.append(k)
+                            new_key_properties.append(wrapper(k))
                             break
                     else:
                         raise Exception(f"The provided 'key_properties' entry, {kp},"
@@ -315,13 +336,13 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
                 elif isinstance(kp, PropertyProperty):
                     for k, p in self._property_classes.items():
                         if p is kp._cls:
-                            new_key_properties.append(k)
+                            new_key_properties.append(wrapper(k))
                             break
                     else:
                         raise Exception(f"The provided 'key_properties' entry, {kp},"
                                 " does not appear to be a property for this class")
                 elif isinstance(kp, six.string_types):
-                    new_key_properties.append(kp)
+                    new_key_properties.append(wrapper(kp))
                 else:
                     raise Exception("The provided 'key_properties' entry does not appear"
                             " to be a property")
@@ -386,7 +407,8 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             if self.definition_context is None:
                 raise Exception("The class {0} has no context for RDFSClass(ident={1})".format(
                     self, self.rdf_type))
-            L.debug('Creating rdf_type_object for {} in {}'.format(self, self.definition_context))
+            L.debug('Creating rdf_type_object for %s in %s',
+                    self, self.definition_context)
             rdto = RDFSClass.contextualize(self.definition_context)(ident=self.rdf_type)
             for par in self.__bases__:
                 prdto = getattr(par, 'rdf_type_object', None)
@@ -684,8 +706,15 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         sdata = ''
         for n in names:
             prop = getattr(self, n)
-            val = prop.defined_values[0]
-            sdata += val.identifier.n3()
+            try:
+                val = prop.defined_values[0]
+            except IndexError:
+                if isinstance(n, _OKV):
+                    sdata += "@"
+                elif val is None:
+                    raise Exception(f'Non-optional key, "{n}", property is undefined')
+            else:
+                sdata += val.identifier.n3()
         return sdata
 
     def _key_defined(self):
@@ -697,16 +726,17 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
             for k in self.key_properties:
                 attr = getattr(self, k, None)
                 if attr is None:
-                    raise Exception('Key property "{}" is not available on object'.format(k))
+                    raise Exception(f'Key property "{k}" is not available on object')
 
-                if not attr.has_defined_value():
+                if not isinstance(k, _OKV) and not attr.has_defined_value():
                     return False
             return True
         elif self.key_property is not None:
             attr = getattr(self, self.key_property, None)
             if attr is None:
-                raise Exception('Key property "{}" is not available on object'.format(
-                    self.key_property))
+                raise Exception(
+                        f'Key property "{self.key_property}"'
+                        ' is not available on object')
             if not attr.has_defined_value():
                 return False
             return True
@@ -1305,8 +1335,8 @@ class Module(DataObject):
     '''
     class_context = BASE_SCHEMA_URL
 
-    accessors = ObjectProperty(multiple=True, value_type=ModuleAccessor,
-            __doc__='Ways to get the module')
+    accessor = ObjectProperty(multiple=True, value_type=ModuleAccessor,
+            __doc__='Describes a way to get the module')
 
     package = ObjectProperty(value_type=Package,
             __doc__='Package that provides the module')
@@ -1399,9 +1429,16 @@ class PIPInstall(ModuleAccessor):
     '''
     class_context = BASE_SCHEMA_URL
 
-    name = DatatypeProperty()
+    name = DatatypeProperty(
+            __doc__='Name of the package to retrieve')
 
-    version = DatatypeProperty()
+    version = DatatypeProperty(
+            __doc__='Version of the package to retrieve')
+
+    index_url = DatatypeProperty(
+            __doc__='URL of the index from which the package should be retrieved')
+
+    key_properties = (name, version, OptionalKeyValue(index_url))
 
 
 class PythonClassDescription(ClassDescription):
