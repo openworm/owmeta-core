@@ -969,6 +969,7 @@ class OWMRegistry(object):
         '''
 
         def registry_entries():
+            nonlocal rdf_type
             with self._parent.connect() as conn:
                 for re in conn.mapper.load_registry_entries():
                     ident = re.identifier
@@ -992,6 +993,9 @@ class OWMRegistry(object):
                     if class_name is not None and class_name != str(re_class_name):
                         continue
 
+                    if re.namespace_manager:
+                        re_rdf_type = re.namespace_manager.normalizeUri(re_rdf_type)
+
                     res = dict(id=ident,
                             rdf_type=re_rdf_type,
                             class_name=re_class_name,
@@ -1000,7 +1004,11 @@ class OWMRegistry(object):
                     if hasattr(module_do, 'package'):
                         package = module_do.package()
                         if package:
-                            res['package'] = dict(id=package.identifier,
+                            if re.namespace_manager:
+                                pkgid = re.namespace_manager.normalizeUri(package.identifier)
+                            else:
+                                pkgid = package.identifier
+                            res['package'] = dict(id=pkgid,
                                                   name=package.name(),
                                                   version=package.version())
                     yield res
