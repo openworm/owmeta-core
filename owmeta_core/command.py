@@ -851,9 +851,9 @@ class OWMRegistryModuleAccessDeclare:
             version in package metadata
         index : str
             The index to get the package from. Optional
-        module_names : str
+        module_names : list of str
             Name of the module. If not provided, will attempt to find the modules from
-            package metadata
+            package metadata. Multiple module names can be provided
         module_id : str
             URI identifier of the module. Cannot be specified along with `module_name`
         '''

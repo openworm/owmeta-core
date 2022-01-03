@@ -78,7 +78,7 @@ CLI_HINTS = {
                 'names': ['package_name'],
             },
             (METHOD_NAMED_ARG, 'module_names'): {
-                'names': ['--module_name'],
+                'names': ['--module-name'],
                 'action': 'append'
             },
         },
