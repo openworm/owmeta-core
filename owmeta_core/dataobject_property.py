@@ -492,10 +492,16 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
     @property
     def statements(self):
         for x in self.rdf.quads((self.owner.idl, self.link, None, None)):
+            # XXX: RDFLib reteurns a URIRefs for the context for Datasets, but the base
+            # ConjunctiveGraph returns a Graph(), apparently due to some accident of how
+            # these classes were developed. We adapt to this reality by just asking for
+            # the context's identifier in case it has one.
+            context = x[3]
+            ctxid = getattr(context, 'identifier', context)
             yield Statement(self.owner,
                             self,
                             ContextualizedPropertyValue(x[2]),
-                            Context(ident=x[3]))
+                            Context(ident=ctxid))
 
 
 class PropertyExpr(object):
