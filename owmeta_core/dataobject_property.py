@@ -491,7 +491,11 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
 
     @property
     def statements(self):
-        return self.rdf.quads((self.owner.idl, self.link, None, None))
+        for x in self.rdf.quads((self.owner.idl, self.link, None, None)):
+            yield Statement(self.owner,
+                            self,
+                            ContextualizedPropertyValue(x[2]),
+                            Context(ident=x[3]))
 
 
 class PropertyExpr(object):
@@ -855,11 +859,7 @@ class DatatypeProperty(PropertyCountMixin, Property):
     @property
     def statements(self):
         return itertools.chain(self.defined_statements,
-                               (Statement(self.owner,
-                                          self,
-                                          ContextualizedPropertyValue(x[2]),
-                                          Context(ident=x[3]))
-                                for x in super(DatatypeProperty, self).statements))
+                               super().statements)
 
 
 class UnionProperty(InversePropertyMixin,
