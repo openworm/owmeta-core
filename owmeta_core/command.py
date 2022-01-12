@@ -50,7 +50,7 @@ from .context_common import CONTEXT_IMPORTS
 from .capable_configurable import CAPABILITY_PROVIDERS_KEY
 from .capabilities import FilePathProvider
 from .dataobject import (DataObject, RDFSClass, RegistryEntry, PythonClassDescription,
-                         PIPInstall, PythonPackage, PythonModule)
+                         PIPInstall, PythonPackage, PythonModule, Module)
 from .dataobject_property import ObjectProperty, UnionProperty
 from .datasource_loader import DataSourceDirLoader, LoadFailed
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
@@ -928,12 +928,34 @@ class OWMRegistryModuleAccessDeclare:
             crctx.save()
 
 
+class OWMRegistryModuleAccessShow:
+    def __init__(self, parent):
+        self._parent = parent
+        self._module_access = self._parent
+        self._registry = self._parent._parent
+        self._owm = self._parent._parent._parent
+
+    def __call__(self, module):
+        '''
+        Show module accessor description
+
+        Parameters
+        ----------
+        module : str
+            ID of the module to show accessors
+        '''
+        modq = self._owm.default_context.stored(Module)(ident=module)
+        for accessor in modq.accessor.get():
+            self._owm.message(accessor.show())
+
+
 class OWMRegistryModuleAccess:
     '''
     Commands for manipulating software module access in the class registry
     '''
 
     declare = SubCommand(OWMRegistryModuleAccessDeclare)
+    show = SubCommand(OWMRegistryModuleAccessShow)
 
     def __init__(self, parent):
         self._parent = parent
