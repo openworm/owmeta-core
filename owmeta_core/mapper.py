@@ -12,6 +12,27 @@ from .utils import FCN
 from .configure import Configurable
 
 
+# TODO: Move this into mapper or a new mapper_common module
+CLASS_REGISTRY_CONTEXT_KEY = 'class_registry_context_id'
+'''
+.. confval:: class_registry_context_id
+
+    Configuration file key for the URI of the class registry RDF graph context.
+
+    The class registry context holds the mappings between RDF types and Python classes for
+    a project or bundle.
+'''
+
+CLASS_REGISTRY_CONTEXT_LIST_KEY = 'class_registry_context_list_id'
+'''
+.. confval:: class_registry_context_list_id
+
+    Configuration file key for the URI of the class registry RDF graph context.
+
+    The class registry context holds the mappings between RDF types and Python classes for
+    a project or bundle.
+'''
+
 __all__ = ["Mapper",
            "UnmappedClassException"]
 
@@ -71,7 +92,7 @@ class Mapper(Configurable):
     def class_registry_context(self):
         if self.__class_registry_context is None:
             from . import BASE_CONTEXT
-            from .context import Context, CLASS_REGISTRY_CONTEXT_KEY
+            from .context import Context
             crctx_id = (self.__class_registry_context_id or
                         self.conf.get(CLASS_REGISTRY_CONTEXT_KEY, None) or
                         uuid.uuid4().urn)

@@ -20,9 +20,8 @@ import transaction
 import yaml
 
 from .. import OWMETA_PROFILE_DIR, connect
-from ..context import (DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
-                       CLASS_REGISTRY_CONTEXT_KEY, Context)
-from ..mapper import Mapper
+from ..context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY, Context
+from ..mapper import CLASS_REGISTRY_CONTEXT_KEY, Mapper
 from ..context_common import CONTEXT_IMPORTS
 from ..data import Data
 from ..file_match import match_files

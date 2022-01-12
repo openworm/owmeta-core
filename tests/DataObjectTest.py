@@ -23,7 +23,8 @@ from owmeta_core.dataobject import (DataObject,
                                     ModuleResolutionFailed,
                                     RegistryEntry,
                                     Module)
-from owmeta_core.context import Context, CLASS_REGISTRY_CONTEXT_KEY, IMPORTS_CONTEXT_KEY
+from owmeta_core.context import Context, IMPORTS_CONTEXT_KEY
+from owmeta_core.mapper import CLASS_REGISTRY_CONTEXT_KEY
 from owmeta_core.rdf_query_util import get_most_specific_rdf_type
 from owmeta_core.utils import FCN
 

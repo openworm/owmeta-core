@@ -11,7 +11,8 @@ from urllib.parse import urlparse
 
 import yaml
 
-from ..context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY, CLASS_REGISTRY_CONTEXT_KEY
+from ..context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY
+from ..mapper import CLASS_REGISTRY_CONTEXT_KEY
 from ..command_util import GenericUserError, GeneratorWithData, SubCommand, IVar
 from ..bundle import (Descriptor,
                       Installer,

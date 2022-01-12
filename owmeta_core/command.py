@@ -44,8 +44,7 @@ from . import connect, OWMETA_PROFILE_DIR
 from .bundle import (BundleDependentStoreConfigBuilder, BundleDependencyManager,
                      retrieve_remotes)
 from .commands.bundle import OWMBundle
-from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
-                      CLASS_REGISTRY_CONTEXT_KEY)
+from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY)
 from .context_common import CONTEXT_IMPORTS
 from .capable_configurable import CAPABILITY_PROVIDERS_KEY
 from .capabilities import FilePathProvider
@@ -54,7 +53,7 @@ from .dataobject import (DataObject, RDFSClass, RegistryEntry, PythonClassDescri
 from .dataobject_property import ObjectProperty, UnionProperty
 from .datasource_loader import DataSourceDirLoader, LoadFailed
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
-from .mapper import Mapper
+from .mapper import Mapper, CLASS_REGISTRY_CONTEXT_KEY, CLASS_REGISTRY_CONTEXT_LIST_KEY
 from .capability_providers import (TransactionalDataSourceDirProvider,
                                    SimpleCacheDirectoryProvider,
                                    WorkingDirectoryProvider,
