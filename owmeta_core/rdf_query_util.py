@@ -127,25 +127,28 @@ def get_most_specific_rdf_type(graph, types, base=None):
 def _gmsrt_helper(graph, start, base=None):
     res = set(start)
     border = set(start)
-    colors = {s: {s} for s in start}
+    subclasses = {s: {s} for s in start}
     hit = True
     while len(res) > 1:
         new_border = set()
         itr = graph.triples_choices((list(border), rdflib.RDFS.subClassOf, None))
         hit = False
-        for t in itr:
-            if isinstance(t[0], tuple):
-                t = t[0]
-            o = t[2]
-            s = t[0]
-            if o != s:
-                o_color = colors.get(o, None)
-                if o_color is None:
-                    colors[o] = o_color = set()
-                o_color |= colors[s]
-                res.discard(o)
+        for item in itr:
+            if isinstance(item[0], tuple):
+                # If we retrieved from a rdflib.store.Store instead of a Graph, then we
+                # have to get the first element of the pair `item` to get the actual triple
+                triple = item[0]
+            else:
+                triple = item
+            subj, _, obj = triple
+            if obj != subj:
+                obj_subclasses = subclasses.get(obj, None)
+                if obj_subclasses is None:
+                    subclasses[obj] = obj_subclasses = set()
+                obj_subclasses |= subclasses[subj]
+                res.discard(obj)
                 hit = True
-                new_border.add(o)
+                new_border.add(obj)
         if not hit:
             break
         border = new_border
@@ -153,7 +156,7 @@ def _gmsrt_helper(graph, start, base=None):
         if not hit:
             # If hit is False, then we've stopped because no more super-classes were found, so
             # base *has* to be in here or else none of our types are any good
-            res &= colors.get(base, set())
+            res &= subclasses.get(base, set())
         else:
             # We exited because we eliminated all of the other types (or only had one to
             # begin with), but keep going to make sure we have the base.
