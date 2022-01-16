@@ -1,4 +1,4 @@
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 from itertools import chain
 from os import makedirs, rename, scandir, listdir
 from os.path import (join as p, exists, relpath, isdir, isfile,
@@ -592,7 +592,15 @@ class BundleDependencyManager(object):
 
     def load_dependencies_transitive(self):
         '''
-        Load dependencies from this bundle transitively
+        Load dependencies from this bundle transitively.
+
+        Any given version of a bundle will be yielded at most once regardless of how many
+        times that version of the bundle appears in the dependency graph. Dependencies
+        will be iterated over in "level order", so every dependency a Bundle declares will
+        be yielded before any transitive dependencies *unless* already depended on by a
+        previously yielded dependency. Lastly, the direct dependencies of a bundle will be
+        yielded in the order they're listed in the bundle's manifest, which *should* be
+        the same order as was in the bundle descriptor during installation.
 
         Yields
         ------
@@ -602,7 +610,9 @@ class BundleDependencyManager(object):
         border = {None: self}
         seen = set()
         while border:
-            new_border = {}
+            # allegedly, OrderedDict isn't optimized for iteration speed, but better to
+            # signal that order is important in how the border is iterated over.
+            new_border = OrderedDict()
             for bnd in border.values():
                 for d_bnd in bnd.load_dependencies():
                     key = (d_bnd.ident, d_bnd.version)
