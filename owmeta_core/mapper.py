@@ -2,8 +2,6 @@ from __future__ import print_function
 import importlib as IM
 import logging
 
-import rdflib as R
-
 from .dataobject import (BaseDataObject, DataObject, RegistryEntry,
                          PythonClassDescription, Module, PythonModule, ClassDescription,
                          ClassResolutionFailed, ModuleResolutionFailed)
@@ -57,40 +55,49 @@ class ClassRedefinitionAttempt(Exception):
 
 class Mapper(Configurable):
     '''
-    Keeps track of relationships between classes, between modules, and between classes and modules
+    Keeps track of relationships between Python classes and RDF classes
+
+    The mapping this object manages may also be written to the RDF graph as `class
+    registry entries <RegistryEntry>`. The entries are written to the "class registry
+    context", which can be specified when the Mapper is created.
     '''
-    def __init__(self, base_namespace=None, imported=(), name=None,
-            class_registry_context=None, **kwargs):
+    def __init__(self, name=None, class_registry_context=None, **kwargs):
+        '''
+        Parameters
+        ----------
+        name : str, optional
+            Name of the mapper for diagnostic/debugging purposes
+        class_registry_context : `owmeta_core.context.Context` or str, optional
+            The context where mappings should be saved. Either the context object itself
+            or the ID for it. If not provided, then the class registry context ID is
+            looked up from the Mapper's configuration at `CLASS_REGISTRY_CONTEXT_KEY`
+        **kwargs
+            passed to super-classes
+        '''
         super(Mapper, self).__init__(**kwargs)
 
-        """ Maps full class names (i.e., including the module name) to classes """
+        # Maps full class names (i.e., including the module name) to classes
         self._mapped_classes = dict()
 
-        """ Maps RDF types to properties of the related class """
+        # Maps RDF types to properties of the related class
         self._rdf_type_table = dict()
 
-        if base_namespace is None:
-            base_namespace = R.Namespace("http://example.com#")
-        elif not isinstance(base_namespace, R.Namespace):
-            base_namespace = R.Namespace(base_namespace)
-
-        """ Base namespace used if a mapped class doesn't define its own """
-        self.base_namespace = base_namespace
-
-        """ Modules that have already been loaded """
+        # Modules that have already been loaded
         self.modules = dict()
-
-        self.imported_mappers = imported
 
         if name is None:
             name = hex(id(self))
         self.name = name
-        self.__class_registry_context_id = class_registry_context
-        self.__class_registry_context = None
+        if isinstance(class_registry_context, str):
+            self.__class_registry_context_id = class_registry_context
+            self.__class_registry_context = None
+        else:
+            self.__class_registry_context = class_registry_context
         self._bootstrap_mappings()
 
     @property
     def class_registry_context(self):
+        ''' Context where class registry entries are stored '''
         if self.__class_registry_context is None:
             from .context import Context
             crctx_id = (self.__class_registry_context_id
@@ -164,13 +171,7 @@ class Mapper(Configurable):
     process_classes = process_class
 
     def lookup_module(self, module_name):
-        m = self.modules.get(module_name, None)
-        if m is None:
-            for p in self.imported_mappers:
-                m = p.lookup_module(module_name)
-                if m:
-                    break
-        return m
+        return self.modules.get(module_name, None)
 
     def _check_is_good_class_registry(self, cls):
         module = IM.import_module(cls.__module__)
@@ -299,21 +300,9 @@ class Mapper(Configurable):
         return ret
 
     def _lookup_class(self, cname):
-        c = self._mapped_classes.get(cname, None)
-        if c is None:
-            for p in self.imported_mappers:
-                c = p._lookup_class(cname)
-                if c:
-                    break
-        else:
-            L.debug('%s.lookup_class("%s") %s@%s',
-                    repr(self), cname, c, hex(id(c)))
-        return c
+        return self._mapped_classes.get(cname, None)
 
     def mapped_classes(self):
-        for p in self.imported_mappers:
-            for c in p.mapped_classes():
-                yield
         for c in self._mapped_classes.values():
             yield c
 
