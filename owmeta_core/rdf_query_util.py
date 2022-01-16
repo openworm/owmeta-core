@@ -105,8 +105,17 @@ def load(graph, start, target_type, *args):
 
 def get_most_specific_rdf_type(graph, types, base=None):
     '''
-    Find the rdf type that isn't a sub-class of any other, constrained to `base` if that
-    is provided.
+    Find the RDF type that isn't a sub-class of any other, constrained to be a sub-class
+    of `base` if that is provided.
+
+    Parameters
+    ----------
+    graph : rdflib.graph.Graph
+        The graph to query rdfs:subClassOf relationships
+    types : list of rdflib.term.URIRef
+        The types to query
+    base : rdflib.term.URIRef
+        The "base" type
     '''
     if len(types) == 1 and (not base or (base,) == tuple(types)):
         return tuple(types)[0]
