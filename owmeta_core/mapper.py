@@ -1,7 +1,6 @@
 from __future__ import print_function
 import importlib as IM
 import logging
-import uuid
 
 import rdflib as R
 
@@ -23,14 +22,16 @@ CLASS_REGISTRY_CONTEXT_KEY = 'class_registry_context_id'
     a project or bundle.
 '''
 
-CLASS_REGISTRY_CONTEXT_LIST_KEY = 'class_registry_context_list_id'
+CLASS_REGISTRY_CONTEXT_LIST_KEY = 'class_registry_context_list'
 '''
-.. confval:: class_registry_context_list_id
+.. confval:: class_registry_context_list
 
-    Configuration file key for the URI of the class registry RDF graph context.
+    Configuration file key for the list of class registry contexts
 
-    The class registry context holds the mappings between RDF types and Python classes for
-    a project or bundle.
+    If it is specified, then :confval:`class_registry_context_id` should be searched first
+    for class registry entries. The class registry list may be built automatically or not
+    defined at all depending on who makes the `Configuration`, but if it is specified with
+    this property, then it should be respected.
 '''
 
 __all__ = ["Mapper",
@@ -91,16 +92,12 @@ class Mapper(Configurable):
     @property
     def class_registry_context(self):
         if self.__class_registry_context is None:
-            from . import BASE_CONTEXT
             from .context import Context
-            crctx_id = (self.__class_registry_context_id or
-                        self.conf.get(CLASS_REGISTRY_CONTEXT_KEY, None) or
-                        uuid.uuid4().urn)
-
-            # XXX: Probably should get the connection in here to contextualize this
-            # context
+            crctx_id = (self.__class_registry_context_id
+                    or self.conf.get(CLASS_REGISTRY_CONTEXT_KEY, None))
+            if crctx_id is None:
+                return None
             crctx = Context(crctx_id, conf=self.conf, mapper=self)
-            crctx.add_import(BASE_CONTEXT)
             self.__class_registry_context = crctx
         return self.__class_registry_context
 
@@ -189,12 +186,19 @@ class Mapper(Configurable):
                   ' namespace').format(cls, cls.__module__, cls.__name__))
 
     def save(self):
+        crctx = self.class_registry_context
+        if crctx is None:
+            raise Exception(f'{self}.class_registry_context is unset.'
+                    ' Cannot save class registry entries')
         self.declare_python_class_registry_entry(*self._rdf_type_table.values())
-        self.class_registry_context.save()
-        self.class_registry_context.save_imports()
+        crctx.save()
+        crctx.save_imports()
 
     def declare_python_class_registry_entry(self, *classes):
         cr_ctx = self.class_registry_context
+        if cr_ctx is None:
+            raise Exception(f'{self}.class_registry_context is unset.'
+                    ' Cannot declare class registry entries')
         for cls in classes:
             cr_ctx(cls).declare_class_registry_entry()
 
@@ -221,6 +225,11 @@ class Mapper(Configurable):
         # otherwise, attempt to load into the cache by
         # reading the RDF graph.
 
+        if self.class_registry_context is None:
+            L.warning('%s.class_registry_context is unset.'
+                    ' Cannot resolve class for "%s"',
+                    self, uri)
+            return None
         cr_ctx = self.class_registry_context.stored
         c = self._resolve_class(uri, cr_ctx)
         if c:

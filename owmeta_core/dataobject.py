@@ -428,16 +428,22 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
 
     def declare_class_registry_entry(self):
         self._check_is_good_class_registry()
+        self.context.add_import(RegistryEntry.definition_context)
         re = RegistryEntry.contextualize(self.context)()
         cd = self.declare_class_description()
 
-        self.context.add_import(type(cd).definition_context)
-
         re.rdf_class(self.rdf_type)
         re.class_description(cd)
+
+        # XXX This import may be inappropriate: we don't really use the relationships
+        # between this class' RDF type and other types which would make this
+        # necessary...but it's probably fine.
         self.context.add_import(self.definition_context)
 
     def declare_class_description(self):
+        # PythonClassDescription and PythonModule have the same definition context, so
+        # only need to add one import
+        self.context.add_import(PythonClassDescription.definition_context)
         cd = PythonClassDescription.contextualize(self.context)()
 
         mo = PythonModule.contextualize(self.context)()

@@ -137,9 +137,8 @@ class Context(six.with_metaclass(ContextMeta,
         self._graph = None
 
         if mapper is None:
-            my_context = getattr(self, 'context')
-            if my_context:
-                mapper = my_context.mapper
+            if self.context:
+                mapper = self.context.mapper
 
         self.__mapper = mapper
         self.base_namespace = base_namespace
