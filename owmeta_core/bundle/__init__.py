@@ -10,6 +10,7 @@ import json
 import logging
 import re
 import shutil
+import io
 
 from rdflib import plugin
 from rdflib.parser import Parser, create_input_source
@@ -21,7 +22,7 @@ import yaml
 
 from .. import OWMETA_PROFILE_DIR, connect
 from ..context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY, Context
-from ..mapper import CLASS_REGISTRY_CONTEXT_KEY, Mapper
+from ..mapper import CLASS_REGISTRY_CONTEXT_KEY, CLASS_REGISTRY_CONTEXT_LIST_KEY, Mapper
 from ..context_common import CONTEXT_IMPORTS
 from ..data import Data
 from ..file_match import match_files
@@ -36,7 +37,8 @@ from .common import (find_bundle_directory, fmt_bundle_directory, BUNDLE_MANIFES
                      BUNDLE_INDEXED_DB_NAME, validate_manifest, BUNDLE_MANIFEST_VERSION)
 from .exceptions import (NotADescriptor, BundleNotFound, NoRemoteAvailable, NoBundleLoader,
                          NotABundlePath, MalformedBundle, NoAcceptableUploaders,
-                         FetchTargetIsNotEmpty, TargetIsNotEmpty, UncoveredImports)
+                         FetchTargetIsNotEmpty, TargetIsNotEmpty, UncoveredImports,
+                         CircularDependencyDetected)
 from .loaders import LOADER_CLASSES, UPLOADER_CLASSES, load_entry_point_loaders
 
 from urllib.parse import quote as urlquote, unquote as urlunquote
@@ -468,6 +470,13 @@ class Bundle(object):
                 self.conf[DEFAULT_CONTEXT_KEY] = manifest_data.get(DEFAULT_CONTEXT_KEY)
                 self.conf[IMPORTS_CONTEXT_KEY] = manifest_data.get(IMPORTS_CONTEXT_KEY)
                 self.conf[CLASS_REGISTRY_CONTEXT_KEY] = manifest_data.get(CLASS_REGISTRY_CONTEXT_KEY)
+                if CLASS_REGISTRY_CONTEXT_LIST_KEY not in self.conf:
+                    crctx_ids = []
+                    for dep in self._bundle_dep_mgr.load_dependencies_transitive():
+                        crctx_id = dep.manifest_data.get(CLASS_REGISTRY_CONTEXT_KEY)
+                        if crctx_id:
+                            crctx_ids.append(crctx_id)
+                    self.conf[CLASS_REGISTRY_CONTEXT_LIST_KEY] = crctx_ids
             indexed_db_path = p(bundle_directory, BUNDLE_INDEXED_DB_NAME)
             store_name, store_conf = self._store_config_builder.build(
                     indexed_db_path,
@@ -586,6 +595,12 @@ class BundleDependencyManager(object):
     '''
 
     def __init__(self, dependencies, **common_bundle_arguments):
+        '''
+        Parameters
+        ----------
+        dependencies : function
+            Function that returns a sequence of dependency descriptors
+        '''
         self._loaded_dependencies = dict()
         self._common_bundle_arguments = common_bundle_arguments
         self.dependencies = dependencies
@@ -596,11 +611,8 @@ class BundleDependencyManager(object):
 
         Any given version of a bundle will be yielded at most once regardless of how many
         times that version of the bundle appears in the dependency graph. Dependencies
-        will be iterated over in "level order", so every dependency a Bundle declares will
-        be yielded before any transitive dependencies *unless* already depended on by a
-        previously yielded dependency. Lastly, the direct dependencies of a bundle will be
-        yielded in the order they're listed in the bundle's manifest, which *should* be
-        the same order as was in the bundle descriptor during installation.
+        will yielded in topological sort order, so every dependency a Bundle declares will
+        be yielded before any of its transitive dependencies.
 
         Yields
         ------
@@ -608,20 +620,55 @@ class BundleDependencyManager(object):
             A direct or indirect dependency of this bundle
         '''
         border = {None: self}
-        seen = set()
+        dependants = OrderedDict()
+        seen = dict()
         while border:
             # allegedly, OrderedDict isn't optimized for iteration speed, but better to
             # signal that order is important in how the border is iterated over.
             new_border = OrderedDict()
             for bnd in border.values():
+                bkey = None if bnd is self else (bnd.ident, bnd.version)
                 for d_bnd in bnd.load_dependencies():
                     key = (d_bnd.ident, d_bnd.version)
+
+                    this_dependants = dependants.get(key)
+
+                    if this_dependants is None:
+                        if bkey is None:
+                            dependants[key] = set()
+                        else:
+                            dependants[key] = set([bkey])
+                    else:
+                        this_dependants.add(bkey)
+
                     if key in seen:
                         continue
-                    seen.add(key)
+                    seen[key] = d_bnd
                     new_border[key] = d_bnd
-                    yield d_bnd
             border = new_border
+
+        while dependants:
+            for key, this_dependants in dependants.items():
+                if not this_dependants:
+                    yield seen[key]
+                    break
+            else: # no break
+                break
+            del dependants[key]
+
+            for this_dependants in dependants.values():
+                this_dependants.discard(key)
+
+        if dependants:
+            # Handle the case that we didn't deplete the adjacency list, implying that we
+            # have a cycle
+            sio = io.StringIO()
+            for dependency, this_dependants in dependants.items():
+                for dependant in this_dependants:
+                    sio.write(f' {dependant} -> {dependency}')
+
+            raise CircularDependencyDetected(
+                    f'Circular dependency detected. Links:{sio.getvalue()}')
 
     def lookup_context_bundle(self, contexts, context_id):
         if context_id is None or str(context_id) in contexts:
@@ -696,7 +743,8 @@ class BundleDependentStoreConfigBuilder(object):
             Path to the indexed database of the store that depends on the listed
             dependenices
         dependencies : list of dict
-            List of dependencies info at least including keys for 'id' and 'version'
+            List of dependencies' info, each entry including at least keys for 'id' and
+            'version'
         bundle_directory : str, optional
             Path to the bundle directory for the dependent store, if the dependent store
             is a bundle. Used for information in an exceptional path, but not otherwise
@@ -716,22 +764,44 @@ class BundleDependentStoreConfigBuilder(object):
     __call__ = build
 
     def _construct_store_config(self, indexed_db_path, dependencies,
-                                current_path=None, paths=None, bundle_directory=None,
+                                current_view_desc=None, view_descs=None, bundle_directory=None,
                                 read_only=True):
-        if paths is None:
-            paths = set()
-        if current_path is None:
-            current_path = _BDTD()
-        dependency_configs = self._gather_dependency_configs(dependencies, current_path, paths, bundle_directory)
+        '''
+        Parameters
+        ----------
+        indexed_db_path : str
+            File path to the dependency database
+        dependencies : list of dict
+            List of dependencies' info, each entry including at least keys for 'id' and
+            'version'
+        current_view_desc : tuple, (_BDVD, (str, int)), optional
+            Description of the current view determined by the path through dependant
+            bundles
+        view_descs : set of tuple, optional
+            Describe the "views" on bundles within the dependency tree. The resulting
+            aggregate store config have one subordinate config for each view.
+        bundle_directory : str, optional
+            The directory of the bundle the config is being built from. Will be determined
+            by using `bundles_directory`, the bundle ID, and version for dependencies
+        read_only : boolean, optional
+            Whether the *top-level* config, which may not be a bundle, is read-only (the
+            bundle dependencies are always read-only)
+        '''
+        if view_descs is None:
+            view_descs = set()
+        if current_view_desc is None:
+            current_view_desc = _BDVD()
+        dependency_configs = self._gather_dependency_configs(
+                dependencies, current_view_desc, view_descs, bundle_directory)
         fs_store_config = dict(url=indexed_db_path, read_only=read_only)
         return [
             ('FileStorageZODB', fs_store_config)
         ] + dependency_configs
 
     @aslist
-    def _gather_dependency_configs(self, dependencies, current_path, paths, bundle_directory=None):
+    def _gather_dependency_configs(self, dependencies, current_view_desc, view_descs, bundle_directory=None):
         for dd in dependencies:
-            dep_path = current_path.merge_excludes(dd.get('excludes', ()))
+            dep_view_desc = current_view_desc.merge_excludes(dd.get('excludes', ()))
             dep_ident = dd.get('id')
             dep_version = dd.get('version')
             if not dep_ident:
@@ -739,9 +809,9 @@ class BundleDependentStoreConfigBuilder(object):
                     raise MalformedBundle(bundle_directory, 'bundle dependency descriptor is lacking an identifier')
                 else:
                     raise ValueError('bundle dependency descriptor is lacking an identifier')
-            if (dep_path, (dep_ident, dep_version)) in paths:
+            if (dep_view_desc, (dep_ident, dep_version)) in view_descs:
                 return
-            paths.add((dep_path, (dep_ident, dep_version)))
+            view_descs.add((dep_view_desc, (dep_ident, dep_version)))
             tries = 0
             while tries < 2:
                 try:
@@ -762,7 +832,7 @@ class BundleDependentStoreConfigBuilder(object):
                         conf=self._construct_store_config(
                             p(bundle_directory, BUNDLE_INDEXED_DB_NAME),
                             manifest_data.get('dependencies', ()),
-                            dep_path, paths, bundle_directory),
+                            dep_view_desc, view_descs, bundle_directory),
                         **addl_dep_confs))
 
     def _fetch_bundle(self, bundle_ident, version):
@@ -771,17 +841,17 @@ class BundleDependentStoreConfigBuilder(object):
         return f.fetch(bundle_ident, version, self.remotes)
 
 
-class _BDTD(namedtuple('_BDTD', ('excludes',))):
+class _BDVD(namedtuple('_BDVD', ('excludes',))):
     '''
-    Bundle Dependency Traversal Data (BDTD)
+    Bundle Dependency View Data (BDVD)
 
-    Holds data we use in traversing bundle dependencies. Looks a lot like a dependency
-    descriptor, but without an ID and version
+    Holds data we use in traversing bundle dependencies to describe the "view" on the
+    bundle
     '''
     __slots__ = ()
 
     def __new__(cls, *args, excludes=(), **kwargs):
-        return super(_BDTD, cls).__new__(cls, *args, excludes=excludes, **kwargs)
+        return super(_BDVD, cls).__new__(cls, *args, excludes=excludes, **kwargs)
 
     def merge_excludes(self, excludes):
         return self._replace(excludes=self.excludes +

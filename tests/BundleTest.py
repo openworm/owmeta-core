@@ -18,7 +18,8 @@ from owmeta_core.context import Context
 from owmeta_core.contextualize import Contextualizable
 from owmeta_core.bundle import (Bundle, BundleNotFound, Descriptor, DependencyDescriptor,
                                 _RemoteHandlerMixin, make_include_func, NoRemoteAvailable,
-                                DEFAULT_BUNDLES_DIRECTORY)
+                                DEFAULT_BUNDLES_DIRECTORY, BundleDependencyManager)
+from owmeta_core.bundle.exceptions import CircularDependencyDetected
 from owmeta_core.bundle.common import (find_bundle_directory, BUNDLE_MANIFEST_FILE_NAME,
                                        BundleTreeFileIgnorer, BUNDLE_INDEXED_DB_NAME)
 
@@ -620,3 +621,42 @@ def test_copytree_bundle_tree_file_ignore(tmpdir):
 
     assert (not any(Path(dst, fname).exists() for fname in ignored_names) and
             Path(dst, BUNDLE_MANIFEST_FILE_NAME).exists())
+
+
+def test_transitive_dep_cycle_detection(custom_bundle):
+    dep_dep_desc = Descriptor.load('''
+    id: dep_dep
+    includes:
+      - http://example.com/ctx
+    ''')
+
+    dep_desc = Descriptor.load('''
+    id: dep
+    dependencies:
+      - dep_dep
+    ''')
+
+    depgraph = ConjunctiveGraph()
+    ctx_graph = depgraph.get_context('http://example.com/ctx')
+    quad = (URIRef('http://example.org/sub'), URIRef('http://example.org/prop'), URIRef('http://example.org/obj'),
+            ctx_graph)
+    depgraph.add(quad)
+
+    with custom_bundle(dep_dep_desc, graph=depgraph) as depdepbun, \
+            custom_bundle(dep_desc, bundles_directory=depdepbun.bundles_directory) as depbun:
+
+        # Installation actually fails if we try to put the dep_dep -> dep dependency in
+        # the descriptor. So, actually we would need to deal with cycles when downloading
+        # dependencies from remotes...but assuming we fall down on that without some kind
+        # of infinite loop, we can error-out here.
+        with open(p(depdepbun.bundle_directory, BUNDLE_MANIFEST_FILE_NAME), 'r+') as mdf:
+            md = json.load(mdf)
+            md['dependencies'] = [{'id': 'dep', 'version': 1}]
+            mdf.seek(0)
+            json.dump(md, mdf)
+
+        cut = BundleDependencyManager(
+                bundles_directory=depbun.bundles_directory,
+                dependencies=lambda: [{'id': 'dep', 'version': 1}])
+        with pytest.raises(CircularDependencyDetected):
+            list(cut.load_dependencies_transitive())
