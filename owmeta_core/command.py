@@ -881,9 +881,12 @@ class OWMRegistryModuleAccessDeclare:
             try:
                 from importlib.metadata import distribution
             except ImportError:
-                raise GenericUserError(
-                        'Package name and package version must be defined.'
-                        ' They cannot be looked up in this version of Python')
+                try:
+                    from importlib_metadata import distribution
+                except ImportError:
+                    raise GenericUserError(
+                            'Package name and package version must be defined.'
+                            ' They cannot be looked up in this version of Python')
             else:
                 return distribution(package_name)
 
