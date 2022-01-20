@@ -45,4 +45,4 @@ def test_declare_pip_package_not_found(owm_project):
                 'owm registry module-access declare python-pip unknownpackage 1.0.1',
                 stderr=PIPE)
 
-    assertRegexpMatches(err.value.stderr.decode('utf-8'), 'PackageNotFound.*unknownpackage')
+    assertRegexpMatches(err.value.stderr.decode('utf-8'), '.*unknownpackage.*')

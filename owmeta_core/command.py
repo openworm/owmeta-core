@@ -887,8 +887,19 @@ class OWMRegistryModuleAccessDeclare:
                     raise GenericUserError(
                             'Package name and package version must be defined.'
                             ' They cannot be looked up in this version of Python')
-            else:
-                return distribution(package_name)
+
+            dist = None
+            try:
+                dist = distribution(package_name)
+            except Exception:
+                L.debug('Caught exception in retrieving Distribution for %s',
+                        package_name,
+                        exc_info=True)
+
+            if dist is None:
+                raise GenericUserError(
+                        f'Did not find the package "{package_name}"')
+            return dist
 
         if not package_version:
             dist = get_dist()
