@@ -1320,6 +1320,17 @@ class ModuleAccessor(DataObject):
     '''
     class_context = BASE_SCHEMA_URL
 
+    def help_str(self):
+        '''
+        Format a string to show how to access the module by installing it or requiring it
+        or whatever.
+
+        Default implementation just returns an empty string
+        '''
+        # we *could* grab the doc string or a number of other stuff, but this may serve as
+        # a guide: "In the face of ambiguity, refuse the temptation to guess."
+        return ''
+
 
 class Package(DataObject):
     ''' Describes an idealized software package identifiable by a name and version number '''
@@ -1441,6 +1452,15 @@ class PIPInstall(ModuleAccessor):
             __doc__='URL of the index from which the package should be retrieved')
 
     key_properties = (package, OptionalKeyValue(index_url))
+
+    def help_str(self):
+        pkgs = self.package.get()
+        pkg_list = '\n'.join(f'    {pkg.name()}=={pkg.version()}' for pkg in pkgs)
+        if pkg_list:
+            return ('To install, add the following to a file, "requirements.txt":\n\n'
+                    f'{pkg_list}\n\nand execute `pip install requirements.txt`.'
+                    ' See https://pip.pypa.io/en/stable/ for details')
+        return f'Install with pip command line. Missing package for {self}'
 
 
 class PythonClassDescription(ClassDescription):

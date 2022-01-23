@@ -102,7 +102,7 @@ class Mapper(Configurable):
             self.__class_registry_context = class_registry_context
 
         self.__class_registry_context_id_list = None
-        self.__class_registry_context_list = None
+        self.__class_registry_context_list = []
         if class_registry_context_list:
             if isinstance(class_registry_context_list[0], str):
                 self.__class_registry_context_id_list = class_registry_context_list
@@ -135,12 +135,14 @@ class Mapper(Configurable):
             crctx_ids = (self.__class_registry_context_id_list
                     or self.conf.get(CLASS_REGISTRY_CONTEXT_LIST_KEY, None))
             if crctx_ids is None:
-                return None
+                return []
             crctxs = []
             for crctx_id in crctx_ids:
-                crctxs.append(Context(crctx_id, conf=self.conf, mapper=self))
+                crctxs.append(Context(crctx_id, conf=self.conf, mapper=self).stored)
             self.__class_registry_context_list = crctxs
-        return self.__class_registry_context_list
+        return (([self.class_registry_context.stored]
+                if self.class_registry_context else []) +
+                self.__class_registry_context_list)
 
     def _bootstrap_mappings(self):
         # Add classes needed for resolving other classes...
@@ -265,12 +267,8 @@ class Mapper(Configurable):
                     ' Cannot resolve class for "%s"',
                     self, uri)
             return None
-        crctxs = []
-        crctxs.append(self.class_registry_context.stored)
-        if self.class_registry_context_list:
-            crctxs.extend(self.class_registry_context_list)
         resolved_class = None
-        for crctx in crctxs:
+        for crctx in self.class_registry_context_list:
             resolved_class = self._resolve_class(uri, crctx)
             if resolved_class:
                 break

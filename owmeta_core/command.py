@@ -49,7 +49,8 @@ from .context_common import CONTEXT_IMPORTS
 from .capable_configurable import CAPABILITY_PROVIDERS_KEY
 from .capabilities import FilePathProvider
 from .dataobject import (DataObject, RDFSClass, RegistryEntry, PythonClassDescription,
-                         PIPInstall, PythonPackage, PythonModule, Module)
+                         PIPInstall, PythonPackage, PythonModule, Module, ClassDescription,
+                         ModuleAccessor)
 from .dataobject_property import ObjectProperty, UnionProperty
 from .datasource_loader import DataSourceDirLoader, LoadFailed
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
@@ -948,18 +949,21 @@ class OWMRegistryModuleAccessShow:
         self._registry = self._parent._parent
         self._owm = self._parent._parent._parent
 
-    def __call__(self, module):
+    def __call__(self, module_accessor):
         '''
         Show module accessor description
 
         Parameters
         ----------
-        module : str
-            ID of the module to show accessors
+        module_accessor : str
+            Module accessor to show accessors for
         '''
-        modq = self._owm.default_context.stored(Module)(ident=module)
-        for accessor in modq.accessor.get():
-            self._owm.message(accessor.show())
+        with self._owm.connect() as conn:
+            ma_id = self._owm._den3(module_accessor)
+            for ctx in conn.mapper.class_registry_context_list:
+                ma = ctx(ModuleAccessor)(ident=ma_id).load_one()
+                if ma:
+                    print(ma.help_str())
 
 
 class OWMRegistryModuleAccess:
@@ -974,6 +978,38 @@ class OWMRegistryModuleAccess:
         self._parent = parent
         self._registry = self._parent
         self._owm = self._parent._parent
+
+    def list(self, registry_entry=None):
+        '''
+        List module accessors
+
+        Parameters
+        ----------
+        registry_entry : str
+            Registry entry ID. Optional
+
+        Returns
+        -------
+        sequence of `ModuleAccessor`
+        '''
+        def gen():
+            re_id = registry_entry and self._owm._den3(registry_entry)
+            with self._owm.connect() as conn:
+                re = None
+                for ctx in conn.mapper.class_registry_context_list:
+                    re = ctx(RegistryEntry)(ident=re_id).load_one()
+                    if re is not None:
+                        break
+
+                if re is not None:
+                    cd = ctx(ClassDescription).query()
+                    mod = ctx(Module).query()
+                    re.class_description(cd)
+                    cd.module(mod)
+                    for accessor in mod.accessor.get():
+                        yield accessor
+        self._owm.connect(expect_cleanup=True)
+        return wrap_data_object_result(gen())
 
 
 class OWMRegistry(object):
@@ -1627,6 +1663,13 @@ class OWM(object):
                                                                remotes_directory=remotes_directory,
                                                                remotes=project_remotes,
                                                                dependencies=lambda: deps)
+                if CLASS_REGISTRY_CONTEXT_LIST_KEY not in dat:
+                    crctx_ids = []
+                    for dep in self._bundle_dep_mgr.load_dependencies_transitive():
+                        crctx_id = dep.manifest_data.get(CLASS_REGISTRY_CONTEXT_KEY)
+                        if crctx_id:
+                            crctx_ids.append(crctx_id)
+                    dat[CLASS_REGISTRY_CONTEXT_LIST_KEY] = crctx_ids
 
             providers = dat.get(CAPABILITY_PROVIDERS_KEY, [])
             providers.extend(self._cap_provs())
@@ -2366,8 +2409,7 @@ class _ProjectMapper(Mapper):
                 target_bundle = dep_mgr
             deps = target_bundle.load_dependencies_transitive()
             for bnd in deps:
-                crctx_id = bnd.manifest_data.get(CLASS_REGISTRY_CONTEXT_KEY, None)
-                if not crctx_id:
+                if not bnd.manifest_data.get(CLASS_REGISTRY_CONTEXT_KEY, None):
                     continue
                 with bnd:
                     resolved_class = bnd.connection.mapper.resolve_class(rdf_type, context)

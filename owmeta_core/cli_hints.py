@@ -72,6 +72,13 @@ CLI_HINTS = {
         'IGNORE': ['message', 'progress_reporter', 'prompt', 'connect', 'disconnect', 'rdf', 'default_context',
                 'connected', 'cleanup_manager', 'own_rdf']
     },
+    'owmeta_core.command.OWMRegistryModuleAccessShow': {
+        '__call__': {
+            (METHOD_NAMED_ARG, 'module_accessor'): {
+                'names': ['module_accessor'],
+            },
+        },
+    },
     'owmeta_core.command.OWMRegistryModuleAccessDeclare': {
         'python_pip': {
             (METHOD_NAMED_ARG, 'package_name'): {
