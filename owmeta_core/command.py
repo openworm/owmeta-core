@@ -943,6 +943,9 @@ class OWMRegistryModuleAccessDeclare:
 
 
 class OWMRegistryModuleAccessShow:
+    '''
+    Show module accessor description
+    '''
     def __init__(self, parent):
         self._parent = parent
         self._module_access = self._parent
@@ -951,8 +954,6 @@ class OWMRegistryModuleAccessShow:
 
     def __call__(self, module_accessor):
         '''
-        Show module accessor description
-
         Parameters
         ----------
         module_accessor : str
@@ -992,24 +993,24 @@ class OWMRegistryModuleAccess:
         -------
         sequence of `ModuleAccessor`
         '''
-        def gen():
+        def gen(conn):
             re_id = registry_entry and self._owm._den3(registry_entry)
-            with self._owm.connect() as conn:
-                re = None
-                for ctx in conn.mapper.class_registry_context_list:
-                    re = ctx(RegistryEntry)(ident=re_id).load_one()
-                    if re is not None:
-                        break
-
+            re = None
+            for ctx in conn.mapper.class_registry_context_list:
+                re = ctx(RegistryEntry)(ident=re_id).load_one()
                 if re is not None:
-                    cd = ctx(ClassDescription).query()
-                    mod = ctx(Module).query()
-                    re.class_description(cd)
-                    cd.module(mod)
-                    for accessor in mod.accessor.get():
-                        yield accessor
-        self._owm.connect(expect_cleanup=True)
-        return wrap_data_object_result(gen())
+                    break
+
+            if re is not None:
+                cd = ctx(ClassDescription).query()
+                mod = ctx(Module).query()
+                re.class_description(cd)
+                cd.module(mod)
+                for accessor in mod.accessor.get():
+                    yield accessor
+
+        conn = self._owm.connect(expect_cleanup=True)
+        return wrap_data_object_result(gen(conn))
 
 
 class OWMRegistry(object):
