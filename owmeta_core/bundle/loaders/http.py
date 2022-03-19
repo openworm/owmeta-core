@@ -460,12 +460,15 @@ class HTTPBundleLoader(Loader):
                 Unarchiver().unpack(f, self.base_directory)
         else:
             bio = io.BytesIO()
-            bundle_bytes = response.raw.read()
-            hsh.update(bundle_bytes)
-            if bundle_hash != hsh.hexdigest():
+            for chunk in response.iter_content(chunk_size=1024):
+                hsh.update(chunk)
+                bio.write(chunk)
+            digest = hsh.hexdigest()
+            if bundle_hash != digest:
+                L.debug("Failed to has bundle. First 100 bytes of bundle in response: %r", bundle_bytes[:100])
                 raise LoadFailed(bundle_id, self,
-                        f'Failed to verify {hash_name} hash for version {bundle_version}')
-            bio.write(bundle_bytes)
+                        f'Failed to verify {hash_name} hash for version {bundle_version}:'
+                        f'Expected {bundle_hash} but got {digest}')
             bio.seek(0)
             Unarchiver().unpack(bio, self.base_directory)
 
