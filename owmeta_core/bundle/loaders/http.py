@@ -12,6 +12,8 @@ import pickle
 from cachecontrol import CacheControl
 from cachecontrol.caches.file_cache import FileCache
 import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 
 from ...command_util import GenericUserError
 from ...utils import FCN, retrieve_provider
@@ -95,6 +97,11 @@ class HTTPURLConfig(URLConfig):
             session = self._provide_session()
         else:
             session = requests.Session()
+
+            retries = Retry()
+            adapter = HTTPAdapter(max_retries=retries)
+            session.mount('http://', adapter)
+            session.mount('https://', adapter)
 
         if self.cache_dir:
             http_cache = FileCache(self.cache_dir)
