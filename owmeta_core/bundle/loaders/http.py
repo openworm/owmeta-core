@@ -465,7 +465,6 @@ class HTTPBundleLoader(Loader):
                 bio.write(chunk)
             digest = hsh.hexdigest()
             if bundle_hash != digest:
-                L.debug("Failed to has bundle. First 100 bytes of bundle in response: %r", bundle_bytes[:100])
                 raise LoadFailed(bundle_id, self,
                         f'Failed to verify {hash_name} hash for version {bundle_version}:'
                         f'Expected {bundle_hash} but got {digest}')
