@@ -138,16 +138,67 @@ changes of the underlying RDF. owmeta-core tries to deal with this problem by
 providing tools for constructing adaptable two-way mappings between RDF and
 Python objects. These mappings relate [RDF classes][rdf_class] to Python
 classes, which classes are constrained to be sub-classes of `BaseDataObject`.
+The mappings are stored in what we call the "class registry" which is itself a
+construct described using RDF.
+
+Adding classes to the mapping proceeds in phases. First, you define sub-classes
+of BaseDataObject for the entities you want to represent in RDF. Then, you save
+descriptions of the classes to a local database. After you've released or
+published the classes in software, you can publish the RDF descriptions with
+reference to the published software so that others can find the code from the
+published data.
+
+Making the classes is easy enough. For basic classes, you can define them like
+this:
+
+    >>> from owmeta_core.dataobject import BaseDataObject, DatatypeProperty
+
+    >>> class Jar(BaseDataObject):
+    ...     content_type = DatatypeProperty()
+    ...     content_amount = DatatypeProperty()
+    ...     volume = DatatypeProperty()
+
+For more information, check out the [owmeta-core docs][owcdocs].
+
+[owcdocs]: https://owmeta-core.readthedocs.io/en/latest/making_dataObjects.html
+
+<!-- TODO: Make it easier to save classes without a project -->
+It's easiest to manage the RDF/Python mapping in the context of an owmeta-core
+"project".  You can create a project in the current directory like this:
+
+    owm init .
+
+This creates a `.owm` directory in the current directory that keeps the project
+configuration. You can then save the classes to the local database, located
+under the project directory with this command, assuming you've saved the `Jar`
+class module as `glue_factory.containers`:
+
+    owm save glue_factory.containers
+
+It's recommended to include "module accessor" descriptions for the "mapped"
+classes. Module accessors describe how to get the source code module in which
+the class is defined. For modules in PyPI, owmeta-core provides some short-cuts
+for declaring module-accessors. For example, say you have `BaseDataObject`
+classes defined in a package called "glue-factory": you can link that package
+and the means of accessing it to those classes in the class registry with a
+command like this:
+
+    owm registry module-access declare python-pip glue-factory
+
+Assuming you have `glue-factory` installed in the same Python environment[^3] as
+`owm`, the installed version of the package will be associated with all of the
+modules previously added to the project database.
 
 Tools to support evolution of these mappings are still being developed, but
 here are a few recommendations:
 
  - In order to keep old code working through upgrades of your package, try to
-   create a new Python class for a new version of an RDF class and publish both
-   in new versions of your software package. If instances of the old class are
-   valid instances of the new one, then you can add the `rdf:type` triples
-   pointing to the new class from those instances. A similar thing can be done
-   if instances of the new RDF class can be handled with the old Python class.
+   create a new Python class for each new version of the corresponding RDF
+   class and publish both in new versions of your software package. If
+   instances of the old class are valid instances of the new one, then you can
+   add the `rdf:type` triples pointing to the new class from those instances. A
+   similar thing can be done if instances of the new RDF class can be handled
+   with the old Python class.
  - Indicate the required software packages in the `description` field of your
    bundle.
 
@@ -164,3 +215,6 @@ Notes
    eventually, to allow other software to query bundle relationships without
    needing to understand the particular format of bundle manifests and the
    bundle cache file tree.
+[^3]: Environment here means either the system Python installation, a "virtual
+   environment", a Jupyter notebook, etc. Basically, it's whatever
+   `importlib.metadata` looks for for distributions.
