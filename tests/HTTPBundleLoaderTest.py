@@ -158,9 +158,20 @@ def test_load_no_cachedir():
         cut = HTTPBundleLoader('index_url')
         cut.base_directory = 'bdir'
 
-        get().raw.read.return_value = bundle_contents
+        get().iter_content.return_value = [bundle_contents]
         cut.load('test_bundle')
         Unarchiver().unpack.assert_called_with(MatchingBytesIO(BytesIO(b'bytes bytes bytes')), 'bdir')
+
+
+def test_load_no_cachedir_no_content():
+    with successful_get({'test_bundle': {'1': {'url': 'http://some_host',
+                                               'hashes': {'sha224': 'doesnt_matter'}}}}) as get:
+        cut = HTTPBundleLoader('index_url')
+        cut.base_directory = 'bdir'
+
+        get().iter_content.return_value = []
+        with pytest.raises(LoadFailed, match=re.compile(r'no content')):
+            cut.load('test_bundle')
 
 
 def test_load_cachedir(bundle_archive, tempdir):
@@ -175,6 +186,16 @@ def test_load_cachedir(bundle_archive, tempdir):
             get().iter_content.return_value = [bf.read()]
         cut.load('test_bundle')
         Unarchiver().unpack.assert_called_with(ANY, 'bdir')
+
+
+def test_load_cachedir_no_content(bundle_archive, tempdir):
+    with successful_get({'test_bundle': {'1': {'url': 'http://some_host',
+                                               'hashes': {'sha224': 'doesnt_matter'}}}}) as get:
+        cut = HTTPBundleLoader('index_url', cachedir=tempdir)
+        cut.base_directory = 'bdir'
+        get().iter_content.return_value = []
+        with pytest.raises(LoadFailed, match=re.compile(r'no content')):
+            cut.load('test_bundle')
 
 
 def test_load_urlconfig():

@@ -448,25 +448,36 @@ class HTTPBundleLoader(Loader):
         if self.cachedir is not None:
             bfn = urlquote(bundle_id)
             with open(p(self.cachedir, bfn), 'wb') as f:
+                no_content = True
                 for chunk in response.iter_content(chunk_size=1024):
+                    no_content = False
                     hsh.update(chunk)
                     f.write(chunk)
+
+                if no_content:
+                    raise LoadFailed(bundle_id, self,
+                            f'Failed to load bundle for version {bundle_version}: no content')
             digest = hsh.hexdigest()
             if bundle_hash != digest:
                 raise LoadFailed(bundle_id, self,
-                        f'Failed to verify {hash_name} hash for version {bundle_version}:'
+                        f'Failed to verify {hash_name} hash for version {bundle_version}: '
                         f'Expected {bundle_hash} but got {digest}')
             with open(p(self.cachedir, bfn), 'rb') as f:
                 Unarchiver().unpack(f, self.base_directory)
         else:
             bio = io.BytesIO()
+            no_content = True
             for chunk in response.iter_content(chunk_size=1024):
+                no_content = False
                 hsh.update(chunk)
                 bio.write(chunk)
+            if no_content:
+                raise LoadFailed(bundle_id, self,
+                        f'Failed to load bundle for version {bundle_version}: no content')
             digest = hsh.hexdigest()
             if bundle_hash != digest:
                 raise LoadFailed(bundle_id, self,
-                        f'Failed to verify {hash_name} hash for version {bundle_version}:'
+                        f'Failed to verify {hash_name} hash for version {bundle_version}: '
                         f'Expected {bundle_hash} but got {digest}')
             bio.seek(0)
             Unarchiver().unpack(bio, self.base_directory)
