@@ -451,9 +451,11 @@ class HTTPBundleLoader(Loader):
                 for chunk in response.iter_content(chunk_size=1024):
                     hsh.update(chunk)
                     f.write(chunk)
-            if bundle_hash != hsh.hexdigest():
+            digest = hsh.hexdigest()
+            if bundle_hash != digest:
                 raise LoadFailed(bundle_id, self,
-                        f'Failed to verify {hash_name} hash for version {bundle_version}')
+                        f'Failed to verify {hash_name} hash for version {bundle_version}:'
+                        f'Expected {bundle_hash} but got {digest}')
             with open(p(self.cachedir, bfn), 'rb') as f:
                 Unarchiver().unpack(f, self.base_directory)
         else:
