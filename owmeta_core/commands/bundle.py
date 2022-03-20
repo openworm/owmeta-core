@@ -282,7 +282,7 @@ class OWMBundle(object):
         self._parent = parent
         self._loaders = []
 
-    def fetch(self, bundle_id, bundle_version=None):
+    def fetch(self, bundle_id, bundle_version=None, bundles_directory=None):
         '''
         Retrieve a bundle by id from a remote and put it in the local bundle index and
         cache
@@ -293,8 +293,16 @@ class OWMBundle(object):
             The id of the bundle to retrieve.
         bundle_version : int
             The version of the bundle to retrieve. optional
+        bundles_directory : str
+            Root directory of the bundles cache. optional: uses the default bundle cache
+            in the user's home directory if not provided
         '''
-        f = Fetcher(self._bundles_directory(), list(self._retrieve_remotes()))
+        if bundles_directory:
+            root_path = abspath(bundles_directory)
+        else:
+            root_path = self._bundles_directory()
+        f = Fetcher(root_path,
+                list(self._retrieve_remotes()))
         try:
             f.fetch(bundle_id, bundle_version)
         except _NoBundleLoader as e:

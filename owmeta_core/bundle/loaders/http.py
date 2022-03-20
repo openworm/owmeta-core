@@ -13,7 +13,7 @@ from cachecontrol import CacheControl
 from cachecontrol.caches.file_cache import FileCache
 import requests
 from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
+from urllib3.util import Retry
 
 from ...command_util import GenericUserError
 from ...utils import FCN, retrieve_provider
@@ -98,7 +98,24 @@ class HTTPURLConfig(URLConfig):
         else:
             session = requests.Session()
 
-            retries = Retry()
+            # HTTP Statuses:
+            # 403 is sometimes returned from Google Drive specifically for a temporary
+            # condition, apparently rate limiting. It's dumb, but whatever.
+            #
+            # 429 too many requests: standard rate limiting status
+            #
+            # 500 is just a general server error...presumably the server operator can fix
+            # it quickly or failover to a working server
+            #
+            # 503 service not available: maybe the server is still coming up. Makes sense
+            # to wait
+            #
+            # 504 gateway timeout: maybe the upstream is so overloaded, that it can't
+            # respond. We'll wait a bit and try again.
+
+            # Backoff: The choice of "backoff_factor" is arbitrary
+            retries = Retry(backoff_factor=.0707,
+                    status_forcelist=[403, 429, 500, 503, 504])
             adapter = HTTPAdapter(max_retries=retries)
             session.mount('http://', adapter)
             session.mount('https://', adapter)
@@ -115,7 +132,7 @@ class HTTPURLConfig(URLConfig):
         return retrieve_provider(self.session_provider)()
 
     def save_session(self):
-        if self.session_file_name:
+        if hasattr(self, 'session_file_name') and self.session_file_name:
             sfname = expanduser(self.session_file_name)
             with open(sfname + '.tmp', 'wb') as session_file:
                 pickle.dump(self._session, session_file)
@@ -447,11 +464,18 @@ class HTTPBundleLoader(Loader):
 
         try:
             hsh = hashlib.new(hash_name)
-        except ValueError:
+        except ValueError as e:
             L.warning('Hash in hashlib.algorithms_available unsupported in hashlib.new')
-            raise LoadFailed(bundle_id, self, f'Unsupported hash {hash_name} for version {bundle_version}')
+            raise LoadFailed(bundle_id, self,
+                    f'Unsupported hash {hash_name} for version {bundle_version}') from e
 
         response = self._session.get(bundle_url, stream=True)
+
+        try:
+            response.raise_for_status()
+        except requests.HTTPError as e:
+            raise LoadFailed('Received HTTP error from bundle server') from e
+
         if self.cachedir is not None:
             bfn = urlquote(bundle_id)
             with open(p(self.cachedir, bfn), 'wb') as f:
