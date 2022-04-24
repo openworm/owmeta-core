@@ -58,19 +58,20 @@ them in a particular file structure. Here's how you can do that:
 
 So, let's unpack that a little. First we add some things to named graphs. How
 you do this is up to you, but above is a trivial example of adding a statement
-to the graph that we'll ultimately include in the bundle. Then, we create an
-`Installer` that will install bundles to the directory "bundles" in the current
-working directory. Installers get instructed on what to install through
-`Descriptor` objects. We create a bundle descriptor that says what the bundle
-identifier is ("a-bundle") what version of the bundle we're installing (1) and
-which contexts we're including in the bundle (just `http://example.org/ctx`).
-We pass the descriptor to the installer's `install` method and it does creates
-the bundle file structure under `bundles`.
+to an in-memory graph that we'll ultimately include in the bundle. Then, we
+create an `Installer` that will install bundles to the directory "bundles" in
+the current working directory. Installers get instructed on what to install
+through `Descriptor` objects. We create a bundle descriptor that says what the
+bundle identifier is ("a-bundle") what version of the bundle we're installing
+(1) and which contexts we're including in the bundle (just
+`http://example.org/ctx`).  We pass the descriptor to the installer's `install`
+method and it does creates the bundle file structure under `bundles`.
 
 We haven't *shared* the bundle with anyone yet with the above. You may choose
 to package the bundle into an archive and share that somehow (E-mail, shared
 file storage, etc.), and `owmeta_core.bundle.archive.Archiver` can help with
-that:
+that. This code creates a bundle archive named 'a-bundle.tar.xz' in the current
+directory:
 
     >>> from owmeta_core.bundle.archive import Archiver
 
@@ -127,7 +128,9 @@ an example:
     ...            URIRef('http://example.org/p'),
     ...            URIRef('http://example.org/o')) in g
 
-<!--TODO: Describe DataSource / DataTransformer-->
+
+Here we take `a-bundle` version 1, cached underneath the `./bundles` directory,
+and get an RDFLib `Dataset` with the data from the bundle.
 
 [rdflib]: https://rdflib.readthedocs.io/en/stable/
 
