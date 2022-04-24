@@ -14,22 +14,26 @@ def format_table(dat, header=None, pref_widths=None, default_termwidth=400):
     ncols = len(dat[0])
 
     widths = None
+    avg_widths = None
     if header:
         if ncols != len(header):
             raise Exception('Width of header, {}, does not'
                             ' match width of data, {}'.format(len(header), ncols))
 
         widths = tuple(_max_width(d) for d in header)
+        avg_widths = tuple(widths)
 
-    for row in dat:
+    for ridx, row in enumerate(dat):
         if len(row) != ncols:
             raise Exception('Row widths are not consistent.'
                             ' Expected {}, but found row width of {}'.format(ncols, len(row)))
-        these_widths = (_max_width(d) for d in row)
+        these_widths = tuple(_max_width(d) for d in row)
         if widths is None:
             widths = tuple(these_widths)
+            avg_widths = tuple(these_widths)
         else:
             widths = tuple(max(v) for v in zip(widths, these_widths))
+            avg_widths = tuple((a * (ridx + 1) + c)/(ridx + 2) for a, c in zip(avg_widths, these_widths))
 
     if pref_widths:
         if ncols != len(pref_widths):
@@ -39,7 +43,7 @@ def format_table(dat, header=None, pref_widths=None, default_termwidth=400):
         pref_widths = list(pref_widths)
     else:
         max_col_width = max(widths)
-        pref_widths = list(x / max_col_width for x in widths)
+        pref_widths = list((max_col_width - x) / max_col_width for x in avg_widths)
 
     try:
         termwidth, _ = shutil.get_terminal_size((default_termwidth, 0))
@@ -48,7 +52,6 @@ def format_table(dat, header=None, pref_widths=None, default_termwidth=400):
 
     prefsorted_widths = sorted(zip(pref_widths, range(ncols)), key=lambda x: x[0])
     new_widths = list(widths)
-    idx = 0
     while sum(new_widths) + ncols - 1 >= termwidth:
         selection = max(prefsorted_widths, key=lambda x: new_widths[x[1]] * x[0])
         new_widths[selection[1]] -= 1

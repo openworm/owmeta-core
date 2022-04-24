@@ -131,3 +131,9 @@ class NoAcceptableUploaders(DeployFailed):
                 'Could not upload "%s" because no uploaders could handle it' %
                 bundle_path)
         self.bundle_path = bundle_path
+
+
+class CircularDependencyDetected(Exception):
+    '''
+    Thrown when a circular dependency is detected in the bundle dependency graph
+    '''

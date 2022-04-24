@@ -44,22 +44,23 @@ from . import connect, OWMETA_PROFILE_DIR
 from .bundle import (BundleDependentStoreConfigBuilder, BundleDependencyManager,
                      retrieve_remotes)
 from .commands.bundle import OWMBundle
-from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY,
-                      CLASS_REGISTRY_CONTEXT_KEY)
+from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY)
 from .context_common import CONTEXT_IMPORTS
 from .capable_configurable import CAPABILITY_PROVIDERS_KEY
 from .capabilities import FilePathProvider
-from .dataobject import DataObject
+from .dataobject import (DataObject, RDFSClass, RegistryEntry, PythonClassDescription,
+                         PIPInstall, PythonPackage, PythonModule, Module, ClassDescription,
+                         ModuleAccessor)
 from .dataobject_property import ObjectProperty, UnionProperty
 from .datasource_loader import DataSourceDirLoader, LoadFailed
 from .graph_serialization import write_canonical_to_file, gen_ctx_fname
-from .mapper import Mapper
+from .mapper import Mapper, CLASS_REGISTRY_CONTEXT_KEY, CLASS_REGISTRY_CONTEXT_LIST_KEY
 from .capability_providers import (TransactionalDataSourceDirProvider,
                                    SimpleCacheDirectoryProvider,
                                    WorkingDirectoryProvider,
                                    SimpleTemporaryDirectoryProvider)
 from .utils import FCN, retrieve_provider, PROVIDER_PATH_RE
-from .rdf_utils import ContextSubsetStore
+from .rdf_utils import ContextSubsetStore, BatchAddGraph
 
 
 L = logging.getLogger(__name__)
@@ -196,7 +197,6 @@ class OWMSource(object):
             Whether to (attempt to) shorten the source URIs by using the namespace manager
         """
         from .datasource import DataSource
-        from .dataobject import RDFSClass
         from .rdf_query_modifiers import (ZeroOrMoreTQLayer,
                                           rdfs_subclassof_subclassof_zom_creator)
         with self._parent.connect():
@@ -330,7 +330,6 @@ class OWMTranslator(object):
             Whether to (attempt to) shorten the translator URIs by using the namespace manager
         """
         from .datasource import DataTranslator
-        from .dataobject import RDFSClass
         from .rdf_query_modifiers import (ZeroOrMoreTQLayer,
                                           rdfs_subclassof_subclassof_zom_creator)
         with self._parent.connect():
@@ -384,7 +383,6 @@ class OWMTypes(object):
             Types to remove
         '''
         import transaction
-        from .dataobject import RDFSClass, RegistryEntry
         with transaction.manager:
             with self._parent.connect() as conn:
                 for class_id in type:
@@ -825,11 +823,208 @@ class OWMContexts(object):
                     graph.remove_graph(c)
 
 
+class OWMRegistryModuleAccessDeclare:
+    '''
+    Commands for module access declarations
+    '''
+
+    def __init__(self, parent):
+        self._parent = parent
+        self._module_access = self._parent
+        self._registry = self._parent._parent
+        self._owm = self._parent._parent._parent
+
+    def python_pip(self, package_name, package_version=None, index=None,
+            module_names=None, module_id=None):
+        '''
+        Declare access with a Python pip package
+
+        The given module should already have been defined in the class registry. This may
+        be achieved by the "owm save" command.
+
+        Parameters
+        ----------
+        package_name : str
+            Name of the package
+        package_version : str
+            Version of the package. If not provided, will attempt to find the active
+            version in package metadata
+        index : str
+            The index to get the package from. Optional
+        module_names : list of str
+            Name of the module. If not provided, will attempt to find the modules from
+            package metadata. Multiple module names can be provided
+        module_id : str
+            URI identifier of the module. Cannot be specified along with `module_name`
+        '''
+        # We don't allow or expect arbitrary requirements specifications here for a couple of
+        # reasons:
+        #
+        # 1. we want to create PythonPackage statements
+        # 2. only a '==' specification is acceptable since we're meant to record exactly
+        #    which version the bundle was tested with.
+        #
+        # We also don't include platform information like which version of Python and
+        # which operating system. Our concept of usage implies that the user of a given
+        # data set sees which packages they need to download, they'll look at the
+        # documentation for installation instructions for the packages when needed.
+        #
+        # More generally, platform information should be added to artifacts of
+        # computations to indicate how to redo the computation. Moreover, a given
+        # module access description could "diffract" into different platform and OS
+        # specifications depending on which context they are employed in. In other words,
+        # we don't have sufficient information to meaningfully add platform info here.
+        import transaction
+
+        dist = None
+
+        def get_dist():
+            try:
+                from importlib.metadata import distribution
+            except ImportError:
+                try:
+                    from importlib_metadata import distribution
+                except ImportError:
+                    raise GenericUserError(
+                            'Package name and package version must be defined.'
+                            ' They cannot be looked up in this version of Python')
+
+            dist = None
+            try:
+                dist = distribution(package_name)
+            except Exception:
+                L.debug('Caught exception in retrieving Distribution for %s',
+                        package_name,
+                        exc_info=True)
+
+            if dist is None:
+                raise GenericUserError(
+                        f'Did not find the package "{package_name}"')
+            return dist
+
+        if not package_version:
+            dist = get_dist()
+            package_version = dist.version
+
+        self._owm.message('Declaring accessors for any modules of'
+                f' {package_name}=={package_version}')
+        if not (module_names or module_id):
+            from importlib import import_module
+            from pkgutil import walk_packages
+            module_names = set()
+            if dist is None:
+                dist = get_dist()
+            for pkg in (dist.read_text('top_level.txt') or '').split():
+                mod = import_module(pkg)
+                for m in walk_packages(mod.__path__, pkg + '.'):
+                    module_names.add(m.name)
+
+        with self._owm.connect() as conn, transaction.manager:
+            crctx = conn.mapper.class_registry_context
+
+            for module_name in module_names:
+                # TODO: Use property alternatives when that works
+                pymod_q = crctx.stored(PythonModule).query(ident=module_id)
+                pymod_q.name(module_name)
+
+                for pymod in pymod_q.load():
+                    package = crctx(PythonPackage)(
+                            name=package_name,
+                            version=package_version)
+                    crctx(pymod).package(package)
+
+                    pip_install = crctx(PIPInstall)(
+                            package=package,
+                            index_url=index)
+                    crctx(pymod).accessor(pip_install)
+
+                    self._owm.message(f'Adding {package} to {pymod} accessed by {pip_install}')
+            crctx.save()
+
+
+class OWMRegistryModuleAccessShow:
+    '''
+    Show module accessor description
+    '''
+    def __init__(self, parent):
+        self._parent = parent
+        self._module_access = self._parent
+        self._registry = self._parent._parent
+        self._owm = self._parent._parent._parent
+
+    def __call__(self, module_accessor):
+        '''
+        Parameters
+        ----------
+        module_accessor : str
+            Module accessor to show accessors for
+        '''
+        with self._owm.connect() as conn:
+            ma_id = self._owm._den3(module_accessor)
+            for ctx in conn.mapper.class_registry_context_list:
+                ma = ctx(ModuleAccessor)(ident=ma_id).load_one()
+                if ma:
+                    print(ma.help_str())
+
+
+class OWMRegistryModuleAccess:
+    '''
+    Commands for manipulating software module access in the class registry
+    '''
+
+    declare = SubCommand(OWMRegistryModuleAccessDeclare)
+    show = SubCommand(OWMRegistryModuleAccessShow)
+
+    def __init__(self, parent):
+        self._parent = parent
+        self._registry = self._parent
+        self._owm = self._parent._parent
+
+    def list(self, registry_entry=None):
+        '''
+        List module accessors
+
+        Parameters
+        ----------
+        registry_entry : str
+            Registry entry ID. Optional
+
+        Returns
+        -------
+        sequence of `ModuleAccessor`
+        '''
+        def gen(conn):
+            re_id = registry_entry and self._owm._den3(registry_entry)
+            re = None
+            for ctx in conn.mapper.class_registry_context_list:
+                re = ctx(RegistryEntry)(ident=re_id).load_one()
+                if re is not None:
+                    break
+
+            if re is not None:
+                cd = ctx(ClassDescription).query()
+                mod = ctx(Module).query()
+                re.class_description(cd)
+                cd.module(mod)
+                for accessor in mod.accessor.get():
+                    yield accessor
+
+        conn = self._owm.connect(expect_cleanup=True)
+        return wrap_data_object_result(gen(conn))
+
+
 class OWMRegistry(object):
     '''
-    Commands for dealing with the class registry, a mapping of RDF types to classes in
-    imperative programming languages
+    Commands for dealing with the class registry, a mapping of RDF types to constructs in
+    programming languages
+
+    Although it is called the "*class* registry", the registry can map RDF types to
+    constructs other than classes in the target programming language, particularly in
+    languages that don't have classes (e.g., C) or where the use of classes is not
+    preferred in that language.
     '''
+
+    module_access = SubCommand(OWMRegistryModuleAccess)
 
     def __init__(self, parent):
         self._parent = parent
@@ -850,9 +1045,9 @@ class OWMRegistry(object):
             If provided, limits the registry entries returned to those that have the given
             class name. Optional.
         '''
-        from .dataobject import PythonClassDescription
 
         def registry_entries():
+            nonlocal rdf_type
             with self._parent.connect() as conn:
                 for re in conn.mapper.load_registry_entries():
                     ident = re.identifier
@@ -876,6 +1071,9 @@ class OWMRegistry(object):
                     if class_name is not None and class_name != str(re_class_name):
                         continue
 
+                    if re.namespace_manager:
+                        re_rdf_type = re.namespace_manager.normalizeUri(re_rdf_type)
+
                     res = dict(id=ident,
                             rdf_type=re_rdf_type,
                             class_name=re_class_name,
@@ -884,7 +1082,11 @@ class OWMRegistry(object):
                     if hasattr(module_do, 'package'):
                         package = module_do.package()
                         if package:
-                            res['package'] = dict(id=package.identifier,
+                            if re.namespace_manager:
+                                pkgid = re.namespace_manager.normalizeUri(package.identifier)
+                            else:
+                                pkgid = package.identifier
+                            res['package'] = dict(id=pkgid,
                                                   name=package.name(),
                                                   version=package.version())
                     yield res
@@ -934,14 +1136,14 @@ class OWMRegistry(object):
             Registry entry to remove
         '''
         import transaction
-        from .dataobject import RegistryEntry
 
         with transaction.manager:
             for re in registry_entry:
                 uri = self._parent._den3(re)
-                crctx = self._parent.connect().mapper.class_registry_context
-                for x in crctx(RegistryEntry).query(ident=uri).load():
-                    crctx.stored(x).retract()
+                with self._parent.connect() as conn:
+                    crctx = conn.mapper.class_registry_context
+                    for x in crctx(RegistryEntry).query(ident=uri).load():
+                        crctx.stored(x).retract()
 
 
 class OWM(object):
@@ -1462,6 +1664,13 @@ class OWM(object):
                                                                remotes_directory=remotes_directory,
                                                                remotes=project_remotes,
                                                                dependencies=lambda: deps)
+                if CLASS_REGISTRY_CONTEXT_LIST_KEY not in dat:
+                    crctx_ids = []
+                    for dep in self._bundle_dep_mgr.load_dependencies_transitive():
+                        crctx_id = dep.manifest_data.get(CLASS_REGISTRY_CONTEXT_KEY)
+                        if crctx_id:
+                            crctx_ids.append(crctx_id)
+                    dat[CLASS_REGISTRY_CONTEXT_LIST_KEY] = crctx_ids
 
             providers = dat.get(CAPABILITY_PROVIDERS_KEY, [])
             providers.extend(self._cap_provs())
@@ -1568,7 +1777,6 @@ class OWM(object):
         import transaction
         from rdflib import plugin
         from rdflib.parser import Parser, create_input_source
-        from .rdf_utils import BatchAddGraph
         idx_fname = pth_join(self.owmdir, 'graphs', 'index')
         triples_read = 0
         if exists(idx_fname):
@@ -2202,8 +2410,7 @@ class _ProjectMapper(Mapper):
                 target_bundle = dep_mgr
             deps = target_bundle.load_dependencies_transitive()
             for bnd in deps:
-                crctx_id = bnd.manifest_data.get(CLASS_REGISTRY_CONTEXT_KEY, None)
-                if not crctx_id:
+                if not bnd.manifest_data.get(CLASS_REGISTRY_CONTEXT_KEY, None):
                     continue
                 with bnd:
                     resolved_class = bnd.connection.mapper.resolve_class(rdf_type, context)

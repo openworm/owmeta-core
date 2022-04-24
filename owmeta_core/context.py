@@ -39,15 +39,6 @@ The imports context holds the relationships between contexts, especially the imp
 relationship
 '''
 
-# TODO: Move this into mapper or a new mapper_common module
-CLASS_REGISTRY_CONTEXT_KEY = 'class_registry_context_id'
-'''
-Configuration file key for the URI of the class registry RDF graph context.
-
-The class registry context holds the mappings between RDF types and Python classes for a
-project or bundle.
-'''
-
 
 class ModuleProxy(wrapt.ObjectProxy):
     def __init__(self, ctx, *args, **kwargs):
@@ -146,9 +137,8 @@ class Context(six.with_metaclass(ContextMeta,
         self._graph = None
 
         if mapper is None:
-            my_context = getattr(self, 'context')
-            if my_context:
-                mapper = my_context.mapper
+            if self.context:
+                mapper = self.context.mapper
 
         self.__mapper = mapper
         self.base_namespace = base_namespace

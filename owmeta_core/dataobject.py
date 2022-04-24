@@ -61,6 +61,22 @@ Prefix for property attribute names
 '''
 
 
+def _identity(x):
+    return x
+
+
+class OptionalKeyValue:
+    '''
+    An optional key value to use in `key_properties`
+    '''
+    def __init__(self, prop):
+        self.prop = prop
+
+
+class _OKV(str):
+    ''' marker for optional key value names '''
+
+
 class PropertyProperty(Contextualizable, property):
     def __init__(self, cls=None, *args, cls_thunk=None):
         super(PropertyProperty, self).__init__(*args)
@@ -304,10 +320,15 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             self.direct_key = False
             new_key_properties = []
             for kp in key_properties:
+                wrapper = _identity
+                if isinstance(kp, OptionalKeyValue):
+                    kp = kp.prop
+                    wrapper = _OKV
+
                 if isinstance(kp, PThunk):
                     for k, p in self._property_classes.items():
                         if p is kp.result:
-                            new_key_properties.append(k)
+                            new_key_properties.append(wrapper(k))
                             break
                     else:
                         raise Exception(f"The provided 'key_properties' entry, {kp},"
@@ -315,13 +336,13 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
                 elif isinstance(kp, PropertyProperty):
                     for k, p in self._property_classes.items():
                         if p is kp._cls:
-                            new_key_properties.append(k)
+                            new_key_properties.append(wrapper(k))
                             break
                     else:
                         raise Exception(f"The provided 'key_properties' entry, {kp},"
                                 " does not appear to be a property for this class")
                 elif isinstance(kp, six.string_types):
-                    new_key_properties.append(kp)
+                    new_key_properties.append(wrapper(kp))
                 else:
                     raise Exception("The provided 'key_properties' entry does not appear"
                             " to be a property")
@@ -386,7 +407,8 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
             if self.definition_context is None:
                 raise Exception("The class {0} has no context for RDFSClass(ident={1})".format(
                     self, self.rdf_type))
-            L.debug('Creating rdf_type_object for {} in {}'.format(self, self.definition_context))
+            L.debug('Creating rdf_type_object for %s in %s',
+                    self, self.definition_context)
             rdto = RDFSClass.contextualize(self.definition_context)(ident=self.rdf_type)
             for par in self.__bases__:
                 prdto = getattr(par, 'rdf_type_object', None)
@@ -406,16 +428,22 @@ class ContextMappedClass(MappedClass, ContextualizableClass):
 
     def declare_class_registry_entry(self):
         self._check_is_good_class_registry()
+        self.context.add_import(RegistryEntry.definition_context)
         re = RegistryEntry.contextualize(self.context)()
         cd = self.declare_class_description()
 
-        self.context.add_import(type(cd).definition_context)
-
         re.rdf_class(self.rdf_type)
         re.class_description(cd)
+
+        # XXX This import may be inappropriate: we don't really use the relationships
+        # between this class' RDF type and other types which would make this
+        # necessary...but it's probably fine.
         self.context.add_import(self.definition_context)
 
     def declare_class_description(self):
+        # PythonClassDescription and PythonModule have the same definition context, so
+        # only need to add one import
+        self.context.add_import(PythonClassDescription.definition_context)
         cd = PythonClassDescription.contextualize(self.context)()
 
         mo = PythonModule.contextualize(self.context)()
@@ -684,8 +712,15 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         sdata = ''
         for n in names:
             prop = getattr(self, n)
-            val = prop.defined_values[0]
-            sdata += val.identifier.n3()
+            try:
+                val = prop.defined_values[0]
+            except IndexError:
+                if isinstance(n, _OKV):
+                    sdata += "@"
+                elif val is None:
+                    raise Exception(f'Non-optional key, "{n}", property is undefined')
+            else:
+                sdata += val.identifier.n3()
         return sdata
 
     def _key_defined(self):
@@ -697,16 +732,17 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
             for k in self.key_properties:
                 attr = getattr(self, k, None)
                 if attr is None:
-                    raise Exception('Key property "{}" is not available on object'.format(k))
+                    raise Exception(f'Key property "{k}" is not available on object')
 
-                if not attr.has_defined_value():
+                if not isinstance(k, _OKV) and not attr.has_defined_value():
                     return False
             return True
         elif self.key_property is not None:
             attr = getattr(self, self.key_property, None)
             if attr is None:
-                raise Exception('Key property "{}" is not available on object'.format(
-                    self.key_property))
+                raise Exception(
+                        f'Key property "{self.key_property}"'
+                        ' is not available on object')
             if not attr.has_defined_value():
                 return False
             return True
@@ -1284,6 +1320,17 @@ class ModuleAccessor(DataObject):
     '''
     class_context = BASE_SCHEMA_URL
 
+    def help_str(self):
+        '''
+        Format a string to show how to access the module by installing it or requiring it
+        or whatever.
+
+        Default implementation just returns an empty string
+        '''
+        # we *could* grab the doc string or a number of other stuff, but this may serve as
+        # a guide: "In the face of ambiguity, refuse the temptation to guess."
+        return ''
+
 
 class Package(DataObject):
     ''' Describes an idealized software package identifiable by a name and version number '''
@@ -1305,8 +1352,8 @@ class Module(DataObject):
     '''
     class_context = BASE_SCHEMA_URL
 
-    accessors = ObjectProperty(multiple=True, value_type=ModuleAccessor,
-            __doc__='Ways to get the module')
+    accessor = ObjectProperty(multiple=True, value_type=ModuleAccessor,
+            __doc__='Describes a way to get the module')
 
     package = ObjectProperty(value_type=Package,
             __doc__='Package that provides the module')
@@ -1314,7 +1361,12 @@ class Module(DataObject):
 
 class ClassDescription(DataObject):
     '''
-    Describes a class in the programming language
+    Describes a class in the programming language.
+
+    Note that, in other languages, there may not actually be classes per se. In such
+    cases, the `ClassDescription` may instead indicate a function. The conventions for how
+    that function accepts a URI for the sake of creating an "instance" of is up to the
+    associated software module.
     '''
     class_context = BASE_SCHEMA_URL
 
@@ -1394,9 +1446,21 @@ class PIPInstall(ModuleAccessor):
     '''
     class_context = BASE_SCHEMA_URL
 
-    name = DatatypeProperty()
+    package = ObjectProperty(value_type=PythonPackage)
 
-    version = DatatypeProperty()
+    index_url = DatatypeProperty(
+            __doc__='URL of the index from which the package should be retrieved')
+
+    key_properties = (package, OptionalKeyValue(index_url))
+
+    def help_str(self):
+        pkgs = self.package.get()
+        pkg_list = '\n'.join(f'    {pkg.name()}=={pkg.version()}' for pkg in pkgs)
+        if pkg_list:
+            return ('To install, add the following to a file, "requirements.txt":\n\n'
+                    f'{pkg_list}\n\nand execute `pip install requirements.txt`.'
+                    ' See https://pip.pypa.io/en/stable/ for details')
+        return f'Install with pip command line. Missing package for {self}'
 
 
 class PythonClassDescription(ClassDescription):

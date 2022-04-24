@@ -48,6 +48,7 @@ setup(
         'wrapt~=1.11.1',
         'zc.lockfile',
         'zodb>=4.1.0',
+        'importlib_metadata ; python_version<="3.7"',
     ],
     extras_require={
         # SQL source support

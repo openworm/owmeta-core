@@ -1,9 +1,6 @@
 from __future__ import print_function
 import importlib as IM
 import logging
-import uuid
-
-import rdflib as R
 
 from .dataobject import (BaseDataObject, DataObject, RegistryEntry,
                          PythonClassDescription, Module, PythonModule, ClassDescription,
@@ -11,6 +8,29 @@ from .dataobject import (BaseDataObject, DataObject, RegistryEntry,
 from .utils import FCN
 from .configure import Configurable
 
+
+# TODO: Move this into mapper or a new mapper_common module
+CLASS_REGISTRY_CONTEXT_KEY = 'class_registry_context_id'
+'''
+.. confval:: class_registry_context_id
+
+    Configuration file key for the URI of the class registry RDF graph context.
+
+    The class registry context holds the mappings between RDF types and Python classes for
+    a project or bundle.
+'''
+
+CLASS_REGISTRY_CONTEXT_LIST_KEY = 'class_registry_context_list'
+'''
+.. confval:: class_registry_context_list
+
+    Configuration file key for the list of class registry contexts
+
+    If it is specified, then :confval:`class_registry_context_id` should be searched first
+    for class registry entries. The class registry list may be built automatically or not
+    defined at all depending on who makes the `Configuration`, but if it is specified with
+    this property, then it should be respected.
+'''
 
 __all__ = ["Mapper",
            "UnmappedClassException"]
@@ -35,53 +55,94 @@ class ClassRedefinitionAttempt(Exception):
 
 class Mapper(Configurable):
     '''
-    Keeps track of relationships between classes, between modules, and between classes and modules
+    Keeps track of relationships between Python classes and RDF classes
+
+    The mapping this object manages may also be written to the RDF graph as `class
+    registry entries <RegistryEntry>`. The entries are written to the "class registry
+    context", which can be specified when the Mapper is created.
     '''
-    def __init__(self, base_namespace=None, imported=(), name=None,
-            class_registry_context=None, **kwargs):
+    def __init__(self, name=None, class_registry_context=None,
+            class_registry_context_list=None, **kwargs):
+        '''
+        Parameters
+        ----------
+        name : str, optional
+            Name of the mapper for diagnostic/debugging purposes
+        class_registry_context : `owmeta_core.context.Context` or str, optional
+            The context where mappings should be saved and/or retrieved from. Either the
+            context object itself or the ID for it. If not provided, then the class
+            registry context ID is looked up from the Mapper's configuration at
+            `CLASS_REGISTRY_CONTEXT_KEY`
+        class_registry_context_list : list of `owmeta_core.context.Context` or str, optional
+            List of contexts or context IDs where registry entries should be retrieved
+            from if the class_registry_context doesn't yield a mapping
+        **kwargs
+            passed to super-classes
+        '''
         super(Mapper, self).__init__(**kwargs)
 
-        """ Maps full class names (i.e., including the module name) to classes """
+        # Maps full class names (i.e., including the module name) to classes
         self._mapped_classes = dict()
 
-        """ Maps RDF types to properties of the related class """
+        # Maps RDF types to properties of the related class
         self._rdf_type_table = dict()
 
-        if base_namespace is None:
-            base_namespace = R.Namespace("http://example.com#")
-        elif not isinstance(base_namespace, R.Namespace):
-            base_namespace = R.Namespace(base_namespace)
-
-        """ Base namespace used if a mapped class doesn't define its own """
-        self.base_namespace = base_namespace
-
-        """ Modules that have already been loaded """
+        # Modules that have already been loaded
         self.modules = dict()
-
-        self.imported_mappers = imported
 
         if name is None:
             name = hex(id(self))
         self.name = name
-        self.__class_registry_context_id = class_registry_context
+
+        self.__class_registry_context_id = None
         self.__class_registry_context = None
+        if isinstance(class_registry_context, str):
+            self.__class_registry_context_id = class_registry_context
+        else:
+            self.__class_registry_context = class_registry_context
+
+        self.__class_registry_context_id_list = None
+        self.__class_registry_context_list = []
+        if class_registry_context_list:
+            if isinstance(class_registry_context_list[0], str):
+                self.__class_registry_context_id_list = class_registry_context_list
+            else:
+                self.__class_registry_context_list = class_registry_context_list
+
         self._bootstrap_mappings()
 
     @property
     def class_registry_context(self):
+        ''' Context where class registry entries are stored '''
         if self.__class_registry_context is None:
-            from . import BASE_CONTEXT
-            from .context import Context, CLASS_REGISTRY_CONTEXT_KEY
-            crctx_id = (self.__class_registry_context_id or
-                        self.conf.get(CLASS_REGISTRY_CONTEXT_KEY, None) or
-                        uuid.uuid4().urn)
-
-            # XXX: Probably should get the connection in here to contextualize this
-            # context
+            from .context import Context
+            crctx_id = (self.__class_registry_context_id
+                    or self.conf.get(CLASS_REGISTRY_CONTEXT_KEY, None))
+            if crctx_id is None:
+                return None
             crctx = Context(crctx_id, conf=self.conf, mapper=self)
-            crctx.add_import(BASE_CONTEXT)
             self.__class_registry_context = crctx
         return self.__class_registry_context
+
+    @property
+    def class_registry_context_list(self):
+        '''
+        Context where class registry entries are retrieved from if
+        `class_registry_context` doesn't contain an appropriate entry
+        '''
+        if self.__class_registry_context_list is None:
+            from .context import Context
+            crctx_ids = (self.__class_registry_context_id_list
+                    or self.conf.get(CLASS_REGISTRY_CONTEXT_LIST_KEY, None))
+            if crctx_ids is None:
+                return []
+            crctxs = []
+            for crctx_id in crctx_ids:
+                crctxs.append(Context(crctx_id, conf=self.conf, mapper=self).stored)
+            self.__class_registry_context_list = crctxs
+        return (([self.class_registry_context.stored]
+                if self.class_registry_context else []) +
+                self.__class_registry_context_list)
 
     def _bootstrap_mappings(self):
         # Add classes needed for resolving other classes...
@@ -146,13 +207,7 @@ class Mapper(Configurable):
     process_classes = process_class
 
     def lookup_module(self, module_name):
-        m = self.modules.get(module_name, None)
-        if m is None:
-            for p in self.imported_mappers:
-                m = p.lookup_module(module_name)
-                if m:
-                    break
-        return m
+        return self.modules.get(module_name, None)
 
     def _check_is_good_class_registry(self, cls):
         module = IM.import_module(cls.__module__)
@@ -168,18 +223,25 @@ class Mapper(Configurable):
                   ' namespace').format(cls, cls.__module__, cls.__name__))
 
     def save(self):
+        crctx = self.class_registry_context
+        if crctx is None:
+            raise Exception(f'{self}.class_registry_context is unset.'
+                    ' Cannot save class registry entries')
         self.declare_python_class_registry_entry(*self._rdf_type_table.values())
-        self.class_registry_context.save()
-        self.class_registry_context.save_imports()
+        crctx.save()
+        crctx.save_imports()
 
     def declare_python_class_registry_entry(self, *classes):
-        cr_ctx = self.class_registry_context
+        crctx = self.class_registry_context
+        if crctx is None:
+            raise Exception(f'{self}.class_registry_context is unset.'
+                    ' Cannot declare class registry entries')
         for cls in classes:
-            cr_ctx(cls).declare_class_registry_entry()
+            crctx(cls).declare_class_registry_entry()
 
     def load_registry_entries(self):
-        cr_ctx = self.class_registry_context.stored
-        return cr_ctx(RegistryEntry)().load()
+        crctx = self.class_registry_context.stored
+        return crctx(RegistryEntry)().load()
 
     def resolve_class(self, uri, context):
         '''
@@ -200,16 +262,25 @@ class Mapper(Configurable):
         # otherwise, attempt to load into the cache by
         # reading the RDF graph.
 
-        cr_ctx = self.class_registry_context.stored
-        c = self._resolve_class(uri, cr_ctx)
-        if c:
-            self.add_class(c)
-        return c
+        if self.class_registry_context is None:
+            L.warning('%s.class_registry_context is unset.'
+                    ' Cannot resolve class for "%s"',
+                    self, uri)
+            return None
+        resolved_class = None
+        for crctx in self.class_registry_context_list:
+            resolved_class = self._resolve_class(uri, crctx)
+            if resolved_class:
+                break
 
-    def _resolve_class(self, uri, cr_ctx):
-        re = cr_ctx(RegistryEntry)()
+        if resolved_class:
+            self.add_class(resolved_class)
+        return resolved_class
+
+    def _resolve_class(self, uri, crctx):
+        re = crctx(RegistryEntry)()
         re.rdf_class(uri)
-        cd = cr_ctx(PythonClassDescription)()
+        cd = crctx(PythonClassDescription)()
         re.class_description(cd)
         c = None
 
@@ -269,21 +340,9 @@ class Mapper(Configurable):
         return ret
 
     def _lookup_class(self, cname):
-        c = self._mapped_classes.get(cname, None)
-        if c is None:
-            for p in self.imported_mappers:
-                c = p._lookup_class(cname)
-                if c:
-                    break
-        else:
-            L.debug('%s.lookup_class("%s") %s@%s',
-                    repr(self), cname, c, hex(id(c)))
-        return c
+        return self._mapped_classes.get(cname, None)
 
     def mapped_classes(self):
-        for p in self.imported_mappers:
-            for c in p.mapped_classes():
-                yield
         for c in self._mapped_classes.values():
             yield c
 

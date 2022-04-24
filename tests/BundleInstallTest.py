@@ -13,7 +13,8 @@ from rdflib.term import URIRef
 from owmeta_core.bundle import (Installer, Descriptor, make_include_func, FilesDescriptor,
                                 UncoveredImports, DependencyDescriptor, TargetIsNotEmpty,
                                 Remote, Bundle, BUNDLE_MANIFEST_FILE_NAME)
-from owmeta_core.context import IMPORTS_CONTEXT_KEY, CLASS_REGISTRY_CONTEXT_KEY
+from owmeta_core.context import IMPORTS_CONTEXT_KEY
+from owmeta_core.mapper import CLASS_REGISTRY_CONTEXT_KEY
 from owmeta_core.context_common import CONTEXT_IMPORTS
 
 
