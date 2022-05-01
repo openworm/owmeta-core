@@ -365,6 +365,21 @@ stores so they can be managed properly for display and stuff.
 - Define a new config key `rdf_namespace_manager.conf` for the namespace store
 - Update Data to read the store from `rdf_namespace_manager.conf` file location
 - Define `rdf_namespace_manager.conf` for OWM
-- Replace the argument to the Data NamespaceManager with a dummy graph that just points to a NamespaceStore
+- Replace the argument to the Data NamespaceManager with a dummy graph that
+  just points to a NamespaceStore
 - Change the OWMNamespace methods to work on the OWM conf 'rdf.namespace_manager'
-  (see Data) rather than own_rdf.namespace_manager (the one maintained on the RDFLib Graph)
+  (see Data) rather than own_rdf.namespace_manager (the one maintained on the
+  RDFLib Graph)
+- Add a serialization of the namespace bindings from NamespaceStore for the
+  project repository
+
+Related, but distinct: getting suggested namespace mappings from bundles:
+
+- Add suggested prefix-namespace mappings to bundles via the bundle descriptor
+- Add a sub-command for reading mappings from bundles in the dependency
+  list (includes transitive dependencies)
+
+There is not, yet, a sub-command or anything that specifically adds a
+dependency, so there's not really a natural place to pull prefixes from a given
+bundle and its dependencies. So, there would need to be a user action to
+initiate reading in those mappings.
