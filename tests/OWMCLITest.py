@@ -504,6 +504,42 @@ def test_save_class_resolve_class(owm_project):
                 TestDataSource.definition_context) is not None
 
 
+def test_save_class_binds_class_namespace(owm_project):
+    from .test_modules.owmclitest03_monkey import Monkey
+    owm_project.make_module('tests')
+    owm_project.copy('tests/test_modules', 'tests/test_modules')
+    print(owm_project.sh('owm save tests.test_modules.owmclitest03_monkey'))
+    owm = owm_project.owm()
+    with owm.connect() as conn:
+        expected = ('Monkey', URIRef(Monkey.rdf_namespace))
+        for binding in conn.conf['rdf.namespace_manager'].namespaces():
+            if binding == expected:
+                break
+        else: # no break
+            assert False, f"Expected {expected} to be among namespace bindings"
+
+
+def test_save_class_with_project_dependencies_binds_class_namespace(owm_project,
+        test_bundle):
+    from .test_modules.owmclitest03_monkey import Monkey
+    owm0 = owm_project.owm(non_interactive=True)
+    owm0.config.set('dependencies', json.dumps([{
+        'id': test_bundle.descriptor.id,
+        'version': test_bundle.descriptor.version}]))
+
+    owm_project.make_module('tests')
+    owm_project.copy('tests/test_modules', 'tests/test_modules')
+    print(owm_project.sh('owm save tests.test_modules.owmclitest03_monkey'))
+    owm = owm_project.owm()
+    with owm.connect() as conn:
+        expected = ('Monkey', URIRef(Monkey.rdf_namespace))
+        for binding in conn.conf['rdf.namespace_manager'].namespaces():
+            if binding == expected:
+                break
+        else: # no break
+            assert False, f"Expected {expected} to be among namespace bindings"
+
+
 def test_contexts_list_imports(owm_project):
     owm = owm_project.owm()
     ctx1_id = 'http://example.org/context#ctx1'

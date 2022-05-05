@@ -1351,6 +1351,9 @@ class OWM(object):
                     @wraps(prov)
                     def save_classes(ns):
                         ns.include_context(mapper.class_registry_context)
+                        # Note that we don't call `mapper.save` here. Rather, we declare
+                        # the class registry entries and use the OWMSaveNamespace.save
+                        # below
                         mapper.process_module(module, mod)
                         mapper.declare_python_class_registry_entry(*mapped_classes)
                         for mapped_class in mapped_classes:
@@ -1359,6 +1362,18 @@ class OWM(object):
                             # context because there aren't necessarily any statements that
                             # use the class. An import should be added when a statement
                             # using the class is added to the importing context.
+                        for mapped_class in mapped_classes:
+                            if hasattr(mapped_class, 'rdf_namespace'):
+                                try:
+                                    ns.namespace_manager.bind(
+                                            mapped_class.__name__,
+                                            mapped_class.rdf_namespace,
+                                            override=True, replace=True)
+                                except Exception:
+                                    L.warning('Failed to bind RDF namespace for %s to %s',
+                                            mapped_class.__name__,
+                                            mapped_class.rdf_namespace, exc_info=True)
+
                         orig_prov(ns)
                     prov = save_classes
 
@@ -2668,6 +2683,10 @@ class OWMSaveNamespace(object):
         self.context = context
         self._created_ctxs = set()
         self._external_contexts = set()
+
+    @property
+    def namespace_manager(self):
+        return self.context.conf['rdf.namespace_manager']
 
     def new_context(self, ctx_id):
         # Get the type of our context contextualized *with* our context

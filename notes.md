@@ -111,12 +111,13 @@ Repository Index Caching
 ========================
 We would like to have the ability to reuse the repository index across
 downloads. The question is how to do that. One way is to re-use a loader across
-for a given URL or accessor config. To some extent, this violates expectations
-about a given class's __call__ producing new instances, but that isn't an
-expectation that has any particular value for us. Still, if we just reuse the
-same object, then we have to concern ourselves with multi-threaded programs
-which may try to download the same index and assign to the same field at the
-same time. This may not be a problem if we decide to just not to handle that...
+instances for a given URL or accessor config. To some extent, this violates
+expectations about a given class's `__call__` producing new instances, but that
+isn't an expectation that has any particular value for us. Still, if we just
+reuse the same object, then we have to concern ourselves with multi-threaded
+programs which may try to download the same index and assign to the same field
+at the same time. This may not be a problem if we decide to just not to handle
+that...
 
 
 Declaring packages / module accessors
@@ -383,3 +384,9 @@ There is not, yet, a sub-command or anything that specifically adds a
 dependency, so there's not really a natural place to pull prefixes from a given
 bundle and its dependencies. So, there would need to be a user action to
 initiate reading in those mappings.
+
+Importantly, there are namespace mappings for all of our mapped classes. I've
+changed that to add the bindings when saving the classes using the OWM.save
+command, but it should probably be possible to do that some other way without
+the baggage of a project. In any case, we'll want to make sure that it's easy
+to add these mappings to a bundle...
