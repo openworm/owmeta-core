@@ -48,6 +48,7 @@ from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY)
 from .context_common import CONTEXT_IMPORTS
 from .capable_configurable import CAPABILITY_PROVIDERS_KEY
 from .capabilities import FilePathProvider
+from .data import NAMESPACE_MANAGER_STORE_KEY, NAMESPACE_MANAGER_STORE_CONF_KEY
 from .dataobject import (DataObject, RDFSClass, RegistryEntry, PythonClassDescription,
                          PIPInstall, PythonPackage, PythonModule, Module, ClassDescription,
                          ModuleAccessor)
@@ -1503,6 +1504,8 @@ class OWM(object):
             with open(self.config_file, 'w') as of:
                 default['rdf.store_conf'] = pth_join('$OWM',
                         relpath(abspath(self.store_name), abspath(self.owmdir)))
+                default[NAMESPACE_MANAGER_STORE_KEY] = 'FileStorageZODB'
+                default[NAMESPACE_MANAGER_STORE_CONF_KEY] = pth_join('$OWM', 'nm.db')
 
                 if not default_context_id and not self.non_interactive:
                     default_context_id = self.prompt(dedent('''\
