@@ -2096,7 +2096,7 @@ class OWM(object):
         changed = self._changed_contexts_set()
 
         if repo.is_dirty(path=graphs_base):
-            repo.reset(paths=[graphs_base])
+            repo.reset(graphs_base)
 
         if not exists(graphs_base):
             mkdir(graphs_base)
@@ -2165,7 +2165,7 @@ class OWM(object):
             # Reset the graphs directory. It should represent the commited graph always
             rep = self.repository()
             if rep.is_dirty(path='graphs'):
-                rep.reset(paths=['graphs'], working_tree=True)
+                rep.reset('graphs')
 
     def _diff_helper(self, color):
         from difflib import unified_diff

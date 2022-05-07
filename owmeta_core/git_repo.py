@@ -19,14 +19,12 @@ class GitRepoProvider(object):
     def remove(self, files, recursive=False):
         self.repo().index.remove(files, r=recursive)
 
-    def reset(self, paths=None, working_tree=True):
+    def reset(self, *paths):
         from git.refs.head import HEAD
         repo = self.repo()
-        head = HEAD(repo)
-        if paths and working_tree:
-            head.reset(paths=paths)
-            paths = [p for p in paths if exists(p)]
-            repo.index.checkout(paths=paths, force=True)
+        HEAD(repo).reset(paths=paths)
+        paths = [p for p in paths if exists(p)]
+        repo.index.checkout(paths=paths, force=True)
 
     def commit(self, msg):
         self.repo().index.commit(msg)
