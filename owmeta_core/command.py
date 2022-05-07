@@ -1385,6 +1385,26 @@ class OWM(object):
                 if added_cwd:
                     sys.path.remove(cwd)
 
+    def retract(self, subject, property, object):
+        '''
+        Remove one or more statements
+
+        Parameters
+        ----------
+        subject : str
+            The object which you want to say something about. optional
+        property : str
+            The type of statement to make. optional
+        object : str
+            The other object you want to say something about. optional
+        '''
+        import transaction
+        with transaction.manager, self.connect() as conn:
+            conn.rdf.get_context(self._default_ctx.identifier).remove((
+                None if subject == 'ANY' else self._den3(subject),
+                None if property == 'ANY' else self._den3(property),
+                None if object == 'ANY' else self._den3(object)))
+
     def say(self, subject, property, object):
         '''
         Make a statement
@@ -1398,15 +1418,12 @@ class OWM(object):
         object : str
             The other object you want to say something about
         '''
-        from owmeta_core.dataobject import BaseDataObject
         import transaction
-        with self.connect():
-            dctx = self._default_ctx
-            query = dctx.stored(BaseDataObject)(ident=self._den3(subject))
-            with transaction.manager:
-                for ob in query.load():
-                    getattr(dctx(ob), property)(object)
-                dctx.save()
+        with transaction.manager, self.connect() as conn:
+            conn.rdf.get_context(self._default_ctx.identifier).add((
+                self._den3(subject),
+                self._den3(property),
+                self._den3(object)))
 
     def set_default_context(self, context, user=False):
         '''
@@ -2079,7 +2096,7 @@ class OWM(object):
         changed = self._changed_contexts_set()
 
         if repo.is_dirty(path=graphs_base):
-            raise DirtyProjectRepository()
+            repo.reset(paths=[graphs_base])
 
         if not exists(graphs_base):
             mkdir(graphs_base)
@@ -2117,18 +2134,20 @@ class OWM(object):
                 files.append(fname)
                 deleted_contexts.pop(str(ident), None)
 
-        index_fname = pth_join(graphs_base, 'index')
-        with open(index_fname, 'w') as index_file:
-            for l in sorted(ctx_data):
-                print(*l, file=index_file, end='\n')
+        if ctx_data:
+            index_fname = pth_join(graphs_base, 'index')
+            with open(index_fname, 'w') as index_file:
+                for l in sorted(ctx_data):
+                    print(*l, file=index_file, end='\n')
+            files.append(index_fname)
 
         if deleted_contexts:
             repo.remove(relpath(f, self.owmdir) for f in deleted_contexts.values())
             for f in deleted_contexts.values():
                 unlink(f)
 
-        files.append(index_fname)
-        repo.add([relpath(f, self.owmdir) for f in files] + [relpath(self.config_file, self.owmdir)])
+        if files:
+            repo.add([relpath(f, self.owmdir) for f in files])
 
     def diff(self, color=False):
         """
@@ -2140,10 +2159,19 @@ class OWM(object):
             If set, then ANSI color escape codes will be incorporated into diff output.
             Default is to output without color.
         """
+        try:
+            self._diff_helper(color)
+        finally:
+            # Reset the graphs directory. It should represent the commited graph always
+            rep = self.repository()
+            if rep.is_dirty(path='graphs'):
+                rep.reset(paths=['graphs'], working_tree=True)
+
+    def _diff_helper(self, color):
         from difflib import unified_diff
         from os.path import basename
 
-        r = self.repository_provider
+        r = self.repository()
         try:
             with self.connect():
                 self._serialize_graphs(ignore_change_cache=False)

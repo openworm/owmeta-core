@@ -40,6 +40,17 @@ CLI_HINTS = {
                 'names': ['data_sources'],
             },
         },
+        'retract': {
+            (METHOD_NAMED_ARG, 'subject'): {
+                'names': ['subject']
+            },
+            (METHOD_NAMED_ARG, 'property'): {
+                'names': ['property']
+            },
+            (METHOD_NAMED_ARG, 'object'): {
+                'names': ['object']
+            }
+        },
         'say': {
             (METHOD_NAMED_ARG, 'subject'): {
                 'names': ['subject']
