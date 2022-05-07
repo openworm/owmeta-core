@@ -444,7 +444,9 @@ class _ProgressMock(object):
 
 class OWMConfig(object):
     '''
-    Config file commands
+    Config file commands.
+
+    Without any sub-command, prints the configuration parameters
     '''
     user = IVar(value_type=bool,
                 default_value=False,
@@ -1398,12 +1400,13 @@ class OWM(object):
         '''
         from owmeta_core.dataobject import BaseDataObject
         import transaction
-        dctx = self._default_ctx
-        query = dctx.stored(BaseDataObject)(ident=self._den3(subject))
-        with transaction.manager:
-            for ob in query.load():
-                getattr(dctx(ob), property)(object)
-            dctx.save()
+        with self.connect():
+            dctx = self._default_ctx
+            query = dctx.stored(BaseDataObject)(ident=self._den3(subject))
+            with transaction.manager:
+                for ob in query.load():
+                    getattr(dctx(ob), property)(object)
+                dctx.save()
 
     def set_default_context(self, context, user=False):
         '''
@@ -1544,8 +1547,7 @@ class OWM(object):
         if not s:
             return s
         from rdflib.namespace import is_ncname
-        conf = self._conf()
-        nm = conf['rdf.graph'].namespace_manager
+        nm = self._conf('rdf.namespace_manager')
         if s.startswith('<') and s.endswith('>'):
             return URIRef(s.strip(u'<>'))
         parts = s.split(':')

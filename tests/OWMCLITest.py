@@ -805,3 +805,8 @@ def test_regendb(owm_project):
     with owm.connect(read_only=True) as conn, transaction.manager:
         assert (EX.s, EX.p, EX.o) in conn.rdf
         assert (EX.s, EX.p, EX.o1) not in conn.rdf
+
+
+def test_say_with_ns(owm_project):
+    owm_project.sh(f'owm namespace bind ex http://example.org/')
+    owm_project.sh(f'owm say ex:a rdf:type rdfs:Class', stderr=PIPE)
