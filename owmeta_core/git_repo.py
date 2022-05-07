@@ -17,9 +17,9 @@ class GitRepoProvider(object):
     def remove(self, files, recursive=False):
         self.repo().index.remove(files, r=recursive)
 
-    def reset(self):
+    def reset(self, paths=None):
         from git.refs.head import HEAD
-        HEAD(self.repo()).reset(working_tree=True)
+        HEAD(self.repo()).reset(working_tree=True, paths=paths)
 
     def commit(self, msg):
         self.repo().index.commit(msg)
@@ -34,9 +34,8 @@ class GitRepoProvider(object):
             progress = _CloneProgress(progress)
         Repo.clone_from(url, base, progress=progress, **kwargs)
 
-    @property
-    def is_dirty(self):
-        return self.repo().is_dirty()
+    def is_dirty(self, path=None):
+        return self.repo().is_dirty(path=path)
 
 
 class _CloneProgress(object):

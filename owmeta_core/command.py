@@ -453,9 +453,22 @@ class OWMConfig(object):
 
     def __init__(self, parent):
         self._parent = parent
+        self._next = None
 
     def __setattr__(self, t, v):
         super(OWMConfig, self).__setattr__(t, v)
+
+    def __call__(self):
+        owm = self._parent
+        if self._next is not None:
+            try:
+                return self._next()
+            finally:
+                owm.repository().add([owm.config_file])
+        else:
+            fname = self._get_config_file()
+            with open(fname, 'r') as f:
+                return json.load(f)
 
     @IVar.property('user.conf', value_type=str)
     def user_config_file(self):
@@ -1508,6 +1521,12 @@ class OWM(object):
 
                 write_config(default, of)
 
+    def repository(self):
+        repo = self.repository_provider
+        if exists(self.owmdir):
+            repo.base = self.owmdir
+        return repo
+
     def _init_repository(self, reinit):
         if self.repository_provider is not None:
             self.repository_provider.init(base=self.owmdir)
@@ -2016,37 +2035,49 @@ class OWM(object):
         else:
             return self._conf('rdf.graph')
 
-    def commit(self, message):
+    def commit(self, message, skip_serialization=False):
         '''
-        Write the graph to the local repository
+        Write the graph and configuration changes to the local repository
 
         Parameters
         ----------
         message : str
             commit message
+        skip_serialization : bool
+            If set, then skip graph serialization. Useful if you have manually changed the
+            graph serialization or just want to commit changes to project configuration
         '''
-        repo = self.repository_provider
-        with self.connect():
-            self._serialize_graphs()
+        repo = self.repository()
+        if not skip_serialization:
+            with self.connect():
+                try:
+                    self._serialize_graphs()
+                except DirtyProjectRepository:
+                    raise GenericUserError(
+                            'The project repository has uncommitted changes.'
+                            ' Undo the changes or commit them (e.g., by'
+                            ' re-running this command with --serialize-graphs)')
+        # TODO: Consider allowing some plugin system to allow other configuration to add
+        # files to the repo.
         repo.commit(message)
 
     def _changed_contexts_set(self):
+        # XXX: This method used to try to determine if a context had been updated since
+        # the corresponding file had changed, but it was really unreliable.
         gf_index = {URIRef(y): x for x, y in self._graphs_index()}
-        gfkeys = set(gf_index.keys())
-        return gfkeys
+        return set(gf_index.keys())
 
     def _serialize_graphs(self, ignore_change_cache=False):
         import transaction
         g = self.own_rdf
-        repo = self.repository_provider
+        repo = self.repository()
 
-        repo.base = self.owmdir
         graphs_base = pth_join(self.owmdir, 'graphs')
 
         changed = self._changed_contexts_set()
 
-        if changed or repo.is_dirty:
-            repo.reset()
+        if repo.is_dirty(path=graphs_base):
+            raise DirtyProjectRepository()
 
         if not exists(graphs_base):
             mkdir(graphs_base)
@@ -2115,7 +2146,6 @@ class OWM(object):
             with self.connect():
                 self._serialize_graphs(ignore_change_cache=False)
         except Exception:
-            r.reset()
             L.exception("Could not serialize graphs")
             raise GenericUserError("Could not serialize graphs")
 
@@ -2835,3 +2865,11 @@ class AlreadyDisconnected(Exception):
     '''
     def __init__(self, owm):
         super().__init__(f'Already disconnected {owm}')
+
+
+class DirtyProjectRepository(Exception):
+    '''
+    Thrown when we're about to commit, but the project repository has changes to the
+    graphs such that it's not safe to just re-serialize the indexed database over the
+    graphs.
+    '''
