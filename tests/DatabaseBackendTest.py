@@ -2,13 +2,16 @@
 
 from __future__ import absolute_import
 import unittest
-from owmeta_core.data import Data
-import rdflib as R
 import os
 from os.path import join as p
 import tempfile
 import shutil
+
 from pytest import mark
+import rdflib as R
+import transaction
+
+from owmeta_core.data import Data
 
 from .GraphDBInit import make_graph, has_bsddb
 
@@ -40,10 +43,11 @@ class _DatabaseBackendBT(object):
 
     def test(self):
         try:
-            self.dat.init()
-            g = make_graph(20)
-            for x in g:
-                self.dat['rdf.graph'].add(x)
+            with transaction.manager:
+                self.dat.init()
+                g = make_graph(20)
+                for x in g:
+                    self.dat['rdf.graph'].add(x)
             self.dat.destroy()
 
             self.dat.init()
@@ -53,12 +57,13 @@ class _DatabaseBackendBT(object):
 
     def test_add_dupes_len(self):
         try:
-            self.dat.init()
-            g = make_graph(20)
-            for x in g:
-                self.dat['rdf.graph'].add(x)
-            for x in g:
-                self.dat['rdf.graph'].add(x)
+            with transaction.manager:
+                self.dat.init()
+                g = make_graph(20)
+                for x in g:
+                    self.dat['rdf.graph'].add(x)
+                for x in g:
+                    self.dat['rdf.graph'].add(x)
             self.dat.destroy()
 
             self.dat.init()

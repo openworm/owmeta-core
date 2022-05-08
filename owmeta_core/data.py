@@ -10,6 +10,7 @@ from rdflib.store import Store
 from rdflib.events import Event
 from rdflib.namespace import RDF, NamespaceManager
 import transaction
+from transaction.interfaces import NoTransaction
 
 from .utils import grouper
 from .configure import Configurable, Configuration, ConfigValue
@@ -558,8 +559,13 @@ class ZODBSource(RDFSource):
         if self.graph is False:
             return
 
+        # Abort the current transaction (if there is one, I guess) since we can't close
+        # our connection while joined to a transaction...
+        try:
+            transaction.abort()
+        except NoTransaction:
+            L.debug("Attempt to abort, but there was no active transaction")
         self.graph.close()
-
         self.conn.close()
         self.zdb.close()
         self.graph = False

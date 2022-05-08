@@ -687,56 +687,57 @@ class OWMContexts(object):
             need_edit = True
             load_original = True
             # XXX This is so rotten
-            while need_edit:
-                # We need this loop to be all the way outside of the connection because
-                # we'll need to roll-back the connection since the parser may have already
-                # modified the graph which is our record of the original contents. We
-                # *could* just save the file, but it's safer to just roll-back.
-                need_edit = False
-                try:
-                    with self._parent.connect(), transaction.manager:
-                        if load_original:
-                            with open(fname, mode='wb') as destination:
-                                # For canonical graphs, we would need to sort the triples first,
-                                # but it's not needed here -- the user probably doesn't care one
-                                # way or the other
-                                ctx.own_stored.rdf_graph().serialize(destination, format=format)
-                        load_original = False
+            with self._parent.connect():
+                while need_edit:
+                    # We need this loop to be all the way outside of the connection because
+                    # we'll need to roll-back the connection since the parser may have already
+                    # modified the graph which is our record of the original contents. We
+                    # *could* just save the file, but it's safer to just roll-back.
+                    need_edit = False
+                    try:
+                        with transaction.manager:
+                            if load_original:
+                                with open(fname, mode='wb') as destination:
+                                    # For canonical graphs, we would need to sort the triples first,
+                                    # but it's not needed here -- the user probably doesn't care one
+                                    # way or the other
+                                    ctx.own_stored.rdf_graph().serialize(destination, format=format)
+                            load_original = False
 
-                        call([editor, fname])
-                        with open(fname, mode='rb') as source:
-                            g = self._parent.own_rdf.get_context(ctxid)
-                            L.debug("Removing all triples...")
-                            g.remove((None, None, None))
-                            L.debug("Removed all triples")
-                            try:
-                                L.debug("Parsing...")
-                                parser.parse(create_input_source(source), g)
-                            except Exception as e:
-                                # There are some specific parsing errors, but we try to be lenient
-                                # here and allow anything to be retried
-                                if not self._parent.non_interactive:
-                                    self._parent.message(f"Error parsing RDF: {e}")
-                                    response = self._parent.prompt('Try again? Yes: (M)odified, (O)riginal; (N)o: ')
-                                    if re.match(r'[nN]', response):
-                                        # We've already sent the message, so we don't really
-                                        # need to throw the exception below, but just so that
-                                        # exception propagates the same way for interactive
-                                        # and non-interactive we do anyway
-                                        pass
-                                    elif re.match(r'[mMyY]', response):
-                                        need_edit = True
-                                        raise
-                                    elif re.match(r'[oO]', response):
-                                        need_edit = True
-                                        load_original = True
-                                        L.debug("raising...")
-                                        raise
-                                raise GenericUserError(f"Error parsing RDF: {e}")
-                except Exception:
-                    if need_edit:
-                        continue
-                    raise
+                            call([editor, fname])
+                            with open(fname, mode='rb') as source:
+                                g = self._parent.own_rdf.get_context(ctxid)
+                                L.debug("Removing all triples...")
+                                g.remove((None, None, None))
+                                L.debug("Removed all triples")
+                                try:
+                                    L.debug("Parsing...")
+                                    parser.parse(create_input_source(source), g)
+                                except Exception as e:
+                                    # There are some specific parsing errors, but we try to be lenient
+                                    # here and allow anything to be retried
+                                    if not self._parent.non_interactive:
+                                        self._parent.message(f"Error parsing RDF: {e}")
+                                        response = self._parent.prompt('Try again? Yes: (M)odified, (O)riginal; (N)o: ')
+                                        if re.match(r'[nN]', response):
+                                            # We've already sent the message, so we don't really
+                                            # need to throw the exception below, but just so that
+                                            # exception propagates the same way for interactive
+                                            # and non-interactive we do anyway
+                                            pass
+                                        elif re.match(r'[mMyY]', response):
+                                            need_edit = True
+                                            raise
+                                        elif re.match(r'[oO]', response):
+                                            need_edit = True
+                                            load_original = True
+                                            L.debug("raising...")
+                                            raise
+                                    raise GenericUserError(f"Error parsing RDF: {e}")
+                    except Exception:
+                        if need_edit:
+                            continue
+                        raise
 
     def _get_editor_command(self):
         editor = os.environ['EDITOR'].strip()
@@ -1692,7 +1693,7 @@ class OWM(object):
         conn = _ProjectConnection(self, self._owm_connection, self._connections,
                 expect_cleanup=expect_cleanup)
         self._connections.add(conn)
-        print("CONNECTED", id(conn))
+        L.debug("CONNECTED %s", id(conn))
         return conn
 
     @property
@@ -1780,7 +1781,7 @@ class OWM(object):
                 disconnect(self._owm_connection)
                 self._dat = None
                 self._owm_connection = None
-                print("DISCONNECTED")
+                L.debug("DISCONNECTED")
             elif len(self._connections) > 0:
                 warnings.warn('Attempted to close OWM connection prematurely:'
                         f' still have {len(self._connections)} connection(s) ', ResourceWarning, stacklevel=2)
