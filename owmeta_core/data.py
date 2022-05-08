@@ -343,10 +343,10 @@ class Data(Configuration):
             nm.bind("", self['rdf.namespace'])
         except Exception:
             L.warning("Failed to bind default RDF namespace %s", self['rdf.namespace'], exc_info=True)
+        ACTIVE_CONNECTIONS.append(self)
 
     def openDatabase(self):
         self.init()
-        ACTIVE_CONNECTIONS.append(self)
 
     init_database = init
 
@@ -422,7 +422,7 @@ class RDFSource(Configurable, ConfigValue):
     def close(self):
         if self.graph is False:
             return
-        self.graph.close(commit_pending_transaction=True)
+        self.graph.close(commit_pending_transaction=False)
         self.graph = False
 
     def open(self):
@@ -551,15 +551,6 @@ class ZODBSource(RDFSource):
         if 'rdflib' not in root:
             store = plugin.get('ZODB', Store)()
             root['rdflib'] = store
-        try:
-            transaction.commit()
-        except Exception:
-            # catch commit exception and close db.
-            # otherwise db would stay open and follow up tests
-            # will detect the db in error state
-            L.exception('Forced to abort transaction on ZODB store opening', exc_info=True)
-            transaction.abort()
-        transaction.begin()
         self.graph = Dataset(root['rdflib'], default_union=True)
         self.graph.open(openstr)
 
@@ -569,14 +560,6 @@ class ZODBSource(RDFSource):
 
         self.graph.close()
 
-        try:
-            transaction.commit()
-        except Exception:
-            # catch commit exception and close db.
-            # otherwise db would stay open and follow up tests
-            # will detect the db in error state
-            L.warning('Forced to abort transaction on ZODB store closing', exc_info=True)
-            transaction.abort()
         self.conn.close()
         self.zdb.close()
         self.graph = False
