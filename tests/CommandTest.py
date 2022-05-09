@@ -801,8 +801,7 @@ class GitCommandTest(BaseTest):
 
         repo.index.remove([p('graphs', 'index')])
 
-        with raises(GenericUserError, match=r'uncommitted'):
-            self.cut.commit('Commit Message 2')
+        self.cut.commit('Commit Message 2')
 
     def test_git_passthrough_no_owmdir(self):
         with raises(GenericUserError, match=r'[cC]annot find .*\.owm.*'):
