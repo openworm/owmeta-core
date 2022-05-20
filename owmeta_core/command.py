@@ -48,7 +48,8 @@ from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY)
 from .context_common import CONTEXT_IMPORTS
 from .capable_configurable import CAPABILITY_PROVIDERS_KEY
 from .capabilities import FilePathProvider
-from .data import NAMESPACE_MANAGER_STORE_KEY, NAMESPACE_MANAGER_STORE_CONF_KEY
+from .data import (NAMESPACE_MANAGER_KEY, NAMESPACE_MANAGER_STORE_KEY,
+                   NAMESPACE_MANAGER_STORE_CONF_KEY)
 from .dataobject import (DataObject, RDFSClass, RegistryEntry, PythonClassDescription,
                          PIPInstall, PythonPackage, PythonModule, Module, ClassDescription,
                          ModuleAccessor)
@@ -116,7 +117,7 @@ class OWMSource(object):
                 yield ds
 
         def format_id(r):
-            nm = self._parent.rdf.namespace_manager
+            nm = self._parent.namespace_manager
             if full:
                 return r.identifier
             return nm.normalizeUri(r.identifier)
@@ -205,7 +206,7 @@ class OWMSource(object):
             rdfto = ctx.stored(DataSource.rdf_type_object)
             sc = ctx.stored(RDFSClass)()
             sc.rdfs_subclassof_property(rdfto)
-            nm = self._parent.rdf.namespace_manager
+            nm = self._parent.namespace_manager
             zom_matcher = rdfs_subclassof_subclassof_zom_creator(DataSource.rdf_type)
             g = ZeroOrMoreTQLayer(zom_matcher, ctx.stored.rdf_graph())
             for x in sc.load(graph=g):
@@ -266,7 +267,7 @@ class OWMTranslator(object):
                     yield dt
 
         def id_fmt(trans):
-            nm = self._parent.rdf.namespace_manager
+            nm = self._parent.namespace_manager
             if full:
                 return str(trans.identifier)
             else:
@@ -338,7 +339,7 @@ class OWMTranslator(object):
             rdfto = ctx.stored(DataTranslator.rdf_type_object)
             sc = ctx.stored(RDFSClass)()
             sc.rdfs_subclassof_property(rdfto)
-            nm = self._parent._conf('rdf.graph').namespace_manager
+            nm = self._parent.namespace_manager
             zom_matcher = rdfs_subclassof_subclassof_zom_creator(DataTranslator.rdf_type)
             g = ZeroOrMoreTQLayer(zom_matcher, ctx.stored.rdf_graph())
             for x in sc.load(graph=g):
@@ -418,14 +419,14 @@ class OWMNamespace(object):
             Namespace URI to bind to a prefix
         '''
         with self._parent.connect():
-            self._parent.own_rdf.namespace_manager.bind(prefix, uri)
+            self._parent.namespace_manager.bind(prefix, uri)
 
     def list(self):
         '''
         List namespace prefixes and URIs in the project
         '''
         with self._parent.connect() as conn:
-            nm = conn.rdf.namespace_manager
+            nm = conn.conf[NAMESPACE_MANAGER_KEY]
             return GeneratorWithData(
                     (dict(prefix=prefix, uri=uri)
                         for prefix, uri in nm.namespaces()),
@@ -1065,6 +1066,7 @@ class OWMRegistry(object):
         def registry_entries():
             nonlocal rdf_type
             with self._parent.connect() as conn:
+                nm = conn.conf[NAMESPACE_MANAGER_KEY]
                 for re in conn.mapper.load_registry_entries():
                     ident = re.identifier
                     cd = re.class_description()
@@ -1072,8 +1074,8 @@ class OWMRegistry(object):
                     if not isinstance(cd, PythonClassDescription):
                         continue
                     module_do = cd.module()
-                    if re.namespace_manager:
-                        ident = re.namespace_manager.normalizeUri(ident)
+                    if nm:
+                        ident = nm.normalizeUri(ident)
                     if hasattr(module_do, 'name'):
                         module_name = module_do.name()
                     re_class_name = cd.name()
@@ -1087,8 +1089,8 @@ class OWMRegistry(object):
                     if class_name is not None and class_name != str(re_class_name):
                         continue
 
-                    if re.namespace_manager:
-                        re_rdf_type = re.namespace_manager.normalizeUri(re_rdf_type)
+                    if nm:
+                        re_rdf_type = nm.normalizeUri(re_rdf_type)
 
                     res = dict(id=ident,
                             rdf_type=re_rdf_type,
@@ -1098,8 +1100,8 @@ class OWMRegistry(object):
                     if hasattr(module_do, 'package'):
                         package = module_do.package()
                         if package:
-                            if re.namespace_manager:
-                                pkgid = re.namespace_manager.normalizeUri(package.identifier)
+                            if nm:
+                                pkgid = nm.normalizeUri(package.identifier)
                             else:
                                 pkgid = package.identifier
                             res['package'] = dict(id=pkgid,
@@ -1582,7 +1584,7 @@ class OWM(object):
         if not s:
             return s
         from rdflib.namespace import is_ncname
-        nm = self._conf('rdf.namespace_manager')
+        nm = self.namespace_manager
         if s.startswith('<') and s.endswith('>'):
             return URIRef(s.strip(u'<>'))
         parts = s.split(':')
@@ -2063,6 +2065,10 @@ class OWM(object):
         return self._conf('rdf.graph')
 
     @property
+    def namespace_manager(self):
+        return self._conf(NAMESPACE_MANAGER_KEY)
+
+    @property
     def own_rdf(self):
         has_dependencies = self._conf('dependencies', None)
         if has_dependencies:
@@ -2110,6 +2116,7 @@ class OWM(object):
         repo = self.repository()
 
         graphs_base = pth_join(self.owmdir, 'graphs')
+        namespaces_fname = pth_join(self.owmdir, 'namespaces')
 
         changed = self._changed_contexts_set()
 
@@ -2151,6 +2158,9 @@ class OWM(object):
                 ctx_data.append((relpath(fname, graphs_base), ident))
                 files.append(fname)
                 deleted_contexts.pop(str(ident), None)
+            with open(namespaces_fname, 'w') as f:
+                for pre, uri in self.namespace_manager.namespaces():
+                    f.write(f'{pre} {uri}\n')
 
         if ctx_data:
             index_fname = pth_join(graphs_base, 'index')
@@ -2749,7 +2759,7 @@ class OWMSaveNamespace(object):
 
     @property
     def namespace_manager(self):
-        return self.context.conf['rdf.namespace_manager']
+        return self.context.conf[NAMESPACE_MANAGER_KEY]
 
     def new_context(self, ctx_id):
         # Get the type of our context contextualized *with* our context
