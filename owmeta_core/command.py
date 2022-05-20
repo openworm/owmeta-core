@@ -445,7 +445,9 @@ class _ProgressMock(object):
 
 class OWMConfig(object):
     '''
-    Config file commands
+    Config file commands.
+
+    Without any sub-command, prints the configuration parameters
     '''
     user = IVar(value_type=bool,
                 default_value=False,
@@ -454,9 +456,22 @@ class OWMConfig(object):
 
     def __init__(self, parent):
         self._parent = parent
+        self._next = None
 
     def __setattr__(self, t, v):
         super(OWMConfig, self).__setattr__(t, v)
+
+    def __call__(self):
+        owm = self._parent
+        if self._next is not None:
+            try:
+                return self._next()
+            finally:
+                owm.repository().add([owm.config_file])
+        else:
+            fname = self._get_config_file()
+            with open(fname, 'r') as f:
+                return json.load(f)
 
     @IVar.property('user.conf', value_type=str)
     def user_config_file(self):
@@ -1386,6 +1401,26 @@ class OWM(object):
                 if added_cwd:
                     sys.path.remove(cwd)
 
+    def retract(self, subject, property, object):
+        '''
+        Remove one or more statements
+
+        Parameters
+        ----------
+        subject : str
+            The object which you want to say something about. optional
+        property : str
+            The type of statement to make. optional
+        object : str
+            The other object you want to say something about. optional
+        '''
+        import transaction
+        with transaction.manager, self.connect() as conn:
+            conn.rdf.get_context(self._default_ctx.identifier).remove((
+                None if subject == 'ANY' else self._den3(subject),
+                None if property == 'ANY' else self._den3(property),
+                None if object == 'ANY' else self._den3(object)))
+
     def say(self, subject, property, object):
         '''
         Make a statement
@@ -1399,14 +1434,12 @@ class OWM(object):
         object : str
             The other object you want to say something about
         '''
-        from owmeta_core.dataobject import BaseDataObject
         import transaction
-        dctx = self._default_ctx
-        query = dctx.stored(BaseDataObject)(ident=self._den3(subject))
-        with transaction.manager:
-            for ob in query.load():
-                getattr(dctx(ob), property)(object)
-            dctx.save()
+        with transaction.manager, self.connect() as conn:
+            conn.rdf.get_context(self._default_ctx.identifier).add((
+                self._den3(subject),
+                self._den3(property),
+                self._den3(object)))
 
     def set_default_context(self, context, user=False):
         '''
@@ -1526,6 +1559,12 @@ class OWM(object):
 
                 write_config(default, of)
 
+    def repository(self):
+        repo = self.repository_provider
+        if exists(self.owmdir):
+            repo.base = self.owmdir
+        return repo
+
     def _init_repository(self, reinit):
         if self.repository_provider is not None:
             self.repository_provider.init(base=self.owmdir)
@@ -1543,8 +1582,7 @@ class OWM(object):
         if not s:
             return s
         from rdflib.namespace import is_ncname
-        conf = self._conf()
-        nm = conf['rdf.graph'].namespace_manager
+        nm = self._conf('rdf.namespace_manager')
         if s.startswith('<') and s.endswith('>'):
             return URIRef(s.strip(u'<>'))
         parts = s.split(':')
@@ -2034,37 +2072,49 @@ class OWM(object):
         else:
             return self._conf('rdf.graph')
 
-    def commit(self, message):
+    def commit(self, message, skip_serialization=False):
         '''
-        Write the graph to the local repository
+        Write the graph and configuration changes to the local repository
 
         Parameters
         ----------
         message : str
             commit message
+        skip_serialization : bool
+            If set, then skip graph serialization. Useful if you have manually changed the
+            graph serialization or just want to commit changes to project configuration
         '''
-        repo = self.repository_provider
-        with self.connect():
-            self._serialize_graphs()
+        repo = self.repository()
+        if not skip_serialization:
+            with self.connect():
+                try:
+                    self._serialize_graphs()
+                except DirtyProjectRepository:
+                    raise GenericUserError(
+                            'The project repository has uncommitted changes.'
+                            ' Undo the changes or commit them (e.g., by'
+                            ' re-running this command with --serialize-graphs)')
+        # TODO: Consider allowing some plugin system to allow other configuration to add
+        # files to the repo.
         repo.commit(message)
 
     def _changed_contexts_set(self):
+        # XXX: This method used to try to determine if a context had been updated since
+        # the corresponding file had changed, but it was really unreliable.
         gf_index = {URIRef(y): x for x, y in self._graphs_index()}
-        gfkeys = set(gf_index.keys())
-        return gfkeys
+        return set(gf_index.keys())
 
     def _serialize_graphs(self, ignore_change_cache=False):
         import transaction
         g = self.own_rdf
-        repo = self.repository_provider
+        repo = self.repository()
 
-        repo.base = self.owmdir
         graphs_base = pth_join(self.owmdir, 'graphs')
 
         changed = self._changed_contexts_set()
 
-        if changed or repo.is_dirty:
-            repo.reset()
+        if repo.is_dirty(path=graphs_base):
+            repo.reset(graphs_base)
 
         if not exists(graphs_base):
             mkdir(graphs_base)
@@ -2102,18 +2152,20 @@ class OWM(object):
                 files.append(fname)
                 deleted_contexts.pop(str(ident), None)
 
-        index_fname = pth_join(graphs_base, 'index')
-        with open(index_fname, 'w') as index_file:
-            for l in sorted(ctx_data):
-                print(*l, file=index_file, end='\n')
+        if ctx_data:
+            index_fname = pth_join(graphs_base, 'index')
+            with open(index_fname, 'w') as index_file:
+                for l in sorted(ctx_data):
+                    print(*l, file=index_file, end='\n')
+            files.append(index_fname)
 
         if deleted_contexts:
             repo.remove(relpath(f, self.owmdir) for f in deleted_contexts.values())
             for f in deleted_contexts.values():
                 unlink(f)
 
-        files.append(index_fname)
-        repo.add([relpath(f, self.owmdir) for f in files] + [relpath(self.config_file, self.owmdir)])
+        if files:
+            repo.add([relpath(f, self.owmdir) for f in files])
 
     def diff(self, color=False):
         """
@@ -2125,15 +2177,23 @@ class OWM(object):
             If set, then ANSI color escape codes will be incorporated into diff output.
             Default is to output without color.
         """
+        try:
+            self._diff_helper(color)
+        finally:
+            # Reset the graphs directory. It should represent the commited graph always
+            rep = self.repository()
+            if rep.is_dirty(path='graphs'):
+                rep.reset('graphs')
+
+    def _diff_helper(self, color):
         from difflib import unified_diff
         from os.path import basename
 
-        r = self.repository_provider
+        r = self.repository()
         try:
             with self.connect():
                 self._serialize_graphs(ignore_change_cache=False)
         except Exception:
-            r.reset()
             L.exception("Could not serialize graphs")
             raise GenericUserError("Could not serialize graphs")
 
@@ -2857,3 +2917,11 @@ class AlreadyDisconnected(Exception):
     '''
     def __init__(self, owm):
         super().__init__(f'Already disconnected {owm}')
+
+
+class DirtyProjectRepository(Exception):
+    '''
+    Thrown when we're about to commit, but the project repository has changes to the
+    graphs such that it's not safe to just re-serialize the indexed database over the
+    graphs.
+    '''

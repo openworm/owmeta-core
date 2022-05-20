@@ -67,8 +67,8 @@ def test_no_write_dependency_on_commit(custom_bundle, owm_project):
         print('COMMIT OUTPUT')
         print(commit_output)
 
-        with open(p(owm_project.testdir, '.owm', 'graphs', 'index')) as f:
-            assert list(f.readlines()) == []
+        with raises(FileNotFoundError):
+            open(p(owm_project.testdir, '.owm', 'graphs', 'index')).close()
 
 
 def test_save_classes(owm_project):

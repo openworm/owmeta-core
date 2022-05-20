@@ -123,10 +123,11 @@ class CLIArgMapper(object):
                 #
                 # Also, this is a programmer error. End-users shouldn't hit this
                 raise Exception('Missing arguments to method ' + str(self.methodname))
-            for k, v in iattrs.items():
-                setattr(runner, k, v)
 
             return runmethod(*(tuple(args) + tuple(nargs)), **kwargs)
+
+        for k, v in iattrs.items():
+            setattr(runner, k, v)
 
         if callable(runner) and self.runner_mapper:
             if runmethod is not None:

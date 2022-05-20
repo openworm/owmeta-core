@@ -771,7 +771,7 @@ class GitCommandTest(BaseTest):
         self.cut.clone(pd)
         self.assertTrue(exists(self.cut.store_name), msg=self.cut.store_name)
 
-    def test_reset_resets_add(self):
+    def test_commit_outside_files(self):
         self.cut.init(default_context_id='http://example.org/')
 
         self._add_to_graph()
@@ -786,9 +786,9 @@ class GitCommandTest(BaseTest):
 
         self.cut.commit('Commit Message 2')
 
-        self.assertNotIn('something', [x[0] for x in repo.index.entries])
+        self.assertIn('something', [x[0] for x in repo.index.entries])
 
-    def test_reset_resets_remove(self):
+    def test_commit_uncommitted_graph_changes(self):
         self.cut.init(default_context_id='http://example.org/')
 
         self._add_to_graph()
@@ -802,8 +802,6 @@ class GitCommandTest(BaseTest):
         repo.index.remove([p('graphs', 'index')])
 
         self.cut.commit('Commit Message 2')
-
-        self.assertIn(p('graphs', 'index'), [x[0] for x in repo.index.entries])
 
     def test_git_passthrough_no_owmdir(self):
         with raises(GenericUserError, match=r'[cC]annot find .*\.owm.*'):

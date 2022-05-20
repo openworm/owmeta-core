@@ -1,3 +1,5 @@
+from os.path import exists
+
 from git import Repo
 
 
@@ -17,9 +19,12 @@ class GitRepoProvider(object):
     def remove(self, files, recursive=False):
         self.repo().index.remove(files, r=recursive)
 
-    def reset(self):
+    def reset(self, *paths):
         from git.refs.head import HEAD
-        HEAD(self.repo()).reset(working_tree=True)
+        repo = self.repo()
+        HEAD(repo).reset(paths=paths)
+        paths = [p for p in paths if exists(p)]
+        repo.index.checkout(paths=paths, force=True)
 
     def commit(self, msg):
         self.repo().index.commit(msg)
@@ -34,9 +39,8 @@ class GitRepoProvider(object):
             progress = _CloneProgress(progress)
         Repo.clone_from(url, base, progress=progress, **kwargs)
 
-    @property
-    def is_dirty(self):
-        return self.repo().is_dirty()
+    def is_dirty(self, path=None):
+        return self.repo().is_dirty(path=path)
 
 
 class _CloneProgress(object):

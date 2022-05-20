@@ -40,6 +40,17 @@ CLI_HINTS = {
                 'names': ['data_sources'],
             },
         },
+        'retract': {
+            (METHOD_NAMED_ARG, 'subject'): {
+                'names': ['subject']
+            },
+            (METHOD_NAMED_ARG, 'property'): {
+                'names': ['property']
+            },
+            (METHOD_NAMED_ARG, 'object'): {
+                'names': ['object']
+            }
+        },
         'say': {
             (METHOD_NAMED_ARG, 'subject'): {
                 'names': ['subject']
@@ -70,7 +81,7 @@ CLI_HINTS = {
             },
         },
         'IGNORE': ['message', 'progress_reporter', 'prompt', 'connect', 'disconnect', 'rdf', 'default_context',
-                'connected', 'cleanup_manager', 'own_rdf']
+                'connected', 'cleanup_manager', 'own_rdf', 'repository']
     },
     'owmeta_core.command.OWMRegistryModuleAccessShow': {
         '__call__': {
