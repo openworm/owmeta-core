@@ -841,3 +841,27 @@ def test_regendb(owm_project):
     with owm.connect(read_only=True) as conn, transaction.manager:
         assert (EX.s, EX.p, EX.o) in conn.rdf
         assert (EX.s, EX.p, EX.o1) not in conn.rdf
+
+
+def test_say_with_ns(owm_project):
+    owm_project.sh('owm namespace bind ex http://example.org/')
+    owm_project.sh('owm say ex:a rdf:type rdfs:Class', stderr=PIPE)
+
+
+def test_commit_namespaces(owm_project):
+    pre, uri = 'ex', 'http://example.org/'
+    owm_project.sh(f'owm namespace bind {pre} {uri}')
+    owm_project.sh('owm commit -m "commit 1"')
+    owm_project.sh('owm regendb')
+    with owm_project.owm().connect() as conn:
+        nm = conn.conf['rdf.namespace_manager']
+        assert (pre, URIRef(uri)) in list(nm.namespaces())
+
+
+def test_regendb_clears_namespaces(owm_project):
+    pre, uri = 'ex', 'http://example.org/'
+    owm_project.sh(f'owm namespace bind {pre} {uri}')
+    owm_project.sh('owm regendb')
+    with owm_project.owm().connect() as conn:
+        nm = conn.conf['rdf.namespace_manager']
+        assert (pre, uri) not in list(nm.namespaces())
