@@ -1291,6 +1291,17 @@ class OWM(object):
     def store_name(self, val):
         self._store_name = val
 
+    @IVar.property('nm.db')
+    def namespace_manager_store_name(self):
+        ''' The file name of the namespace database store '''
+        if isabs(self._nm_store_name):
+            return self._nm_store_name
+        return pth_join(self.owmdir, self._nm_store_name)
+
+    @namespace_manager_store_name.setter
+    def namespace_manager_store_name(self, val):
+        self._nm_store_name = val
+
     @IVar.property('temp')
     def temporary_directory(self):
         ''' The base temporary directory for any operations that need one '''
@@ -1540,7 +1551,8 @@ class OWM(object):
                 default['rdf.store_conf'] = pth_join('$OWM',
                         relpath(abspath(self.store_name), abspath(self.owmdir)))
                 default[NAMESPACE_MANAGER_STORE_KEY] = 'FileStorageZODB'
-                default[NAMESPACE_MANAGER_STORE_CONF_KEY] = pth_join('$OWM', 'nm.db')
+                default[NAMESPACE_MANAGER_STORE_CONF_KEY] = pth_join('$OWM',
+                        relpath(abspath(self.namespace_manager_store_name), abspath(self.owmdir)))
 
                 if not default_context_id and not self.non_interactive:
                     default_context_id = self.prompt(dedent('''\
@@ -1823,6 +1835,13 @@ class OWM(object):
             except IsADirectoryError:
                 shutil.rmtree(g)
 
+        for g in glob(self.namespace_manager_store_name + '*'):
+            self.message('unlink', g)
+            try:
+                unlink(g)
+            except IsADirectoryError:
+                shutil.rmtree(g)
+
         with self.connect():
             self._regenerate_database()
 
@@ -1848,7 +1867,7 @@ class OWM(object):
                 with transaction.manager:
                     bag = BatchAddGraph(dest, batchsize=10000)
                     for l in index_file:
-                        fname, ctx = l.strip().split(' ')
+                        fname, ctx = l.strip().split(' ', 1)
                         parser = plugin.get('nt', Parser)()
                         graph_fname = pth_join(self.owmdir, 'graphs', fname)
                         with open(graph_fname, 'rb') as f, bag.get_context(ctx) as g:
@@ -1859,6 +1878,19 @@ class OWM(object):
                         triples_read = g.count
                     progress.write('Finalizing writes to database...')
         progress.write('Loaded {:,} triples'.format(triples_read))
+        ns_fname = pth_join(self.owmdir, 'namespaces')
+        try:
+            ns_file = open(ns_fname, 'r')
+        except FileNotFoundError:
+            L.debug('No namespaces file to load at %s', ns_fname)
+        else:
+            with ns_file:
+                for l in ns_file:
+                    l = l.rstrip()
+                    if not l:
+                        continue
+                    prefix, uri = l.split(' ', 1)
+                    self.namespace_manager.bind(prefix, URIRef(uri))
 
     def _graphs_index(self):
         idx_fname = pth_join(self.owmdir, 'graphs', 'index')
@@ -1903,7 +1935,7 @@ class OWM(object):
                 l_str = l.decode('UTF-8')
             else:
                 l_str = l
-            yield l_str.split(' ')
+            yield l_str.split(' ', 1)
 
     def translate(self, translator, output_key=None, output_identifier=None,
                   data_sources=(), named_data_sources=None):
@@ -2158,9 +2190,11 @@ class OWM(object):
                 ctx_data.append((relpath(fname, graphs_base), ident))
                 files.append(fname)
                 deleted_contexts.pop(str(ident), None)
+
             with open(namespaces_fname, 'w') as f:
                 for pre, uri in self.namespace_manager.namespaces():
                     f.write(f'{pre} {uri}\n')
+            files.append(namespaces_fname)
 
         if ctx_data:
             index_fname = pth_join(graphs_base, 'index')
