@@ -67,8 +67,8 @@ def test_no_write_dependency_on_commit(custom_bundle, owm_project):
         print('COMMIT OUTPUT')
         print(commit_output)
 
-        with open(p(owm_project.testdir, '.owm', 'graphs', 'index')) as f:
-            assert list(f.readlines()) == []
+        with raises(FileNotFoundError):
+            open(p(owm_project.testdir, '.owm', 'graphs', 'index')).close()
 
 
 def test_save_classes(owm_project):
@@ -504,6 +504,42 @@ def test_save_class_resolve_class(owm_project):
                 TestDataSource.definition_context) is not None
 
 
+def test_save_class_binds_class_namespace(owm_project):
+    from .test_modules.owmclitest03_monkey import Monkey
+    owm_project.make_module('tests')
+    owm_project.copy('tests/test_modules', 'tests/test_modules')
+    print(owm_project.sh('owm save tests.test_modules.owmclitest03_monkey'))
+    owm = owm_project.owm()
+    with owm.connect() as conn:
+        expected = ('Monkey', URIRef(Monkey.rdf_namespace))
+        for binding in conn.conf['rdf.namespace_manager'].namespaces():
+            if binding == expected:
+                break
+        else: # no break
+            assert False, f"Expected {expected} to be among namespace bindings"
+
+
+def test_save_class_with_project_dependencies_binds_class_namespace(owm_project,
+        test_bundle):
+    from .test_modules.owmclitest03_monkey import Monkey
+    owm0 = owm_project.owm(non_interactive=True)
+    owm0.config.set('dependencies', json.dumps([{
+        'id': test_bundle.descriptor.id,
+        'version': test_bundle.descriptor.version}]))
+
+    owm_project.make_module('tests')
+    owm_project.copy('tests/test_modules', 'tests/test_modules')
+    print(owm_project.sh('owm save tests.test_modules.owmclitest03_monkey'))
+    owm = owm_project.owm()
+    with owm.connect() as conn:
+        expected = ('Monkey', URIRef(Monkey.rdf_namespace))
+        for binding in conn.conf['rdf.namespace_manager'].namespaces():
+            if binding == expected:
+                break
+        else: # no break
+            assert False, f"Expected {expected} to be among namespace bindings"
+
+
 def test_contexts_list_imports(owm_project):
     owm = owm_project.owm()
     ctx1_id = 'http://example.org/context#ctx1'
@@ -808,5 +844,24 @@ def test_regendb(owm_project):
 
 
 def test_say_with_ns(owm_project):
-    owm_project.sh(f'owm namespace bind ex http://example.org/')
-    owm_project.sh(f'owm say ex:a rdf:type rdfs:Class', stderr=PIPE)
+    owm_project.sh('owm namespace bind ex http://example.org/')
+    owm_project.sh('owm say ex:a rdf:type rdfs:Class', stderr=PIPE)
+
+
+def test_commit_namespaces(owm_project):
+    pre, uri = 'ex', 'http://example.org/'
+    owm_project.sh(f'owm namespace bind {pre} {uri}')
+    owm_project.sh('owm commit -m "commit 1"')
+    owm_project.sh('owm regendb')
+    with owm_project.owm().connect() as conn:
+        nm = conn.conf['rdf.namespace_manager']
+        assert (pre, URIRef(uri)) in list(nm.namespaces())
+
+
+def test_regendb_clears_namespaces(owm_project):
+    pre, uri = 'ex', 'http://example.org/'
+    owm_project.sh(f'owm namespace bind {pre} {uri}')
+    owm_project.sh('owm regendb')
+    with owm_project.owm().connect() as conn:
+        nm = conn.conf['rdf.namespace_manager']
+        assert (pre, uri) not in list(nm.namespaces())

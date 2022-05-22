@@ -65,8 +65,14 @@ core_bundle = fixture(bundle_fixture_helper('openworm/owmeta-core'))
 
 
 @fixture
-def test_bundle():
-    with bundle_helper(Descriptor('test')) as data:
+def test_bundle(request):
+    desc = Descriptor('test')
+    if 'owm_project' in request.fixturenames:
+        owm_project = request.getfixturevalue('owm_project')
+        bh = bundle_helper(desc, homedir=owm_project.test_homedir)
+    else:
+        bh = bundle_helper(desc)
+    with bh as data:
         yield data
 
 

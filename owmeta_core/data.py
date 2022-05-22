@@ -31,6 +31,9 @@ L = logging.getLogger(__name__)
 
 ALLOW_UNCONNECTED_DATA_USERS = True
 
+NAMESPACE_MANAGER_KEY = 'rdf.namespace_manager'
+NAMESPACE_MANAGER_STORE_KEY = 'rdf.namespace_manager.store'
+NAMESPACE_MANAGER_STORE_CONF_KEY = 'rdf.namespace_manager.store_conf'
 
 _B_UNSET = object()
 
@@ -133,7 +136,7 @@ class DataUser(Configurable):
 
     @property
     def namespace_manager(self):
-        return self.conf.get('rdf.namespace_manager', None)
+        return self.conf.get(NAMESPACE_MANAGER_KEY, None)
 
     def _remove_from_store(self, g):
         # Note the assymetry with _add_to_store. You must add actual elements, but deletes
@@ -321,15 +324,28 @@ class Data(Configuration):
     def init(self):
         """ Open the configured database """
         self._init_rdf_graph()
-        L.debug("opening " + str(self.source))
+        L.debug("opening %s", self.source)
         try:
             self.source.open()
         except OpenFailError as e:
             L.error('Failed to open the data source because: %s', e)
             raise
 
-        nm = NamespaceManager(self['rdf.graph'])
-        self['rdf.namespace_manager'] = nm
+        nm_store = self.get(NAMESPACE_MANAGER_STORE_KEY, None)
+        if nm_store is not None:
+            # the graph here is just for the reference to the store, so we don't need the
+            # extra stuff that comes with the "sources"
+            nm_graph = Graph(self[NAMESPACE_MANAGER_STORE_KEY])
+            nm_store_conf = self.get(NAMESPACE_MANAGER_STORE_CONF_KEY, None)
+            # If there's no store conf, this store is assumed to be already "opened" upon
+            # construction
+            if nm_store_conf is not None:
+                nm_graph.open(nm_store_conf)
+            nm = NamespaceManager(nm_graph)
+
+        else:
+            nm = NamespaceManager(self['rdf.graph'])
+        self[NAMESPACE_MANAGER_KEY] = nm
         self['rdf.graph'].namespace_manager = nm
 
         # A runtime version number for the graph should update for all changes
@@ -367,6 +383,10 @@ class Data(Configuration):
 
     def destroy(self):
         """ Close a the configured database """
+        graph = self.source.get()
+        nm = self.get(NAMESPACE_MANAGER_KEY, None)
+        if nm is not None and nm.graph is not graph:
+            nm.graph.close(commit_pending_transaction=True)
         self.source.close()
         try:
             ACTIVE_CONNECTIONS.remove(self)
