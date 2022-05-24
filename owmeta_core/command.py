@@ -37,6 +37,7 @@ from pkg_resources import iter_entry_points, DistributionNotFound
 import rdflib
 from rdflib.term import URIRef, Identifier
 from rdflib.graph import DATASET_DEFAULT_GRAPH_ID
+import transaction
 
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
                            DEFAULT_OWM_DIR)
@@ -224,7 +225,6 @@ class OWMSource(object):
         *data_source : str
             ID of the source to remove
         '''
-        import transaction
         from .datasource import DataSource
         with self._parent.connect(), transaction.manager:
             for ds in data_source:
@@ -302,7 +302,6 @@ class OWMTranslator(object):
         translator_type : str
             RDF type for the translator class
         '''
-        import transaction
 
         with self._parent.connect():
             ctx = self._parent._default_ctx
@@ -357,7 +356,6 @@ class OWMTranslator(object):
         *translator : str
             ID of the source to remove
         '''
-        import transaction
         from .datasource import DataTranslator
         with self._parent.connect(), transaction.manager:
             for dt in translator:
@@ -384,7 +382,6 @@ class OWMTypes(object):
         *type : str
             Types to remove
         '''
-        import transaction
         with transaction.manager:
             with self._parent.connect() as conn:
                 for class_id in type:
@@ -418,7 +415,7 @@ class OWMNamespace(object):
         uri : str
             Namespace URI to bind to a prefix
         '''
-        with self._parent.connect():
+        with self._parent.connect(), transaction.manager:
             self._parent.namespace_manager.bind(prefix, uri)
 
     def list(self):
@@ -828,7 +825,6 @@ class OWMContexts(object):
         imported : list str
             The imported context
         '''
-        import transaction
 
         importer_ctx = self._parent._context(Context)(importer)
         with self._parent.connect(), transaction.manager:
@@ -847,7 +843,6 @@ class OWMContexts(object):
         imported : list of str
             An imported context
         '''
-        import transaction
         with self._parent.connect():
             imports_ctxid = self._parent.imports_context()
             imports_ctx = self._parent._context(Context)(imports_ctxid).stored
@@ -882,7 +877,6 @@ class OWMContexts(object):
         *context : str
             Context to remove
         '''
-        import transaction
         with self._parent.connect():
             graph = self._parent.own_rdf
             with transaction.manager:
@@ -942,7 +936,6 @@ class OWMRegistryModuleAccessDeclare:
         # module access description could "diffract" into different platform and OS
         # specifications depending on which context they are employed in. In other words,
         # we don't have sufficient information to meaningfully add platform info here.
-        import transaction
 
         dist = None
 
@@ -1204,7 +1197,6 @@ class OWMRegistry(object):
         *registry_entry : str
             Registry entry to remove
         '''
-        import transaction
 
         with transaction.manager:
             for re in registry_entry:
@@ -1386,7 +1378,6 @@ class OWM(object):
         context : str
             The target context. The default context is used
         '''
-        import transaction
         import importlib as IM
         from functools import wraps
         with self.connect() as conn:
@@ -1478,7 +1469,6 @@ class OWM(object):
         object : str
             The other object you want to say something about. optional
         '''
-        import transaction
         with transaction.manager, self.connect() as conn:
             conn.rdf.get_context(self._default_ctx.identifier).remove((
                 None if subject == 'ANY' else self._den3(subject),
@@ -1498,7 +1488,6 @@ class OWM(object):
         object : str
             The other object you want to say something about
         '''
-        import transaction
         with transaction.manager, self.connect() as conn:
             conn.rdf.get_context(self._default_ctx.identifier).add((
                 self._den3(subject),
@@ -1904,7 +1893,6 @@ class OWM(object):
             self._load_all_graphs(ctx_prog, trip_prog)
 
     def _load_all_graphs(self, progress, trip_prog):
-        import transaction
         from rdflib import plugin
         from rdflib.parser import Parser, create_input_source
         idx_fname = pth_join(self.owmdir, 'graphs', 'index')
@@ -2009,7 +1997,6 @@ class OWM(object):
             Named input data sources
         """
         with self.connect():
-            import transaction
             from .datasource import transform, DataTransformer, DataSource
             source_objs = []
             srcctx = self._default_ctx.stored
@@ -2093,7 +2080,6 @@ class OWM(object):
             self._data_source_directories = dsd
 
     def _cap_provs(self):
-        import transaction
         return [DataSourceDirectoryProvider(self._dsd),
                 WorkingDirectoryProvider(),
                 TransactionalDataSourceDirProvider(pth_join(self.owmdir, 'ds_files'),
@@ -2196,7 +2182,6 @@ class OWM(object):
         return set(gf_index.keys())
 
     def _serialize_graphs(self, ignore_change_cache=False):
-        import transaction
         g = self.own_rdf
         repo = self.repository()
 
@@ -2418,7 +2403,6 @@ class OWM(object):
         id : str
             The identifier for the object
         '''
-        import transaction
         try:
             cls = retrieve_provider(python_type)
         except (AttributeError, ModuleNotFoundError) as e:
