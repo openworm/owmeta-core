@@ -10,11 +10,13 @@ from subprocess import CalledProcessError, PIPE
 
 import transaction
 from pytest import mark, fixture, raises
+from ZODB.POSException import ReadOnlyError
 
 from owmeta_core import BASE_CONTEXT
 from owmeta_core.command import OWM
 from owmeta_core.context import Context, IMPORTS_CONTEXT_KEY, DEFAULT_CONTEXT_KEY
 from owmeta_core.context_common import CONTEXT_IMPORTS
+from owmeta_core.data import NAMESPACE_MANAGER_KEY
 from owmeta_core.data_trans.local_file_ds import LocalFileDataSource as LFDS
 from owmeta_core.dataobject import DataObject
 from owmeta_core.datasource import DataTranslator, DataSource, Transformation, Translation
@@ -846,6 +848,13 @@ def test_regendb(owm_project):
 def test_say_with_ns(owm_project):
     owm_project.sh('owm namespace bind ex http://example.org/')
     owm_project.sh('owm say ex:a rdf:type rdfs:Class', stderr=PIPE)
+
+
+def test_bind_fails_for_read_only(owm_project):
+    with owm_project.owm().connect(read_only=True) as conn:
+        with raises(ReadOnlyError):
+            with transaction.manager:
+                conn.conf[NAMESPACE_MANAGER_KEY].bind('ex', URIRef('http://example.org/'))
 
 
 def test_commit_namespaces(owm_project):

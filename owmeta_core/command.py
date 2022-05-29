@@ -80,6 +80,8 @@ DSD_DIRKEY = 'owmeta_core.command.OWMDirDataSourceDirLoader'
 Key used for data source directory loader and file path provider
 '''
 
+DEFAULT_NS_MANAGER_STORE = 'FileStorageZODB'
+
 
 class OWMSource(object):
     ''' Commands for working with DataSource objects '''
@@ -1590,7 +1592,7 @@ class OWM(object):
             with open(self.config_file, 'w') as of:
                 default['rdf.store_conf'] = pth_join('$OWM',
                         relpath(abspath(self.store_name), abspath(self.owmdir)))
-                default[NAMESPACE_MANAGER_STORE_KEY] = 'FileStorageZODB'
+                default[NAMESPACE_MANAGER_STORE_KEY] = DEFAULT_NS_MANAGER_STORE
                 default[NAMESPACE_MANAGER_STORE_CONF_KEY] = pth_join('$OWM',
                         relpath(abspath(self.namespace_manager_store_name), abspath(self.owmdir)))
 
@@ -1698,7 +1700,9 @@ class OWM(object):
         method can be made without calling `disconnect` on the resulting connection object,
         but only if `read_only` has the same value for all calls.
 
-        can be mad
+        Read-only connections can only be made with the default stores: if you have
+        configured your own store and you want the connection to be read-only, you must
+        change the configuration to make it read-only before calling `connect`.
 
         Parameters
         ----------
@@ -1756,6 +1760,39 @@ class OWM(object):
                     not abspath(store_conf).startswith(abspath(self.owmdir))):
                 raise GenericUserError('rdf.store_conf must specify a path inside of ' +
                         self.owmdir + ' but instead it is ' + store_conf)
+            # If `store_conf` is a dict, we just assume the person who set up the configs
+            # new what they were doing, so no additional checks...
+
+            # We were asked to open read-only, we only know how to tell our default store
+            # how to be read-only, so we check for that
+            if read_only and NAMESPACE_MANAGER_STORE_KEY in dat:
+                ns_store = dat[NAMESPACE_MANAGER_STORE_KEY]
+
+                if ns_store != DEFAULT_NS_MANAGER_STORE:
+                    # We don't how to ensure the namespace manager store is read-only
+                    raise GenericUserError('Unable to handle `read_only` for'
+                            f' namespace manager store, "{ns_store}". Only'
+                            f' {DEFAULT_NS_MANAGER_STORE} is supported.')
+
+                # We don't check this separately from the read_only check because we don't
+                # care whether there's a configuration otherwise -- it's possible to have
+                # a store that doesn't require a separate conf, but our default store does
+                try:
+                    ns_store_conf = dat[NAMESPACE_MANAGER_STORE_CONF_KEY]
+                except KeyError as e:
+                    raise GenericUserError('A separate namespace manager store was'
+                            ' declared, but the configuration for the store,'
+                            f' "{NAMESPACE_MANAGER_STORE_CONF_KEY}", is missing') from e
+
+                if isinstance(ns_store_conf, str):
+                    ns_store_conf = dict(url=ns_store_conf, read_only=True)
+                elif isinstance(ns_store_conf, dict):
+                    ns_store_conf['read_only'] = True
+                else:
+                    raise GenericUserError('Unable to configure namespace manager store'
+                            f' as read-only with "{NAMESPACE_MANAGER_STORE_CONF_KEY}":'
+                            f' {ns_store_conf!r}')
+                dat[NAMESPACE_MANAGER_STORE_CONF_KEY] = ns_store_conf
 
             deps = dat.get('dependencies', None)
             if deps:

@@ -14,9 +14,10 @@ import git
 from owmeta_core.git_repo import GitRepoProvider, _CloneProgress
 
 from owmeta_core.command import (OWM, UnreadableGraphException, StatementValidationError,
-                            OWMConfig, OWMSource, OWMTranslator,
+                            OWMConfig, OWMSource, OWMTranslator, DEFAULT_NS_MANAGER_STORE,
                             DEFAULT_SAVE_CALLABLE_NAME, OWMDirDataSourceDirLoader, _DSD)
 from owmeta_core.context import DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY, Context
+from owmeta_core.data import NAMESPACE_MANAGER_STORE_KEY, NAMESPACE_MANAGER_STORE_CONF_KEY
 from owmeta_core.mapper import CLASS_REGISTRY_CONTEXT_KEY
 from owmeta_core.context_common import CONTEXT_IMPORTS
 from owmeta_core.bittorrent import BitTorrentDataSourceDirLoader
@@ -552,6 +553,22 @@ class OWMTest(BaseTest):
         self._init_conf({DEFAULT_CONTEXT_KEY: 'http://example.org/orig_default_ctx'})
         self.cut.context = 'http://example.org/context_option'
         assert URIRef('http://example.org/context_option') == self.cut._default_ctx.identifier
+
+    def test_missing_namespace_manager_conf_for_read_only(self):
+        self._init_conf({NAMESPACE_MANAGER_STORE_KEY: DEFAULT_NS_MANAGER_STORE})
+        with raises(GenericUserError, match=NAMESPACE_MANAGER_STORE_KEY):
+            self.cut.connect(read_only=True)
+
+    def test_non_default_namespace_manager_fails_read_only(self):
+        self._init_conf({NAMESPACE_MANAGER_STORE_KEY: 'Memory'})
+        with raises(GenericUserError, match=fr'Memory.*{DEFAULT_NS_MANAGER_STORE}'):
+            self.cut.connect(read_only=True)
+
+    def test_unsupported_namespace_manager_conf_for_read_only(self):
+        self._init_conf({NAMESPACE_MANAGER_STORE_KEY: DEFAULT_NS_MANAGER_STORE,
+            NAMESPACE_MANAGER_STORE_CONF_KEY: ['unhelpful']})
+        with raises(GenericUserError, match=NAMESPACE_MANAGER_STORE_CONF_KEY):
+            self.cut.connect(read_only=True)
 
 
 class OWMTranslatorTest(unittest.TestCase):
