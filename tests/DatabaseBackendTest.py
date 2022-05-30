@@ -11,7 +11,7 @@ from pytest import mark
 import rdflib as R
 import transaction
 
-from owmeta_core.data import Data
+from owmeta_core.data import Data, NAMESPACE_MANAGER_KEY, TRANSACTION_MANAGER_KEY
 
 from .GraphDBInit import make_graph, has_bsddb
 
@@ -34,7 +34,9 @@ class _DatabaseBackendBT(object):
 
     def test_namespace_manager(self):
         self.dat.init()
-        self.assertIsInstance(self.dat['rdf.namespace_manager'], R.namespace.NamespaceManager)
+        self.assertIsInstance(
+                self.dat[NAMESPACE_MANAGER_KEY],
+                R.namespace.NamespaceManager)
 
     def test_init_no_rdf_store(self):
         """ Should be able to init without these values """
@@ -43,8 +45,8 @@ class _DatabaseBackendBT(object):
 
     def test(self):
         try:
-            with transaction.manager:
-                self.dat.init()
+            self.dat.init()
+            with self.dat[TRANSACTION_MANAGER_KEY]:
                 g = make_graph(20)
                 for x in g:
                     self.dat['rdf.graph'].add(x)
@@ -57,8 +59,8 @@ class _DatabaseBackendBT(object):
 
     def test_add_dupes_len(self):
         try:
-            with transaction.manager:
-                self.dat.init()
+            self.dat.init()
+            with self.dat[TRANSACTION_MANAGER_KEY]:
                 g = make_graph(20)
                 for x in g:
                     self.dat['rdf.graph'].add(x)

@@ -1681,7 +1681,7 @@ class OWM:
             If True, imports of the named context will be included. Has no
             effect if context is None.
         """
-        with self.connect():
+        with self.connect(), self.transaction_manager:
             graph = self.fetch_graph(url)
             self._conf('rdf.graph').addN(graph.quads((None, None, None, context)))
 
@@ -1803,7 +1803,8 @@ class OWM:
                 cfg_builder = BundleDependentStoreConfigBuilder(bundles_directory=bundles_directory,
                                                                 remotes_directory=remotes_directory,
                                                                 remotes=project_remotes,
-                                                                read_only=read_only)
+                                                                read_only=read_only,
+                                                                transaction_manager=dat[TRANSACTION_MANAGER_KEY])
                 store_name, store_conf = cfg_builder.build(store_conf, deps)
                 dat['rdf.source'] = 'default'
                 dat['rdf.store'] = store_name

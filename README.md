@@ -20,15 +20,15 @@ First of all, owmeta-core wraps [RDFLib][rdflib]:
 
     >>> from owmeta_core import connect
     >>> with connect() as conn: # creates an in-memory graph
-    ...    conn.rdf
+    ...     conn.rdf
     <Graph identifier=... (<class 'rdflib.graph.Dataset'>)>
 
 That means you can do several of the same things as you would do with RDFLib
 alone.[^1] You can configure different backing stores as well:
 
     >>> with connect({"rdf.store": "FileStorageZODB",
-    ...              "rdf.store_conf": "./example.db"}) as conn:
-    ...    pass
+    ...               "rdf.store_conf": "./example.db"}) as conn:
+    ...     pass
 
 (This will make a few files, named like `example.db*`, in the current working
 directory.)
@@ -41,10 +41,11 @@ named graphs you want to include in the bundle, serializing them, and putting
 them in a particular file structure. Here's how you can do that:
 
     >>> from owmeta_core.bundle import Installer, Descriptor
+    >>> from owmeta_core.data import TRANSACTION_MANAGER_KEY
     >>> from rdflib.term import URIRef
     >>> import transaction
 
-    >>> with connect() as conn, transaction.manager:
+    >>> with connect() as conn, conn.conf[TRANSACTION_MANAGER_KEY]:
     ...     # add some stuff to http://example.org/ctx ...
     ...     g = conn.rdf.graph(URIRef('http://example.org/ctx'))
     ...     _ = g.add((URIRef('http://example.org/s'),

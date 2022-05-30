@@ -68,6 +68,19 @@ class DatabaseConflict(Exception):
     pass
 
 
+class _NamespaceManager(NamespaceManager):
+
+    def __init__(self, *args, **kwargs):
+        # Some B.S. we do to prevent RDFLib from binding namespaces during initialization
+        self.__allow_binds = False
+        super(_NamespaceManager, self).__init__(*args, **kwargs)
+        self.__allow_binds = True
+
+    def bind(self, *args, **kwargs):
+        if self.__allow_binds:
+            super().bind(*args, **kwargs)
+
+
 class DataUserUnconnected(Exception):
     def __init__(self, msg):
         super(DataUserUnconnected, self).__init__(str(msg) + ': No connection has been made for this data'
@@ -379,10 +392,10 @@ class Data(Configuration):
             # construction
             if nm_store_conf is not None:
                 nm_graph.open(nm_store_conf)
-            nm = NamespaceManager(nm_graph)
+            nm = _NamespaceManager(nm_graph)
 
         else:
-            nm = NamespaceManager(self['rdf.graph'])
+            nm = _NamespaceManager(self['rdf.graph'])
         self[NAMESPACE_MANAGER_KEY] = nm
         self['rdf.graph'].namespace_manager = nm
 
@@ -604,13 +617,15 @@ class ZODBSource(RDFSource):
                     'The PID of this process: {}'.format(openstr, os.getpid()), exc_info=True)
             raise DatabaseConflict('Database ' + openstr + ' locked')
 
+        tm = self.conf[TRANSACTION_MANAGER_KEY]
         self.zdb = ZODB.DB(fs, cache_size=1600)
-        self.conn = self.zdb.open(
-                transaction_manager=self.conf[TRANSACTION_MANAGER_KEY])
+        self.conn = self.zdb.open(transaction_manager=tm)
         root = self.conn.root()
+
         if 'rdflib' not in root:
             store = plugin.get('ZODB', Store)()
-            root['rdflib'] = store
+            with tm:
+                root['rdflib'] = store
         self.graph = Dataset(root['rdflib'], default_union=True)
         self.graph.open(openstr)
 

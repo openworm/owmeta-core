@@ -354,7 +354,7 @@ class Descriptor(object):
                         repr(self.dependencies))
 
 
-class Bundle(object):
+class Bundle:
     '''
     Main entry point for using bundles
 
@@ -368,7 +368,8 @@ class Bundle(object):
     '''
 
     def __init__(self, ident, bundles_directory=DEFAULT_BUNDLES_DIRECTORY, version=None,
-            conf=None, remotes=None, remotes_directory=DEFAULT_REMOTES_DIRECTORY):
+            conf=None, remotes=None, remotes_directory=DEFAULT_REMOTES_DIRECTORY,
+            transaction_manager=None):
         '''
         .. note::
 
@@ -396,6 +397,8 @@ class Bundle(object):
         remotes_directory : str, optional
             The directory to load `Remotes <Remote>` from in case a bundle is not in the
             bundle cache. Defaults to `.DEFAULT_REMOTES_DIRECTORY`
+        transaction_manager : transaction.interfaces.ITransactionManager, optional
+            Transaction manager
         '''
         if not ident or not isinstance(ident, str):
             raise ValueError('ident must be a non-empty string')
@@ -414,11 +417,17 @@ class Bundle(object):
             remotes_directory = DEFAULT_REMOTES_DIRECTORY
         self.remotes_directory = realpath(expandvars(expanduser(remotes_directory)))
 
+        if transaction_manager is not None:
+            self.transaction_manager = transaction_manager
+        else:
+            self.transaction_manager = BundleTransactionManager(explicit=True)
+
         self._store_config_builder = \
             BundleDependentStoreConfigBuilder(
                     bundles_directory=bundles_directory,
                     remotes_directory=remotes_directory,
-                    remotes=remotes)
+                    remotes=remotes,
+                    transaction_manager=self.transaction_manager)
 
         self._bundle_dep_mgr = BundleDependencyManager(
                 bundles_directory=self.bundles_directory,
@@ -721,7 +730,7 @@ class BundleDependentStoreConfigBuilder(object):
     dependencies
     '''
     def __init__(self, bundles_directory=None, remotes_directory=None, remotes=None,
-            read_only=True):
+            read_only=True, transaction_manager=None):
         if not bundles_directory:
             bundles_directory = DEFAULT_BUNDLES_DIRECTORY
         self.bundles_directory = realpath(expandvars(expanduser(bundles_directory)))
@@ -732,6 +741,7 @@ class BundleDependentStoreConfigBuilder(object):
 
         self.remotes = remotes
         self.read_only = read_only
+        self.transaction_manager = transaction_manager
 
     def build(self, indexed_db_path, dependencies, bundle_directory=None):
         '''
@@ -793,7 +803,8 @@ class BundleDependentStoreConfigBuilder(object):
             current_view_desc = _BDVD()
         dependency_configs = self._gather_dependency_configs(
                 dependencies, current_view_desc, view_descs, bundle_directory)
-        fs_store_config = dict(url=indexed_db_path, read_only=read_only)
+        fs_store_config = dict(url=indexed_db_path, read_only=read_only,
+                transaction_manager=self.transaction_manager)
         return [
             ('FileStorageZODB', fs_store_config)
         ] + dependency_configs
@@ -1804,3 +1815,9 @@ def build_indexed_database(dest, bundle_directory, progress=None, trip_prog=None
                 progress.write('Finalizing writes to database...')
     if progress is not None:
         progress.write('Loaded {:,} triples'.format(triples_read))
+
+
+class BundleTransactionManager(transaction.TransactionManager):
+    '''
+    Marker class useful in debugging to identify which txn manager we're using
+    '''
