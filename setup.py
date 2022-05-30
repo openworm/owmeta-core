@@ -32,11 +32,10 @@ setup(
     name='owmeta-core',
     zip_safe=False,
     install_requires=[
-        'BTrees',
         'cachecontrol[filecache]',
         'gitpython>=2.1.1',
         'Pint',
-        'pow-store-zodb>=0.0.11',
+        'pow-store-zodb>=0.2.0.dev0',
         'pyyaml',
         'rdflib>=4.1.2,!=6.0.0',
         'requests',
@@ -112,6 +111,7 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
         'Topic :: Scientific/Engineering'
     ]
 )
