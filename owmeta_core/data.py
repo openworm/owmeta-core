@@ -12,7 +12,7 @@ from rdflib.namespace import RDF, NamespaceManager
 import transaction
 from transaction.interfaces import NoTransaction
 
-from .utils import grouper
+from .utils import grouper, retrieve_provider
 from .configure import Configurable, Configuration, ConfigValue
 
 __all__ = [
@@ -32,8 +32,19 @@ L = logging.getLogger(__name__)
 ALLOW_UNCONNECTED_DATA_USERS = True
 
 NAMESPACE_MANAGER_KEY = 'rdf.namespace_manager'
+''' Constant for :confval:`rdf.namespace_manager` '''
+
 NAMESPACE_MANAGER_STORE_KEY = 'rdf.namespace_manager.store'
+''' Constant for :confval:`rdf.namespace_manager.store` '''
+
 NAMESPACE_MANAGER_STORE_CONF_KEY = 'rdf.namespace_manager.store_conf'
+''' Constant for :confval:`rdf.namespace_manager.store_conf` '''
+
+TRANSACTION_MANAGER_PROVIDER_KEY = 'transaction_manager.provider'
+''' Constant for :confval:`transaction_manager.provider` '''
+
+TRANSACTION_MANAGER_KEY = 'transaction_manager'
+''' Constant for :confval:`transaction_manager` '''
 
 _B_UNSET = object()
 
@@ -274,7 +285,26 @@ class Data(Configuration):
 
     .. confval:: rdf.namespace_manager
 
-        RDFLib Namespace Manager
+        RDFLib Namespace Manager. Typically, this is generated automatically during a call
+        to `init`
+
+    .. confval:: rdf.namespace_manager.store
+
+        RDFLib :doc:`store name <rdflib:plugin_stores>` specific to namespaces
+
+    .. confval:: rdf.namespace_manager.store_conf
+
+        Configuration for RDFLib store specified with
+        :confval:`rdf.namespace_manager.store`
+
+    .. confval:: transaction_manager.provider
+
+        Transaction manager
+
+    .. confval:: transaction_manager
+
+        Transaction manager for RDFLib stores. Should be passed to
+        `~transaction.interfaces.IDataManager` instances
 
     .. confval:: rdf.source
 
@@ -305,6 +335,14 @@ class Data(Configuration):
 
         self._cch = None
         self._listeners = dict()
+
+        tm_provider_name = self.get(TRANSACTION_MANAGER_PROVIDER_KEY, None)
+        if tm_provider_name is not None:
+            tm = retrieve_provider(tm_provider_name)()
+        else:
+            tm = transaction.ThreadTransactionManager()
+            tm.explicit = True
+        self[TRANSACTION_MANAGER_KEY] = tm
 
     @classmethod
     def load(cls, file_name):
@@ -567,7 +605,8 @@ class ZODBSource(RDFSource):
             raise DatabaseConflict('Database ' + openstr + ' locked')
 
         self.zdb = ZODB.DB(fs, cache_size=1600)
-        self.conn = self.zdb.open()
+        self.conn = self.zdb.open(
+                transaction_manager=self.conf[TRANSACTION_MANAGER_KEY])
         root = self.conn.root()
         if 'rdflib' not in root:
             store = plugin.get('ZODB', Store)()

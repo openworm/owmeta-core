@@ -37,7 +37,6 @@ from pkg_resources import iter_entry_points, DistributionNotFound
 import rdflib
 from rdflib.term import URIRef, Identifier
 from rdflib.graph import DATASET_DEFAULT_GRAPH_ID
-import transaction
 
 from .command_util import (IVar, SubCommand, GeneratorWithData, GenericUserError,
                            DEFAULT_OWM_DIR)
@@ -49,8 +48,10 @@ from .context import (Context, DEFAULT_CONTEXT_KEY, IMPORTS_CONTEXT_KEY)
 from .context_common import CONTEXT_IMPORTS
 from .capable_configurable import CAPABILITY_PROVIDERS_KEY
 from .capabilities import FilePathProvider
-from .data import (NAMESPACE_MANAGER_KEY, NAMESPACE_MANAGER_STORE_KEY,
-                   NAMESPACE_MANAGER_STORE_CONF_KEY)
+from .data import (NAMESPACE_MANAGER_KEY,
+                   NAMESPACE_MANAGER_STORE_KEY,
+                   NAMESPACE_MANAGER_STORE_CONF_KEY,
+                   TRANSACTION_MANAGER_KEY)
 from .dataobject import (DataObject, RDFSClass, RegistryEntry, PythonClassDescription,
                          PIPInstall, PythonPackage, PythonModule, Module, ClassDescription,
                          ModuleAccessor)
@@ -139,7 +140,7 @@ class OWMSource(object):
         List data sources derived from the one given
 
         Parameters
-        -----------
+        ----------
         data_source : str
             The ID of the data source to find derivatives of
         '''
@@ -228,7 +229,7 @@ class OWMSource(object):
             ID of the source to remove
         '''
         from .datasource import DataSource
-        with self._parent.connect(), transaction.manager:
+        with self._parent.connect(), self._parent.transaction_manager:
             for ds in data_source:
                 uri = self._parent._den3(ds)
                 ctx = self._parent._default_ctx.stored
@@ -311,7 +312,7 @@ class OWMTranslator(object):
             translator_cls = ctx.stored.resolve_class(translator_uri)
             if not translator_cls:
                 raise GenericUserError(f'Unable to find the class for {translator_type}')
-            with transaction.manager:
+            with self._parent.transaction_manager:
                 res = ctx(translator_cls)()
                 ctx.add_import(translator_cls.definition_context)
                 ctx.save()
@@ -359,7 +360,7 @@ class OWMTranslator(object):
             ID of the source to remove
         '''
         from .datasource import DataTranslator
-        with self._parent.connect(), transaction.manager:
+        with self._parent.connect(), self._parent.transaction_manager:
             for dt in translator:
                 uri = self._parent._den3(dt)
                 ctx = self._parent._default_ctx.stored
@@ -384,7 +385,7 @@ class OWMTypes(object):
         *type : str
             Types to remove
         '''
-        with transaction.manager:
+        with self._parent.transaction_manager:
             with self._parent.connect() as conn:
                 for class_id in type:
                     uri = self._parent._den3(class_id)
@@ -417,7 +418,7 @@ class OWMNamespace(object):
         uri : str
             Namespace URI to bind to a prefix
         '''
-        with self._parent.connect(), transaction.manager:
+        with self._parent.connect(), self._parent.transaction_manager:
             self._parent.namespace_manager.bind(prefix, uri)
 
     def list(self):
@@ -681,7 +682,6 @@ class OWMContexts(object):
         with self._parent._tempdir(prefix='owm-context-edit.') as d:
             from rdflib import plugin
             from rdflib.parser import Parser, create_input_source
-            import transaction
             parser = plugin.get(format, Parser)()
             fname = pth_join(d, 'data')
 
@@ -696,7 +696,7 @@ class OWMContexts(object):
                     # *could* just save the file, but it's safer to just roll-back.
                     need_edit = False
                     try:
-                        with transaction.manager:
+                        with self._parent.transaction_manager:
                             if load_original:
                                 with open(fname, mode='wb') as destination:
                                     # For canonical graphs, we would need to sort the triples first,
@@ -829,7 +829,7 @@ class OWMContexts(object):
         '''
 
         importer_ctx = self._parent._context(Context)(importer)
-        with self._parent.connect(), transaction.manager:
+        with self._parent.connect(), self._parent.transaction_manager:
             for imp in imported:
                 importer_ctx.add_import(Context(imp))
             importer_ctx.save_imports()
@@ -848,7 +848,7 @@ class OWMContexts(object):
         with self._parent.connect():
             imports_ctxid = self._parent.imports_context()
             imports_ctx = self._parent._context(Context)(imports_ctxid).stored
-            with transaction.manager:
+            with self._parent.transaction_manager:
                 for imp in imported:
                     imports_ctx.rdf_graph().remove((URIRef(importer), CONTEXT_IMPORTS, URIRef(imp)))
 
@@ -881,7 +881,7 @@ class OWMContexts(object):
         '''
         with self._parent.connect():
             graph = self._parent.own_rdf
-            with transaction.manager:
+            with self._parent.transaction_manager:
                 for c in context:
                     c = self._parent._den3(c)
                     graph.remove_graph(c)
@@ -982,7 +982,7 @@ class OWMRegistryModuleAccessDeclare:
                 for m in walk_packages(mod.__path__, pkg + '.'):
                     module_names.add(m.name)
 
-        with self._owm.connect() as conn, transaction.manager:
+        with self._owm.connect() as conn, self._owm.transaction_manager:
             crctx = conn.mapper.class_registry_context
 
             for module_name in module_names:
@@ -1200,7 +1200,7 @@ class OWMRegistry(object):
             Registry entry to remove
         '''
 
-        with transaction.manager:
+        with self._parent.transaction_manager:
             for re in registry_entry:
                 uri = self._parent._den3(re)
                 with self._parent.connect() as conn:
@@ -1209,7 +1209,7 @@ class OWMRegistry(object):
                         crctx.stored(x).retract()
 
 
-class OWM(object):
+class OWM:
     """
     High-level commands for working with owmeta data
     """
@@ -1450,7 +1450,7 @@ class OWM(object):
                         orig_prov(ns)
                     prov = save_classes
 
-                with transaction.manager:
+                with self.transaction_manager:
                     prov(ns)
                     ns.save(graph=conf['rdf.graph'])
                 return ns.created_contexts()
@@ -1471,7 +1471,7 @@ class OWM(object):
         object : str
             The other object you want to say something about. optional
         '''
-        with transaction.manager, self.connect() as conn:
+        with self.transaction_manager, self.connect() as conn:
             conn.rdf.get_context(self._default_ctx.identifier).remove((
                 None if subject == 'ANY' else self._den3(subject),
                 None if property == 'ANY' else self._den3(property),
@@ -1490,7 +1490,7 @@ class OWM(object):
         object : str
             The other object you want to say something about
         '''
-        with transaction.manager, self.connect() as conn:
+        with self.transaction_manager, self.connect() as conn:
             conn.rdf.get_context(self._default_ctx.identifier).add((
                 self._den3(subject),
                 self._den3(property),
@@ -1820,12 +1820,15 @@ class OWM(object):
                             crctx_ids.append(crctx_id)
                     dat[CLASS_REGISTRY_CONTEXT_LIST_KEY] = crctx_ids
 
+            self._dat_file = self.config_file
+            self._dat = dat
+
+            # Putting these after setting _dat to avoid a recursive loop with
+            # self.transaction_manager
             providers = dat.get(CAPABILITY_PROVIDERS_KEY, [])
             providers.extend(self._cap_provs())
             dat[CAPABILITY_PROVIDERS_KEY] = providers
 
-            self._dat = dat
-            self._dat_file = self.config_file
         if args:
             return dat.get(*args)
         return dat
@@ -1942,7 +1945,7 @@ class OWM(object):
                     cnt += 1
                 index_file.seek(0)
                 progress.total = cnt
-                with transaction.manager:
+                with self.transaction_manager:
                     bag = BatchAddGraph(dest, batchsize=10000)
                     for l in index_file:
                         fname, ctx = l.strip().split(' ', 1)
@@ -2059,7 +2062,7 @@ class OWM(object):
                 transformer_obj = self._default_ctx(transformer_obj)
 
             try:
-                with transaction.manager:
+                with self.transaction_manager:
                     old_stdout = sys.stdout
                     old_stderr = sys.stderr
                     try:
@@ -2120,7 +2123,7 @@ class OWM(object):
         return [DataSourceDirectoryProvider(self._dsd),
                 WorkingDirectoryProvider(),
                 TransactionalDataSourceDirProvider(pth_join(self.owmdir, 'ds_files'),
-                    transaction.manager),
+                    self.transaction_manager),
                 SimpleCacheDirectoryProvider(pth_join(self.owmdir, 'cache')),
                 SimpleTemporaryDirectoryProvider(self.temporary_directory)]
 
@@ -2175,6 +2178,10 @@ class OWM(object):
     @property
     def namespace_manager(self):
         return self._conf(NAMESPACE_MANAGER_KEY)
+
+    @property
+    def transaction_manager(self):
+        return self._conf(TRANSACTION_MANAGER_KEY)
 
     @property
     def own_rdf(self):
@@ -2236,7 +2243,7 @@ class OWM(object):
         files = []
         ctx_data = []
         deleted_contexts = dict(self._context_fnames)
-        with transaction.manager:
+        with self.transaction_manager:
             for context in g.contexts():
                 if not context:
                     continue
@@ -2445,7 +2452,7 @@ class OWM(object):
         except (AttributeError, ModuleNotFoundError) as e:
             raise GenericUserError(f'No class found for {python_type}') from e
 
-        with self.connect() as conn, transaction.manager:
+        with self.connect() as conn, self.transaction_manager:
             dctx = self._default_ctx
             dctx.add_import(cls.definition_context)
             ob = dctx(cls)(ident=self._den3(id))

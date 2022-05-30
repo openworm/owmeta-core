@@ -40,6 +40,7 @@ intersphinx_mapping = {'python': ('https://docs.python.org/3', None),
                        'rdflib': ('https://rdflib.readthedocs.io/en/stable/', None),
                        'owmeta': ('https://owmeta.readthedocs.io/en/stable/', None),
                        'requests': ('https://requests.readthedocs.io/en/stable/', None),
+                       'transaction': ('https://transaction.readthedocs.io/en/stable/', None),
                        'paramiko': ('https://docs.paramiko.org/en/stable/', None)}
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

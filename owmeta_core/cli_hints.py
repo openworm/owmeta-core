@@ -80,8 +80,9 @@ CLI_HINTS = {
                 'nargs': '*'
             },
         },
-        'IGNORE': ['message', 'progress_reporter', 'prompt', 'connect', 'disconnect', 'rdf', 'default_context',
-                'connected', 'cleanup_manager', 'own_rdf', 'repository']
+        'IGNORE': ['message', 'progress_reporter', 'prompt', 'connect', 'disconnect',
+                'rdf', 'default_context', 'connected', 'cleanup_manager', 'own_rdf',
+                'repository', 'transaction_manager']
     },
     'owmeta_core.command.OWMRegistryModuleAccessShow': {
         '__call__': {
