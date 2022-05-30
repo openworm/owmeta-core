@@ -85,6 +85,15 @@ class _NamespaceManager(NamespaceManager):
         if self.__allow_binds:
             super().bind(*args, **kwargs)
 
+    # Ignore the generate option so we only bind when `bind` is called. The prefix
+    # generation logic is hard to account for, kinda worthless, and binds namespaces
+    # during Turtle serialization which is more convenient as a read-only operation.
+    def compute_qname(self, uri, generate=False):
+        return super().compute_qname(uri, False)
+
+    def compute_qname_strict(self, uri, generate=False):
+        return super().compute_qname_strict(uri, False)
+
 
 class _Dataset(Dataset):
     '''
@@ -333,12 +342,15 @@ class Data(Configuration):
 
     .. confval:: transaction_manager.provider
 
-        Transaction manager
+        A `provider <.retrieve_provider>` for a transaction manager. Provider must resolve
+        to a `callable` that accepts a `Data` instance.
 
     .. confval:: transaction_manager
 
-        Transaction manager for RDFLib stores. Should be passed to
-        `~transaction.interfaces.IDataManager` instances
+        Transaction manager for RDFLib stores. Provided by
+        :confval:`transaction_manager.provider` if that's defined. Should be passed to
+        `~transaction.interfaces.IDataManager` instances within the scope of a given
+        `Data` instance.
 
     .. confval:: rdf.source
 
@@ -372,7 +384,7 @@ class Data(Configuration):
 
         tm_provider_name = self.get(TRANSACTION_MANAGER_PROVIDER_KEY, None)
         if tm_provider_name is not None:
-            tm = retrieve_provider(tm_provider_name)()
+            tm = retrieve_provider(tm_provider_name)(self)
         else:
             tm = transaction.ThreadTransactionManager()
             tm.explicit = True
@@ -429,7 +441,8 @@ class Data(Configuration):
         self['rdf.graph'].add = self._my_graph_add
         self['rdf.graph'].remove = self._my_graph_remove
         try:
-            nm.bind("", self['rdf.namespace'])
+            with self[TRANSACTION_MANAGER_KEY]:
+                nm.bind("", self['rdf.namespace'])
         except Exception:
             L.warning("Failed to bind default RDF namespace %s", self['rdf.namespace'], exc_info=True)
         ACTIVE_CONNECTIONS.append(self)
@@ -458,7 +471,7 @@ class Data(Configuration):
         graph = self.source.get()
         nm = self.get(NAMESPACE_MANAGER_KEY, None)
         if nm is not None and nm.graph is not graph:
-            nm.graph.close(commit_pending_transaction=True)
+            nm.graph.close(commit_pending_transaction=False)
         self.source.close()
         try:
             ACTIVE_CONNECTIONS.remove(self)

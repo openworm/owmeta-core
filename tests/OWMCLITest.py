@@ -757,7 +757,7 @@ def write_descriptor(descr, path):
 
 
 def test_namespace_list(owm_project):
-    with owm_project.owm().connect() as conn:
+    with owm_project.owm().connect() as conn, conn.transaction_manager:
         conn.rdf.namespace_manager.bind('test_namespace', EX)
 
     namespaces = owm_project.sh('owm namespace list')

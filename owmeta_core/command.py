@@ -386,19 +386,18 @@ class OWMTypes(object):
         *type : str
             Types to remove
         '''
-        with self._parent.transaction_manager:
-            with self._parent.connect() as conn:
-                for class_id in type:
-                    uri = self._parent._den3(class_id)
-                    ctx = self._parent._default_ctx.stored
-                    tdo = ctx.stored(RDFSClass)(ident=uri)
-                    ctx(tdo).retract()
+        with self._parent.connect() as conn, conn.transaction_manager:
+            for class_id in type:
+                uri = self._parent._den3(class_id)
+                ctx = self._parent._default_ctx.stored
+                tdo = ctx.stored(RDFSClass)(ident=uri)
+                ctx(tdo).retract()
 
-                    crctx = conn.mapper.class_registry_context
-                    re = crctx.stored(RegistryEntry).query()
-                    re.rdf_class(uri)
-                    for x in re.load():
-                        crctx.stored(x).retract()
+                crctx = conn.mapper.class_registry_context
+                re = crctx.stored(RegistryEntry).query()
+                re.rdf_class(uri)
+                for x in re.load():
+                    crctx.stored(x).retract()
 
 
 class OWMNamespace(object):
@@ -1764,20 +1763,15 @@ class OWM:
             # If `store_conf` is a dict, we just assume the person who set up the configs
             # new what they were doing, so no additional checks...
 
-            # We were asked to open read-only, we only know how to tell our default store
-            # how to be read-only, so we check for that
-            if read_only and NAMESPACE_MANAGER_STORE_KEY in dat:
+            if NAMESPACE_MANAGER_STORE_KEY in dat:
                 ns_store = dat[NAMESPACE_MANAGER_STORE_KEY]
-
                 if ns_store != DEFAULT_NS_MANAGER_STORE:
-                    # We don't how to ensure the namespace manager store is read-only
-                    raise GenericUserError('Unable to handle `read_only` for'
+                    # We don't how to add a transaction manager to anything other than our
+                    # default
+                    raise GenericUserError('Unable to add `transaction manager` for'
                             f' namespace manager store, "{ns_store}". Only'
                             f' {DEFAULT_NS_MANAGER_STORE} is supported.')
 
-                # We don't check this separately from the read_only check because we don't
-                # care whether there's a configuration otherwise -- it's possible to have
-                # a store that doesn't require a separate conf, but our default store does
                 try:
                     ns_store_conf = dat[NAMESPACE_MANAGER_STORE_CONF_KEY]
                 except KeyError as e:
@@ -1786,13 +1780,20 @@ class OWM:
                             f' "{NAMESPACE_MANAGER_STORE_CONF_KEY}", is missing') from e
 
                 if isinstance(ns_store_conf, str):
-                    ns_store_conf = dict(url=ns_store_conf, read_only=True)
+                    ns_store_conf = dict(url=ns_store_conf,
+                            transaction_manager=dat[TRANSACTION_MANAGER_KEY])
                 elif isinstance(ns_store_conf, dict):
-                    ns_store_conf['read_only'] = True
+                    ns_store_conf['transaction_manager'] = dat[TRANSACTION_MANAGER_KEY]
                 else:
                     raise GenericUserError('Unable to configure namespace manager store'
-                            f' as read-only with "{NAMESPACE_MANAGER_STORE_CONF_KEY}":'
+                            f' transaction manager with "{NAMESPACE_MANAGER_STORE_CONF_KEY}":'
                             f' {ns_store_conf!r}')
+
+                # We were asked to open read-only, we only know how to tell our default store
+                # how to be read-only, so we check for that
+                if read_only:
+                    ns_store_conf['read_only'] = True
+
                 dat[NAMESPACE_MANAGER_STORE_CONF_KEY] = ns_store_conf
 
             deps = dat.get('dependencies', None)
@@ -1931,7 +1932,8 @@ class OWM:
 
     def _regenerate_database(self):
         with self.progress_reporter(unit=' ctx', file=sys.stderr) as ctx_prog, \
-                self.progress_reporter(unit=' triples', file=sys.stderr, leave=False) as trip_prog:
+                self.progress_reporter(unit=' triples', file=sys.stderr, leave=False) as trip_prog, \
+                self.transaction_manager:
             self._load_all_graphs(ctx_prog, trip_prog)
 
     def _load_all_graphs(self, progress, trip_prog):
@@ -1947,19 +1949,18 @@ class OWM:
                     cnt += 1
                 index_file.seek(0)
                 progress.total = cnt
-                with self.transaction_manager:
-                    bag = BatchAddGraph(dest, batchsize=10000)
-                    for l in index_file:
-                        fname, ctx = l.strip().split(' ', 1)
-                        parser = plugin.get('nt', Parser)()
-                        graph_fname = pth_join(self.owmdir, 'graphs', fname)
-                        with open(graph_fname, 'rb') as f, bag.get_context(ctx) as g:
-                            parser.parse(create_input_source(f), g)
+                bag = BatchAddGraph(dest, batchsize=10000)
+                for l in index_file:
+                    fname, ctx = l.strip().split(' ', 1)
+                    parser = plugin.get('nt', Parser)()
+                    graph_fname = pth_join(self.owmdir, 'graphs', fname)
+                    with open(graph_fname, 'rb') as f, bag.get_context(ctx) as g:
+                        parser.parse(create_input_source(f), g)
 
-                        progress.update(1)
-                        trip_prog.update(bag.count - triples_read)
-                        triples_read = g.count
-                    progress.write('Finalizing writes to database...')
+                    progress.update(1)
+                    trip_prog.update(bag.count - triples_read)
+                    triples_read = g.count
+                progress.write('Finalizing writes to database...')
         progress.write('Loaded {:,} triples'.format(triples_read))
         ns_fname = pth_join(self.owmdir, 'namespaces')
         try:
