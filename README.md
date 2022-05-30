@@ -21,7 +21,7 @@ First of all, owmeta-core wraps [RDFLib][rdflib]:
     >>> from owmeta_core import connect
     >>> with connect() as conn: # creates an in-memory graph
     ...     conn.rdf
-    <Graph identifier=... (<class 'rdflib.graph.Dataset'>)>
+    <Graph identifier=... (<class 'owmeta_core.data._Dataset'>)>
 
 That means you can do several of the same things as you would do with RDFLib
 alone.[^1] You can configure different backing stores as well:
