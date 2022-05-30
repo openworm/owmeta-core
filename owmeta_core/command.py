@@ -51,7 +51,8 @@ from .capabilities import FilePathProvider
 from .data import (NAMESPACE_MANAGER_KEY,
                    NAMESPACE_MANAGER_STORE_KEY,
                    NAMESPACE_MANAGER_STORE_CONF_KEY,
-                   TRANSACTION_MANAGER_KEY)
+                   TRANSACTION_MANAGER_KEY,
+                   _Dataset)
 from .dataobject import (DataObject, RDFSClass, RegistryEntry, PythonClassDescription,
                          PIPInstall, PythonPackage, PythonModule, Module, ClassDescription,
                          ModuleAccessor)
@@ -1471,7 +1472,7 @@ class OWM:
         object : str
             The other object you want to say something about. optional
         '''
-        with self.transaction_manager, self.connect() as conn:
+        with self.connect() as conn, conn.transaction_manager:
             conn.rdf.get_context(self._default_ctx.identifier).remove((
                 None if subject == 'ANY' else self._den3(subject),
                 None if property == 'ANY' else self._den3(property),
@@ -1490,7 +1491,7 @@ class OWM:
         object : str
             The other object you want to say something about
         '''
-        with self.transaction_manager, self.connect() as conn:
+        with self.connect() as conn, conn.transaction_manager:
             conn.rdf.get_context(self._default_ctx.identifier).add((
                 self._den3(subject),
                 self._den3(property),
@@ -2188,7 +2189,7 @@ class OWM:
     def own_rdf(self):
         has_dependencies = self._conf('dependencies', None)
         if has_dependencies:
-            return rdflib.Dataset(
+            return _Dataset(
                     self.rdf.store.stores[0],
                     default_union=True)
         else:

@@ -231,6 +231,8 @@ def lfds_with_file(owm_project):
 
     res = Namespace()
     with owm.connect() as conn:
+        owm.save(DataSource.__module__)
+        owm.save(LFDS.__module__)
         with conn.transaction_manager:
             # Create data sources
             ctx = conn(Context)(ident='http://example.org/context')
@@ -239,15 +241,11 @@ def lfds_with_file(owm_project):
                 file_name=res.file_name,
             )
 
-            owm.save(DataSource.__module__)
-            owm.save(LFDS.__module__)
-            LFDS.definition_context.save(conn.rdf)
             main_ctx = owm.default_context
             main_ctx.add_import(ctx)
             main_ctx.add_import(LFDS.definition_context)
             main_ctx.save_imports()
             ctx.save()
-            conn.mapper.save()
     # We're relying on the WorkingDirectoryProvider to be able to load this file for the
     # datasource defined above. writefile writes to the working directory for the `owm`
     # execution below
@@ -258,20 +256,17 @@ def lfds_with_file(owm_project):
 
 def test_translate_data_source_loader(owm_project, lfds_with_file):
     with owm_project.owm().connect() as conn:
+        conn.owm.save(DT2.__module__)
         with conn.transaction_manager:
             # Create data sources
             ctx = conn(Context)(ident='http://example.org/context')
-            ctx.mapper.process_class(DT2)
             ctx(DT2)(ident='http://example.org/trans1')
             # Create a translator
 
-            DT2.definition_context.save(conn.rdf)
-            conn.owm.save(DT2.__module__)
             main_ctx = conn.owm.default_context
             main_ctx.add_import(ctx)
             main_ctx.save_imports()
             ctx.save()
-            conn.mapper.save()
     owm_project.make_module('tests')
     owm_project.copy('tests/test_modules', 'tests/test_modules')
 
