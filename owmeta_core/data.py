@@ -5,7 +5,8 @@ import logging
 import atexit
 import hashlib
 
-from rdflib import URIRef, Graph, Namespace, ConjunctiveGraph, Dataset, plugin
+from rdflib import URIRef, Namespace, plugin
+from rdflib.graph import Graph, ConjunctiveGraph, Dataset, DATASET_DEFAULT_GRAPH_ID
 from rdflib.store import Store
 from rdflib.events import Event
 from rdflib.namespace import RDF, NamespaceManager
@@ -69,6 +70,10 @@ class DatabaseConflict(Exception):
 
 
 class _NamespaceManager(NamespaceManager):
+    '''
+    Overrides RDFLib's `NamespaceManager` to avoid binding things during init (e.g., for
+    read-only stores).
+    '''
 
     def __init__(self, *args, **kwargs):
         # Some B.S. we do to prevent RDFLib from binding namespaces during initialization
@@ -79,6 +84,22 @@ class _NamespaceManager(NamespaceManager):
     def bind(self, *args, **kwargs):
         if self.__allow_binds:
             super().bind(*args, **kwargs)
+
+
+class _Dataset(Dataset):
+    '''
+    Overrides RDFlib's `~rdflib.graph.Dataset` to not call
+    `~rdflib.graph.Dataset.add_graph` when just listing contexts
+    '''
+    def contexts(self, triple=None):
+        default = False
+        # We call Dataset's super (i.e., ConjunctiveGraph) because we *don't* want the
+        # Dataset behavior
+        for c in super(Dataset, self).contexts(triple):
+            default |= c.identifier == DATASET_DEFAULT_GRAPH_ID
+            yield c
+        if not default:
+            yield self._graph(DATASET_DEFAULT_GRAPH_ID)
 
 
 class DataUserUnconnected(Exception):
@@ -155,7 +176,7 @@ class DataUser(Configurable):
             return self.conf['rdf.graph']
         except KeyError:
             if ALLOW_UNCONNECTED_DATA_USERS:
-                return Dataset(default_union=True)
+                return _Dataset(default_union=True)
             raise DataUserUnconnected('No rdf.graph')
 
     @property
@@ -527,7 +548,7 @@ class SPARQLSource(RDFSource):
     def open(self):
         # XXX: If we have a source that's read only, should we need to set the
         # store separately??
-        g0 = Dataset('SPARQLUpdateStore', default_union=True)
+        g0 = _Dataset('SPARQLUpdateStore', default_union=True)
         g0.open(tuple(self.conf['rdf.store_conf']))
         self.graph = g0
         return self.graph
@@ -547,7 +568,7 @@ class SleepyCatSource(RDFSource):
         import logging
         # XXX: If we have a source that's read only, should we need to set the
         # store separately??
-        g0 = Dataset('Sleepycat', default_union=True)
+        g0 = _Dataset('Sleepycat', default_union=True)
         self.conf['rdf.store'] = 'Sleepycat'
         g0.open(self.conf['rdf.store_conf'], create=True)
         self.graph = g0
@@ -570,7 +591,7 @@ class DefaultSource(RDFSource):
     """
 
     def open(self):
-        self.graph = Dataset(self.conf['rdf.store'], default_union=True)
+        self.graph = _Dataset(self.conf['rdf.store'], default_union=True)
         self.graph.open(self.conf['rdf.store_conf'], create=True)
 
 
@@ -626,7 +647,7 @@ class ZODBSource(RDFSource):
             store = plugin.get('ZODB', Store)()
             with tm:
                 root['rdflib'] = store
-        self.graph = Dataset(root['rdflib'], default_union=True)
+        self.graph = _Dataset(root['rdflib'], default_union=True)
         self.graph.open(openstr)
 
     def close(self):

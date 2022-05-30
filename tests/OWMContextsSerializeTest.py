@@ -10,12 +10,12 @@ pytestmark = mark.owm_cli_test
 
 
 def test_serialize(owm_project):
-    with owm_project.owm().connect() as owm:
-        ctx1 = owm.rdf.graph('http://example.org/ctx1')
+    with owm_project.owm().connect() as conn, conn.transaction_manager:
+        ctx1 = conn.rdf.graph('http://example.org/ctx1')
         ctx1.add((URIRef('http://example.org/s1'), URIRef('http://example.org/p1'), URIRef('http://example.org/o1')))
         ctx1.add((URIRef('http://example.org/s2'), URIRef('http://example.org/p2'), URIRef('http://example.org/o2')))
 
-        ctx2 = owm.rdf.graph('http://example.org/ctx2')
+        ctx2 = conn.rdf.graph('http://example.org/ctx2')
         ctx2.add((URIRef('http://example.org/s3'), URIRef('http://example.org/p3'), URIRef('http://example.org/o3')))
         ctx2.add((URIRef('http://example.org/s4'), URIRef('http://example.org/p4'), URIRef('http://example.org/o4')))
 
@@ -29,12 +29,12 @@ def test_serialize(owm_project):
 
 
 def test_serialize_empty_default_graph(owm_project):
-    with owm_project.owm().connect() as owm:
-        ctx1 = owm.rdf.graph('http://example.org/ctx1')
+    with owm_project.owm().connect() as conn, conn.transaction_manager:
+        ctx1 = conn.rdf.graph('http://example.org/ctx1')
         ctx1.add((URIRef('http://example.org/s1'), URIRef('http://example.org/p1'), URIRef('http://example.org/o1')))
         ctx1.add((URIRef('http://example.org/s2'), URIRef('http://example.org/p2'), URIRef('http://example.org/o2')))
 
-        ctx2 = owm.rdf.graph('http://example.org/ctx2')
+        ctx2 = conn.rdf.graph('http://example.org/ctx2')
         ctx2.add((URIRef('http://example.org/s3'), URIRef('http://example.org/p3'), URIRef('http://example.org/o3')))
         ctx2.add((URIRef('http://example.org/s4'), URIRef('http://example.org/p4'), URIRef('http://example.org/o4')))
 
@@ -43,12 +43,12 @@ def test_serialize_empty_default_graph(owm_project):
 
 
 def test_serialize_whole_graph(owm_project):
-    with owm_project.owm().connect() as owm:
-        ctx1 = owm.rdf.graph('http://example.org/ctx1')
+    with owm_project.owm().connect() as conn, conn.transaction_manager:
+        ctx1 = conn.rdf.graph('http://example.org/ctx1')
         ctx1.add((URIRef('http://example.org/s1'), URIRef('http://example.org/p1'), URIRef('http://example.org/o1')))
         ctx1.add((URIRef('http://example.org/s2'), URIRef('http://example.org/p2'), URIRef('http://example.org/o2')))
 
-        ctx2 = owm.rdf.graph('http://example.org/ctx2')
+        ctx2 = conn.rdf.graph('http://example.org/ctx2')
         ctx2.add((URIRef('http://example.org/s3'), URIRef('http://example.org/p3'), URIRef('http://example.org/o3')))
         ctx2.add((URIRef('http://example.org/s4'), URIRef('http://example.org/p4'), URIRef('http://example.org/o4')))
 
@@ -77,8 +77,8 @@ def test_serialize_whole_graph_with_context_error(owm_project):
 
 
 def test_serialize_to_file(owm_project):
-    with owm_project.owm().connect() as owm:
-        ctx1 = owm.rdf.graph('http://example.org/ctx1')
+    with owm_project.owm().connect() as conn, conn.transaction_manager:
+        ctx1 = conn.rdf.graph('http://example.org/ctx1')
         ctx1.add((URIRef('http://example.org/s1'), URIRef('http://example.org/p1'), URIRef('http://example.org/o1')))
         ctx1.add((URIRef('http://example.org/s2'), URIRef('http://example.org/p2'), URIRef('http://example.org/o2')))
 

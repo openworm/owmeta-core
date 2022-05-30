@@ -140,6 +140,11 @@ class Connection(object):
     def rdf(self):
         return self.conf['rdf.graph']
 
+    @property
+    def transaction_manager(self):
+        from .data import TRANSACTION_MANAGER_KEY
+        return self.conf[TRANSACTION_MANAGER_KEY]
+
     def disconnect(self):
         '''
         Close the database and stop listening to module loaders
