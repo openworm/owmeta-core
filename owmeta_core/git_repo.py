@@ -1,10 +1,16 @@
 from os.path import exists
+import logging
 
 from git import Repo
 
 
-class GitRepoProvider(object):
+L = logging.getLogger(__name__)
 
+
+class GitRepoProvider:
+    '''
+    Provides a project repository for `~.command.OWM` backed by a Git repository
+    '''
     def __init__(self):
         self._repo = None
         self.base = None
@@ -35,8 +41,25 @@ class GitRepoProvider(object):
         return self._repo
 
     def clone(self, url, base, progress=None, **kwargs):
+        '''
+        Parameters
+        ----------
+        url : str
+            URL to clone from
+        base : str
+            Directory to clone into
+        progress : `tqdm.tqdm`-like
+            Must support a `progress.update` method accepting the amount to add to total
+            progress (see https://tqdm.github.io/docs/tqdm/#update)
+        '''
+        # Techincally, url and base can be "path-like", but we don't make it part of the
+        # formal interface by documenting that
         if progress is not None:
-            progress = _CloneProgress(progress)
+            try:
+                progress = _CloneProgress(progress)
+            except TypeError:
+                L.warning("Progress reporter does not have the necessary interface for "
+                " reporting clone progress", exc_info=True)
         Repo.clone_from(url, base, progress=progress, **kwargs)
 
     def is_dirty(self, path=None):
@@ -46,6 +69,14 @@ class GitRepoProvider(object):
 class _CloneProgress(object):
 
     def __init__(self, progress_reporter):
+        try:
+            updater = progress_reporter.update
+        except AttributeError:
+            raise TypeError("Progress reporter must have an 'update' method")
+        else:
+            if not callable(updater):
+                raise TypeError("Progress reporter 'update' attribute does not appear to"
+                        " be callable")
         self.pr = progress_reporter
         try:
             self.pr.unit = 'objects'

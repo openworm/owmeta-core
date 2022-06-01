@@ -168,8 +168,8 @@ def main(*args):
     indicating whether a method argument should be read in as a positional argument or
     an option and what a command-line option should be named (as opposed to deriving it
     from a parameter name or member variable). There is a set of hints which are a part of
-    owmeta-core (see `CLI_HINTS`), but these can be augmented by specifying entry points
-    like this::
+    owmeta-core (see `CLI_HINTS <owmeta_core.cli_hints>`), but these can be augmented by
+    specifying entry points like this::
 
         'owmeta_core.cli_hints': 'hints = module.path.for:CLI_HINTS',
 

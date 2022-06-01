@@ -570,6 +570,13 @@ class OWMTest(BaseTest):
         with raises(GenericUserError, match=NAMESPACE_MANAGER_STORE_CONF_KEY):
             self.cut.connect(read_only=True)
 
+    def test_connect_transaction(self):
+        self._init_conf()
+        with self.cut.connect(read_only=True).transaction():
+            pass
+
+        assert not self.cut.connected
+
 
 class OWMTranslatorTest(unittest.TestCase):
 

@@ -1247,6 +1247,23 @@ class OWM:
     registry = SubCommand(OWMRegistry)
 
     def __init__(self, owmdir=None, non_interactive=False):
+        '''
+        Attributes
+        ----------
+        cleanup_manager : `atexit`-like
+            An object to which functions can be `registered <atexit.register>` and
+            `unregistered <atexit.unregister>`. To handle cleaning up connections that
+            were not closed more directly (e.g., by calling `~OWM.disconnect`)
+        progress_reporter : `tqdm`-like
+            A callable that presents some kind of progress to a user. Interface is a
+            subset of the `tqdm.tqdm` object: the reporter must accept ``unit``,
+            ``miniters``, ``file``, and ``leave`` options, although what it does with
+            those is unspecified. Additionally, for reporting progress on cloning a
+            project, an `optional interface <.git_repo.GitRepoProvider.clone>` is
+            required.
+        '''
+        # Put the docstring here so it doesn't show up in the CLI output, but does show up
+        # in Sphinx docs
         self.progress_reporter = default_progress_reporter
         self.message = lambda *args, **kwargs: print(*args, **kwargs)
 
@@ -1711,11 +1728,17 @@ class OWM:
         expect_cleanup : bool
             if False, a warning will be issued if the `cleanup_manager` has to disconnect
             the connection
+
+        Returns
+        -------
+        ProjectConnection
+            Usable as a `context manager <contextmanager.__enter__>`
         '''
+
         if self._owm_connection is None:
             conf = self._init_store(read_only=read_only)
             self._owm_connection = connect(conf=conf, mapper=self._context.mapper)
-        conn = _ProjectConnection(self, self._owm_connection, self._connections,
+        conn = ProjectConnection(self, self._owm_connection, self._connections,
                 expect_cleanup=expect_cleanup)
         self._connections.add(conn)
         L.debug("CONNECTED %s", id(conn))
@@ -1839,6 +1862,12 @@ class OWM:
     _init_store = _conf
 
     def disconnect(self):
+        '''
+        Destroy a connection to the project database
+
+        Should not be called if there is no active connection
+        '''
+
         from owmeta_core import disconnect
         if self._owm_connection is not None:
             if len(self._connections) == 0:
@@ -2500,8 +2529,10 @@ class OWM:
             dctx.save_imports()
 
 
-class _ProjectConnection(object):
-
+class ProjectConnection(object):
+    '''
+    Connection to the project database
+    '''
     def __init__(self, owm, connection, connections, *, expect_cleanup=True):
         self.owm = owm
         self.connection = connection
@@ -2547,6 +2578,15 @@ class _ProjectConnection(object):
 
     def __str__(self):
         return f'{self.__class__.__name__}({self.owm}, {self.connection})'
+
+    @contextmanager
+    def transaction(self):
+        '''
+        Context manager that executes the enclosed code in a transaction and then closes
+        the connection
+        '''
+        with self, self.transaction_manager:
+            yield
 
 
 class _ProjectContext(Context):
