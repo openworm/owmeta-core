@@ -982,7 +982,7 @@ class Fetcher(_RemoteHandlerMixin):
     this class.
     '''
 
-    def __init__(self, bundles_root, remotes, **kwargs):
+    def __init__(self, bundles_root, remotes, transaction_manager=None, **kwargs):
         '''
         Parameters
         ----------
@@ -990,10 +990,17 @@ class Fetcher(_RemoteHandlerMixin):
             The root directory of the bundle cache
         remotes : list of Remote or str
             List of pre-configured remotes used in calls to `fetch`
+        transaction_manager : transaction.interfaces.ITransactionManager
+            Transaction manager to use when populating the indexed database after fetching
         '''
         super(Fetcher, self).__init__(**kwargs)
         self.bundles_root = bundles_root
         self.remotes = remotes
+
+        # For debugging: in case you need to do something with the transaction manager
+        # used when populating the indexed database
+        self._transaction_manager = (transaction_manager or
+                transaction.TransactionManager())
 
     def __call__(self, *args, **kwargs):
         '''
@@ -1061,7 +1068,8 @@ class Fetcher(_RemoteHandlerMixin):
                         except BundleNotFound:
                             self.fetch(dd['id'], dd.get('version'), remotes=remotes)
                 dat = self._post_fetch_dest_conf(bdir)
-                build_indexed_database(dat['rdf.graph'], bdir, progress_reporter,
+                build_indexed_database(dat['rdf.graph'], bdir, self._transaction_manager,
+                        progress_reporter,
                         triples_progress_reporter)
                 dat.close()
                 return bdir
@@ -1072,14 +1080,17 @@ class Fetcher(_RemoteHandlerMixin):
             raise NoBundleLoader(bundle_id, given_bundle_version)
 
     def _post_fetch_dest_conf(self, bundle_directory):
+        db_file_location = p(bundle_directory, BUNDLE_INDEXED_DB_NAME)
+        store_conf = dict(url=db_file_location,
+                transaction_manager=self._transaction_manager)
         res = Data().copy({
             'rdf.source': 'default',
             'rdf.store': 'FileStorageZODB',
-            'rdf.store_conf': p(bundle_directory, BUNDLE_INDEXED_DB_NAME)
+            'rdf.store_conf': store_conf
         })
         res.init()
-        if not exists(res['rdf.store_conf']):
-            raise Exception('Could not create the database file at ' + res['rdf.store_conf'])
+        if not exists(db_file_location):
+            raise Exception('Could not create the database file at ' + db_file_location)
         return res
 
     def _find_latest_remote_bundle_versions(self, bundle_id, loaders_list):
@@ -1373,6 +1384,10 @@ class Installer(object):
         self.remotes = list(remotes)
         self.remotes_directory = remotes_directory
 
+        # For debugging: in case you need to do something with the transaction manager
+        # used when populating the indexed database
+        self._transaction_manager = transaction.TransactionManager()
+
     def install(self, descriptor, progress_reporter=None):
         '''
         Given a descriptor, install a bundle
@@ -1596,20 +1611,23 @@ class Installer(object):
         index_out.write(ctxidb + b'\x00' + gbname.encode('UTF-8') + b'\n')
 
     def _initdb(self, staging_directory):
+        db_file_location = p(staging_directory, BUNDLE_INDEXED_DB_NAME)
         self.conf = Data().copy({
             'rdf.source': 'default',
             'rdf.store': 'FileStorageZODB',
-            'rdf.store_conf': p(staging_directory, BUNDLE_INDEXED_DB_NAME)
+            'rdf.store_conf': dict(transaction_manager=self._transaction_manager,
+                url=db_file_location)
         })
         # Create the database file and initialize some needed data structures
         self.conf.init()
-        if not exists(self.conf['rdf.store_conf']):
-            raise Exception('Could not create the database file at ' + self.conf['rdf.store_conf'])
+        if not exists(db_file_location):
+            raise Exception('Could not create the database file at ' + db_file_location)
 
     def _build_indexed_database(self, staging_directory, progress=None):
         try:
             dest = self.conf['rdf.graph']
-            build_indexed_database(dest, staging_directory, progress)
+            build_indexed_database(dest, staging_directory, self._transaction_manager,
+                    progress, None)
         finally:
             self.conf.close()
 
@@ -1781,7 +1799,8 @@ def _select_contexts(descriptor, graph):
                 break
 
 
-def build_indexed_database(dest, bundle_directory, progress=None, trip_prog=None):
+def build_indexed_database(dest, bundle_directory, transaction_manager,
+        progress=None, trip_prog=None):
     '''
     Build the indexed database from a bundle directory
     '''
@@ -1797,7 +1816,7 @@ def build_indexed_database(dest, bundle_directory, progress=None, trip_prog=None
         index_file.seek(0)
         if progress is not None:
             progress.total = cnt
-        with transaction.manager:
+        with transaction_manager:
             bag = BatchAddGraph(dest, batchsize=10000)
             for l in index_file:
                 ctx, fname = l.strip().split('\x00')
