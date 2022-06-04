@@ -185,7 +185,17 @@ class Connection(object):
 
 
 def disconnect(c=None):
-    """ Close the connection. """
+    """
+    Close the connection.
+
+    Deprecated: Just calls disconnect on the given connection
+    """
+    import warnings
+    warnings.warn(
+            'owmeta_core.disconnect() is redundant:'
+            ' it just calls disconnect() on the given connection',
+            DeprecationWarning,
+            stacklevel=2)
     if c:
         c.disconnect()
 

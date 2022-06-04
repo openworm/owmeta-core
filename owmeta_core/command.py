@@ -1868,10 +1868,9 @@ class OWM:
         Should not be called if there is no active connection
         '''
 
-        from owmeta_core import disconnect
         if self._owm_connection is not None:
             if len(self._connections) == 0:
-                disconnect(self._owm_connection)
+                self._owm_connection.disconnect()
                 self._dat = None
                 self._owm_connection = None
                 L.debug("DISCONNECTED")
