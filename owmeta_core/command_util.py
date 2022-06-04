@@ -84,7 +84,8 @@ class SubCommand(object):
 
     def __init__(self, cmd):
         self.cmd = cmd
-        self.__doc__ = getattr(cmd, '__doc__', '')
+        cmd_doc = getattr(cmd, '__doc__', '')
+        self.__doc__ = f'`~{FCN(cmd)}`: {cmd_doc}'
 
     def __repr__(self):
         return '{}({})'.format(FCN(type(self)), repr(self.cmd))
