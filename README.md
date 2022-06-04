@@ -41,11 +41,9 @@ named graphs you want to include in the bundle, serializing them, and putting
 them in a particular file structure. Here's how you can do that:
 
     >>> from owmeta_core.bundle import Installer, Descriptor
-    >>> from owmeta_core.data import TRANSACTION_MANAGER_KEY
     >>> from rdflib.term import URIRef
-    >>> import transaction
 
-    >>> with connect() as conn, conn.conf[TRANSACTION_MANAGER_KEY]:
+    >>> with connect().transaction() as conn:
     ...     # add some stuff to http://example.org/ctx ...
     ...     g = conn.rdf.graph(URIRef('http://example.org/ctx'))
     ...     _ = g.add((URIRef('http://example.org/s'),

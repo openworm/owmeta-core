@@ -572,8 +572,9 @@ class OWMTest(BaseTest):
 
     def test_connect_transaction(self):
         self._init_conf()
-        with self.cut.connect(read_only=True).transaction():
-            pass
+        with self.cut.connect(read_only=True).transaction() as conn:
+            # get a transaction
+            conn.transaction_manager.get()
 
         assert not self.cut.connected
 

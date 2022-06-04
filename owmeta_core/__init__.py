@@ -17,6 +17,7 @@ import os
 import logging
 import uuid
 from os.path import join as pth_join
+from contextlib import contextmanager
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(logging.NullHandler())
@@ -144,6 +145,15 @@ class Connection(object):
     def transaction_manager(self):
         from .data import TRANSACTION_MANAGER_KEY
         return self.conf[TRANSACTION_MANAGER_KEY]
+
+    @contextmanager
+    def transaction(self):
+        '''
+        Context manager that executes the enclosed code in a transaction and then closes
+        the connection. Provides the connection for binding with ``as``.
+        '''
+        with self, self.transaction_manager:
+            yield self
 
     def disconnect(self):
         '''

@@ -87,3 +87,6 @@ class SphinxTest(unittest.TestCase):
 
     def test_making_dataObjects(self):
         self.execute('making_dataObjects')
+
+    def test_transactions(self):
+        self.execute('transactions')

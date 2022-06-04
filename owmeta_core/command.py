@@ -2583,10 +2583,10 @@ class ProjectConnection(object):
     def transaction(self):
         '''
         Context manager that executes the enclosed code in a transaction and then closes
-        the connection
+        the connection. Provides the connection for binding with ``as``.
         '''
         with self, self.transaction_manager:
-            yield
+            yield self
 
 
 class _ProjectContext(Context):
