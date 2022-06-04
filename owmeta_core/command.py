@@ -2212,6 +2212,9 @@ class OWM:
 
     @property
     def transaction_manager(self):
+        '''
+        The `transaction.TransactionManager` for the current connection
+        '''
         return self._conf(TRANSACTION_MANAGER_KEY)
 
     @property

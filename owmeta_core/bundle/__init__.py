@@ -397,7 +397,7 @@ class Bundle:
         remotes_directory : str, optional
             The directory to load `Remotes <Remote>` from in case a bundle is not in the
             bundle cache. Defaults to `.DEFAULT_REMOTES_DIRECTORY`
-        transaction_manager : transaction.interfaces.ITransactionManager, optional
+        transaction_manager : `transaction.TransactionManager`, optional
             Transaction manager
         '''
         if not ident or not isinstance(ident, str):
@@ -990,7 +990,7 @@ class Fetcher(_RemoteHandlerMixin):
             The root directory of the bundle cache
         remotes : list of Remote or str
             List of pre-configured remotes used in calls to `fetch`
-        transaction_manager : transaction.interfaces.ITransactionManager
+        transaction_manager : `transaction.TransactionManager`
             Transaction manager to use when populating the indexed database after fetching
         '''
         super(Fetcher, self).__init__(**kwargs)

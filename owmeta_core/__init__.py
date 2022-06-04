@@ -143,6 +143,9 @@ class Connection(object):
 
     @property
     def transaction_manager(self):
+        '''
+        `~transaction.TransactionManager` for the connection
+        '''
         from .data import TRANSACTION_MANAGER_KEY
         return self.conf[TRANSACTION_MANAGER_KEY]
 
