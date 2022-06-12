@@ -6,6 +6,7 @@ For Users
    :maxdepth: 2
 
    making_dataObjects
+   datasource
    contexts
    command
    versioning

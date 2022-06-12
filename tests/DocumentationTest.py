@@ -90,3 +90,10 @@ class SphinxTest(unittest.TestCase):
 
     def test_transactions(self):
         self.execute('transactions')
+
+    def test_datasource(self):
+        examples_dir = p(self.testdir, 'examples')
+        os.mkdir(examples_dir)
+        open(p(examples_dir, '__init__.py'), 'w').close()
+        shutil.copytree(p(self.startdir, 'examples', 'datasource'), p(examples_dir, 'datasource'))
+        self.execute('datasource')

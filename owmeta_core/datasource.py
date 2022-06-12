@@ -643,8 +643,14 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
         self.output_identifier = output_identifier
         try:
             res = self.transform(*args, **kwargs)
-            res.after_transform()
-            res.context.save_context()
+            if isinstance(res, DataSource):
+                res_list = [res]
+            else:
+                res_list = res
+
+            for ent in res_list:
+                ent.after_transform()
+                ent.context.save_context()
             self.after_transform()
             return res
         finally:
@@ -704,10 +710,10 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
         '''
         trans = self.make_transformation(sources)
 
-        if self.output_key:
+        if 'key' not in kwargs and self.output_key:
             kwargs['key'] = self.output_key
 
-        if self.output_identifier:
+        if 'ident' not in kwargs and self.output_identifier:
             kwargs['ident'] = self.output_identifier
 
         res = self.output_type.contextualize(self.context)(*args, transformation=trans,

@@ -1873,6 +1873,7 @@ class OWM:
                 self._owm_connection.disconnect()
                 self._dat = None
                 self._owm_connection = None
+                self._cached_default_context = None
                 L.debug("DISCONNECTED")
             elif len(self._connections) > 0:
                 warnings.warn('Attempted to close OWM connection prematurely:'
@@ -2097,6 +2098,11 @@ class OWM:
                     old_stdout = sys.stdout
                     old_stderr = sys.stderr
                     try:
+                        # We prevent output to stdout/stderr since we want any logging to
+                        # be sent to the logger or to transformer-specific log files since
+                        # stdout and stderr should be privileged to an application, but
+                        # we're not necessarily at the application layer (the associated
+                        # cli module may be, but this code is not)
                         old_stdout.flush()
                         old_stderr.flush()
                         with open(os.devnull, 'w') as nullout:
@@ -2171,6 +2177,7 @@ class OWM:
                 raise ConfigMissingException(DEFAULT_CONTEXT_KEY)
 
         if self._cached_default_context is not None:
+            print("using cached default context")
             cached_id = self._cached_default_context.identifier
             current_id = URIRef(context)
             if current_id == cached_id:
@@ -2525,7 +2532,6 @@ class OWM:
                                     f' ID {val_ident!r} of type {value_type!r}')
                             raise GenericUserError(msg)
 
-                self.message(f"setting {ob!r} {prop_obj!r} {val!r}")
                 prop_obj(val)
             dctx.save()
             dctx.save_imports()
