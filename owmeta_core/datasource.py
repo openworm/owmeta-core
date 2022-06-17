@@ -611,9 +611,9 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
 
     Attributes
     ----------
-    input_type : type or tuple of type
+    input_type : `type` or `tuple` of `type`
         Types of input to this transformer. Types should be sub-classes of `DataSource`
-    output_type : type or tuple of type
+    output_type : `type` or `tuple` of `type`
         Types of output from this transformer. Types should be sub-classes of `DataSource`
     transformation_type : type
         Type of the `Transformation` record produced as a side-effect of transforming with
@@ -842,7 +842,8 @@ def transform(transformer,
     transformer : DataTransformer
         transformer to execute
     output_key : str
-        Output key. Used for generating the output's identifier. Exclusive with output_identifier
+        Output key. Used for generating the output's identifier. Exclusive with
+        output_identifier
     output_identifier : str
         Output identifier. Exclusive with output_key
     data_sources : list of DataSource

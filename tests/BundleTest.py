@@ -365,7 +365,7 @@ def test_add_to_graph_not_supported(custom_bundle):
             Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
 
         with pytest.raises(ZODB.POSException.ReadOnlyError):
-            with transaction.manager:
+            with bnd.transaction_manager:
                 bnd.rdf.add(
                     (URIRef('http://example.org/sub'),
                      URIRef('http://example.org/prop'),
@@ -513,16 +513,16 @@ def test_bundle_store_conf_with_two_dep_levels(custom_bundle):
         assert bnd.conf['rdf.store_conf'] == [
                 ('FileStorageZODB', dict(
                     url=p(testbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
-                    read_only=True)),
+                    read_only=True, transaction_manager=bnd.transaction_manager)),
                 # dep
                 ('owmeta_core_bds', dict(type='agg', conf=[
                     ('FileStorageZODB', dict(
                         url=p(depbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
-                        read_only=True)),
+                        read_only=True, transaction_manager=bnd.transaction_manager)),
                     ('owmeta_core_bds', dict(type='agg', conf=[
                         ('FileStorageZODB', dict(
                             url=p(depdepbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
-                            read_only=True))
+                            read_only=True, transaction_manager=bnd.transaction_manager))
                     ]))
                 ]))]
 
@@ -565,23 +565,23 @@ def test_bundle_store_conf_with_two_levels_excludes(custom_bundle):
         assert bnd.conf['rdf.store_conf'] == [
                 ('FileStorageZODB', dict(
                     url=p(testbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
-                    read_only=True)),
+                    read_only=True, transaction_manager=bnd.transaction_manager)),
                 # dep
                 ('owmeta_core_bds', dict(type='agg', conf=[
                     ('FileStorageZODB', dict(
                         url=p(depbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
-                        read_only=True)),
+                        read_only=True, transaction_manager=bnd.transaction_manager)),
                     ('owmeta_core_bds', dict(type='agg', conf=[
                         ('FileStorageZODB', dict(
                             url=p(depdepbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
-                            read_only=True))
+                            read_only=True, transaction_manager=bnd.transaction_manager))
                     ]))
                 ], excludes=[ctxid_1])),
                 # depdep
                 ('owmeta_core_bds', dict(type='agg', conf=[
                     ('FileStorageZODB', dict(
                         url=p(depdepbun.bundle_directory, BUNDLE_INDEXED_DB_NAME),
-                        read_only=True))
+                        read_only=True, transaction_manager=bnd.transaction_manager))
                 ]))]
 
 

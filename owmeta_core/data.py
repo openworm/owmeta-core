@@ -5,13 +5,15 @@ import logging
 import atexit
 import hashlib
 
-from rdflib import URIRef, Graph, Namespace, ConjunctiveGraph, Dataset, plugin
+from rdflib import URIRef, Namespace, plugin
+from rdflib.graph import Graph, ConjunctiveGraph, Dataset, DATASET_DEFAULT_GRAPH_ID
 from rdflib.store import Store
 from rdflib.events import Event
 from rdflib.namespace import RDF, NamespaceManager
 import transaction
+from transaction.interfaces import NoTransaction
 
-from .utils import grouper
+from .utils import grouper, retrieve_provider
 from .configure import Configurable, Configuration, ConfigValue
 
 __all__ = [
@@ -30,6 +32,20 @@ L = logging.getLogger(__name__)
 
 ALLOW_UNCONNECTED_DATA_USERS = True
 
+NAMESPACE_MANAGER_KEY = 'rdf.namespace_manager'
+''' Constant for :confval:`rdf.namespace_manager` '''
+
+NAMESPACE_MANAGER_STORE_KEY = 'rdf.namespace_manager.store'
+''' Constant for :confval:`rdf.namespace_manager.store` '''
+
+NAMESPACE_MANAGER_STORE_CONF_KEY = 'rdf.namespace_manager.store_conf'
+''' Constant for :confval:`rdf.namespace_manager.store_conf` '''
+
+TRANSACTION_MANAGER_PROVIDER_KEY = 'transaction_manager.provider'
+''' Constant for :confval:`transaction_manager.provider` '''
+
+TRANSACTION_MANAGER_KEY = 'transaction_manager'
+''' Constant for :confval:`transaction_manager` '''
 
 _B_UNSET = object()
 
@@ -51,6 +67,48 @@ class OpenFailError(Exception):
 
 class DatabaseConflict(Exception):
     pass
+
+
+class _NamespaceManager(NamespaceManager):
+    '''
+    Overrides RDFLib's `NamespaceManager` to avoid binding things during init (e.g., for
+    read-only stores).
+    '''
+
+    def __init__(self, *args, **kwargs):
+        # Some B.S. we do to prevent RDFLib from binding namespaces during initialization
+        self.__allow_binds = False
+        super(_NamespaceManager, self).__init__(*args, **kwargs)
+        self.__allow_binds = True
+
+    def bind(self, *args, **kwargs):
+        if self.__allow_binds:
+            super().bind(*args, **kwargs)
+
+    # Ignore the generate option so we only bind when `bind` is called. The prefix
+    # generation logic is hard to account for, kinda worthless, and binds namespaces
+    # during Turtle serialization which is more convenient as a read-only operation.
+    def compute_qname(self, uri, generate=False):
+        return super().compute_qname(uri, False)
+
+    def compute_qname_strict(self, uri, generate=False):
+        return super().compute_qname_strict(uri, False)
+
+
+class _Dataset(Dataset):
+    '''
+    Overrides RDFlib's `~rdflib.graph.Dataset` to not call
+    `~rdflib.graph.Dataset.add_graph` when just listing contexts
+    '''
+    def contexts(self, triple=None):
+        default = False
+        # We call Dataset's super (i.e., ConjunctiveGraph) because we *don't* want the
+        # Dataset behavior
+        for c in super(Dataset, self).contexts(triple):
+            default |= c.identifier == DATASET_DEFAULT_GRAPH_ID
+            yield c
+        if not default:
+            yield self._graph(DATASET_DEFAULT_GRAPH_ID)
 
 
 class DataUserUnconnected(Exception):
@@ -127,12 +185,12 @@ class DataUser(Configurable):
             return self.conf['rdf.graph']
         except KeyError:
             if ALLOW_UNCONNECTED_DATA_USERS:
-                return Dataset(default_union=True)
+                return _Dataset(default_union=True)
             raise DataUserUnconnected('No rdf.graph')
 
     @property
     def namespace_manager(self):
-        return self.conf.get('rdf.namespace_manager', None)
+        return self.conf.get(NAMESPACE_MANAGER_KEY, None)
 
     def _remove_from_store(self, g):
         # Note the assymetry with _add_to_store. You must add actual elements, but deletes
@@ -270,7 +328,29 @@ class Data(Configuration):
 
     .. confval:: rdf.namespace_manager
 
-        RDFLib Namespace Manager
+        RDFLib Namespace Manager. Typically, this is generated automatically during a call
+        to `init`
+
+    .. confval:: rdf.namespace_manager.store
+
+        RDFLib :doc:`store name <rdflib:plugin_stores>` specific to namespaces
+
+    .. confval:: rdf.namespace_manager.store_conf
+
+        Configuration for RDFLib store specified with
+        :confval:`rdf.namespace_manager.store`
+
+    .. confval:: transaction_manager.provider
+
+        A `provider <.retrieve_provider>` for a transaction manager. Provider must resolve
+        to a `callable` that accepts a `Data` instance.
+
+    .. confval:: transaction_manager
+
+        Transaction manager for RDFLib stores. Provided by
+        :confval:`transaction_manager.provider` if that's defined. Should be passed to
+        `~transaction.interfaces.IDataManager` instances within the scope of a given
+        `Data` instance.
 
     .. confval:: rdf.source
 
@@ -302,6 +382,14 @@ class Data(Configuration):
         self._cch = None
         self._listeners = dict()
 
+        tm_provider_name = self.get(TRANSACTION_MANAGER_PROVIDER_KEY, None)
+        if tm_provider_name is not None:
+            tm = retrieve_provider(tm_provider_name)(self)
+        else:
+            tm = transaction.ThreadTransactionManager()
+            tm.explicit = True
+        self[TRANSACTION_MANAGER_KEY] = tm
+
     @classmethod
     def load(cls, file_name):
         """ Load a file into a new Data instance storing configuration in a JSON format """
@@ -320,15 +408,28 @@ class Data(Configuration):
     def init(self):
         """ Open the configured database """
         self._init_rdf_graph()
-        L.debug("opening " + str(self.source))
+        L.debug("opening %s", self.source)
         try:
             self.source.open()
         except OpenFailError as e:
             L.error('Failed to open the data source because: %s', e)
             raise
 
-        nm = NamespaceManager(self['rdf.graph'])
-        self['rdf.namespace_manager'] = nm
+        nm_store = self.get(NAMESPACE_MANAGER_STORE_KEY, None)
+        if nm_store is not None:
+            # the graph here is just for the reference to the store, so we don't need the
+            # extra stuff that comes with the "sources"
+            nm_graph = Graph(self[NAMESPACE_MANAGER_STORE_KEY])
+            nm_store_conf = self.get(NAMESPACE_MANAGER_STORE_CONF_KEY, None)
+            # If there's no store conf, this store is assumed to be already "opened" upon
+            # construction
+            if nm_store_conf is not None:
+                nm_graph.open(nm_store_conf)
+            nm = _NamespaceManager(nm_graph)
+
+        else:
+            nm = _NamespaceManager(self['rdf.graph'])
+        self[NAMESPACE_MANAGER_KEY] = nm
         self['rdf.graph'].namespace_manager = nm
 
         # A runtime version number for the graph should update for all changes
@@ -340,13 +441,14 @@ class Data(Configuration):
         self['rdf.graph'].add = self._my_graph_add
         self['rdf.graph'].remove = self._my_graph_remove
         try:
-            nm.bind("", self['rdf.namespace'])
+            with self[TRANSACTION_MANAGER_KEY]:
+                nm.bind("", self['rdf.namespace'])
         except Exception:
             L.warning("Failed to bind default RDF namespace %s", self['rdf.namespace'], exc_info=True)
+        ACTIVE_CONNECTIONS.append(self)
 
     def openDatabase(self):
         self.init()
-        ACTIVE_CONNECTIONS.append(self)
 
     init_database = init
 
@@ -366,6 +468,10 @@ class Data(Configuration):
 
     def destroy(self):
         """ Close a the configured database """
+        graph = self.source.get()
+        nm = self.get(NAMESPACE_MANAGER_KEY, None)
+        if nm is not None and nm.graph is not graph:
+            nm.graph.close(commit_pending_transaction=False)
         self.source.close()
         try:
             ACTIVE_CONNECTIONS.remove(self)
@@ -422,7 +528,7 @@ class RDFSource(Configurable, ConfigValue):
     def close(self):
         if self.graph is False:
             return
-        self.graph.close(commit_pending_transaction=True)
+        self.graph.close(commit_pending_transaction=False)
         self.graph = False
 
     def open(self):
@@ -455,7 +561,7 @@ class SPARQLSource(RDFSource):
     def open(self):
         # XXX: If we have a source that's read only, should we need to set the
         # store separately??
-        g0 = Dataset('SPARQLUpdateStore', default_union=True)
+        g0 = _Dataset('SPARQLUpdateStore', default_union=True)
         g0.open(tuple(self.conf['rdf.store_conf']))
         self.graph = g0
         return self.graph
@@ -475,7 +581,7 @@ class SleepyCatSource(RDFSource):
         import logging
         # XXX: If we have a source that's read only, should we need to set the
         # store separately??
-        g0 = Dataset('Sleepycat', default_union=True)
+        g0 = _Dataset('Sleepycat', default_union=True)
         self.conf['rdf.store'] = 'Sleepycat'
         g0.open(self.conf['rdf.store_conf'], create=True)
         self.graph = g0
@@ -498,7 +604,7 @@ class DefaultSource(RDFSource):
     """
 
     def open(self):
-        self.graph = Dataset(self.conf['rdf.store'], default_union=True)
+        self.graph = _Dataset(self.conf['rdf.store'], default_union=True)
         self.graph.open(self.conf['rdf.store_conf'], create=True)
 
 
@@ -545,38 +651,29 @@ class ZODBSource(RDFSource):
                     'The PID of this process: {}'.format(openstr, os.getpid()), exc_info=True)
             raise DatabaseConflict('Database ' + openstr + ' locked')
 
+        tm = self.conf[TRANSACTION_MANAGER_KEY]
         self.zdb = ZODB.DB(fs, cache_size=1600)
-        self.conn = self.zdb.open()
+        self.conn = self.zdb.open(transaction_manager=tm)
         root = self.conn.root()
+
         if 'rdflib' not in root:
             store = plugin.get('ZODB', Store)()
-            root['rdflib'] = store
-        try:
-            transaction.commit()
-        except Exception:
-            # catch commit exception and close db.
-            # otherwise db would stay open and follow up tests
-            # will detect the db in error state
-            L.exception('Forced to abort transaction on ZODB store opening', exc_info=True)
-            transaction.abort()
-        transaction.begin()
-        self.graph = Dataset(root['rdflib'], default_union=True)
+            with tm:
+                root['rdflib'] = store
+        self.graph = _Dataset(root['rdflib'], default_union=True)
         self.graph.open(openstr)
 
     def close(self):
         if self.graph is False:
             return
 
-        self.graph.close()
-
+        # Abort the current transaction (if there is one, I guess) since we can't close
+        # our connection while joined to a transaction...
         try:
-            transaction.commit()
-        except Exception:
-            # catch commit exception and close db.
-            # otherwise db would stay open and follow up tests
-            # will detect the db in error state
-            L.warning('Forced to abort transaction on ZODB store closing', exc_info=True)
             transaction.abort()
+        except NoTransaction:
+            L.debug("Attempt to abort, but there was no active transaction")
+        self.graph.close()
         self.conn.close()
         self.zdb.close()
         self.graph = False

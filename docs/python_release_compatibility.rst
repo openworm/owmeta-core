@@ -11,7 +11,7 @@ still-supported Python release will only be fixed for the sake of OpenWorm
 projects when requested by an issue on `our tracker`_ or for other projects
 when a compelling case can be made.
 
-.. _PEP index: https://www.python.org/dev/peps/#id7
+.. _PEP index: https://peps.python.org/
 .. _our tracker: https://github.com/openworm/owmeta-core/issues
 
 This policy is intended to provide support to most well-maintained projects

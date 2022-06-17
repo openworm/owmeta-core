@@ -10,7 +10,6 @@ import pytest
 from pytest import mark
 import rdflib
 from rdflib.term import URIRef, Literal
-import transaction
 
 from owmeta_core.context import Context
 from owmeta_core.command import DEFAULT_OWM_DIR as OD, OWM
@@ -42,7 +41,7 @@ def add_bundle(owm_project, descriptor=None):
     includes: ["http://example.org/test_ctx"]
     ''')
     with OWM(owmdir=p(owm_project.testdir, OD)).connect() as conn:
-        with transaction.manager:
+        with conn.transaction_manager:
             graph = conn.conf['rdf.graph']
             sg = graph.get_context('http://example.org/test_ctx')
             sg.add((URIRef('http://example.org/a'),

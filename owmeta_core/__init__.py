@@ -17,6 +17,7 @@ import os
 import logging
 import uuid
 from os.path import join as pth_join
+from contextlib import contextmanager
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(logging.NullHandler())
@@ -140,6 +141,23 @@ class Connection(object):
     def rdf(self):
         return self.conf['rdf.graph']
 
+    @property
+    def transaction_manager(self):
+        '''
+        `~transaction.TransactionManager` for the connection
+        '''
+        from .data import TRANSACTION_MANAGER_KEY
+        return self.conf[TRANSACTION_MANAGER_KEY]
+
+    @contextmanager
+    def transaction(self):
+        '''
+        Context manager that executes the enclosed code in a transaction and then closes
+        the connection. Provides the connection for binding with ``as``.
+        '''
+        with self, self.transaction_manager:
+            yield self
+
     def disconnect(self):
         '''
         Close the database and stop listening to module loaders
@@ -170,7 +188,17 @@ class Connection(object):
 
 
 def disconnect(c=None):
-    """ Close the connection. """
+    """
+    Close the connection.
+
+    Deprecated: Just calls disconnect on the given connection
+    """
+    import warnings
+    warnings.warn(
+            'owmeta_core.disconnect() is redundant:'
+            ' it just calls disconnect() on the given connection',
+            DeprecationWarning,
+            stacklevel=2)
     if c:
         c.disconnect()
 

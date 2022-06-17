@@ -8,13 +8,14 @@ import os
 import re
 from subprocess import CalledProcessError, PIPE
 
-import transaction
 from pytest import mark, fixture, raises
+from ZODB.POSException import ReadOnlyError
 
 from owmeta_core import BASE_CONTEXT
 from owmeta_core.command import OWM
 from owmeta_core.context import Context, IMPORTS_CONTEXT_KEY, DEFAULT_CONTEXT_KEY
 from owmeta_core.context_common import CONTEXT_IMPORTS
+from owmeta_core.data import NAMESPACE_MANAGER_KEY
 from owmeta_core.data_trans.local_file_ds import LocalFileDataSource as LFDS
 from owmeta_core.dataobject import DataObject
 from owmeta_core.datasource import DataTranslator, DataSource, Transformation, Translation
@@ -67,8 +68,8 @@ def test_no_write_dependency_on_commit(custom_bundle, owm_project):
         print('COMMIT OUTPUT')
         print(commit_output)
 
-        with open(p(owm_project.testdir, '.owm', 'graphs', 'index')) as f:
-            assert list(f.readlines()) == []
+        with raises(FileNotFoundError):
+            open(p(owm_project.testdir, '.owm', 'graphs', 'index')).close()
 
 
 def test_save_classes(owm_project):
@@ -118,7 +119,7 @@ class DT1(DataTranslator):
 
 def test_translator_list(owm_project):
     expected = URIRef('http://example.org/trans1')
-    with owm_project.owm().connect() as conn, transaction.manager:
+    with owm_project.owm().connect() as conn, conn.transaction_manager:
         ctx = conn(Context)(ident='http://example.org/context')
         conn.mapper.process_class(DT1)
 
@@ -149,7 +150,7 @@ def test_translator_list_kinds(owm_project, core_bundle):
     deps = [{'id': 'openworm/owmeta-core', 'version': 1}]
     owm.config.set('dependencies', json.dumps(deps))
 
-    with owm.connect() as conn, transaction.manager:
+    with owm.connect() as conn, conn.transaction_manager:
         defctx = conn(Context)(ident=owm_project.default_context_id)
         defctx.add_import(BASE_CONTEXT)
         defctx.save_imports()
@@ -160,7 +161,7 @@ def test_translator_list_kinds(owm_project, core_bundle):
 
 def test_translator_show(owm_project):
     trans_id = URIRef('http://example.org/trans1')
-    with owm_project.owm().connect() as conn, transaction.manager:
+    with owm_project.owm().connect() as conn, conn.transaction_manager:
         # Create data Translator
         ctx = conn(Context)(ident='http://example.org/context')
         conn.mapper.process_class(DT1)
@@ -181,7 +182,7 @@ def test_translator_show(owm_project):
 
 
 def test_translator_create(owm_project):
-    with owm_project.owm().connect() as conn, transaction.manager:
+    with owm_project.owm().connect() as conn, conn.transaction_manager:
         conn.mapper.process_class(DT1)
 
         DT1.definition_context.save(conn.rdf)
@@ -196,7 +197,7 @@ def test_translator_create(owm_project):
 
 def test_translator_rm(owm_project):
     trans_id = URIRef('http://example.org/trans1')
-    with owm_project.owm().connect() as conn, transaction.manager:
+    with owm_project.owm().connect() as conn, conn.transaction_manager:
         # Create data Translator
         ctx = conn(Context)(ident='http://example.org/context')
         conn.mapper.process_class(DT1)
@@ -230,7 +231,9 @@ def lfds_with_file(owm_project):
 
     res = Namespace()
     with owm.connect() as conn:
-        with transaction.manager:
+        owm.save(DataSource.__module__)
+        owm.save(LFDS.__module__)
+        with conn.transaction_manager:
             # Create data sources
             ctx = conn(Context)(ident='http://example.org/context')
             ctx(LFDS)(
@@ -238,15 +241,11 @@ def lfds_with_file(owm_project):
                 file_name=res.file_name,
             )
 
-            owm.save(DataSource.__module__)
-            owm.save(LFDS.__module__)
-            LFDS.definition_context.save(conn.rdf)
             main_ctx = owm.default_context
             main_ctx.add_import(ctx)
             main_ctx.add_import(LFDS.definition_context)
             main_ctx.save_imports()
             ctx.save()
-            conn.mapper.save()
     # We're relying on the WorkingDirectoryProvider to be able to load this file for the
     # datasource defined above. writefile writes to the working directory for the `owm`
     # execution below
@@ -257,20 +256,17 @@ def lfds_with_file(owm_project):
 
 def test_translate_data_source_loader(owm_project, lfds_with_file):
     with owm_project.owm().connect() as conn:
-        with transaction.manager:
+        conn.owm.save(DT2.__module__)
+        with conn.transaction_manager:
             # Create data sources
             ctx = conn(Context)(ident='http://example.org/context')
-            ctx.mapper.process_class(DT2)
             ctx(DT2)(ident='http://example.org/trans1')
             # Create a translator
 
-            DT2.definition_context.save(conn.rdf)
-            conn.owm.save(DT2.__module__)
             main_ctx = conn.owm.default_context
             main_ctx.add_import(ctx)
             main_ctx.save_imports()
             ctx.save()
-            conn.mapper.save()
     owm_project.make_module('tests')
     owm_project.copy('tests/test_modules', 'tests/test_modules')
 
@@ -293,24 +289,19 @@ def test_translate_table_output(owm_project):
     owm = owm_project.owm()
 
     with owm.connect() as conn:
-        with transaction.manager:
+        owm.save(DataSource.__module__)
+        owm.save(DT.__module__)
+        with conn.transaction_manager:
             # Create data sources
             ctx = conn(Context)(ident=EX.context)
             insrc = ctx(DataSource)(ident=EX['in'])
 
-            ctx.mapper.process_class(DT)
-
-            DT.definition_context.save(conn.rdf)
             ctx(DT)(ident='http://example.org/trans1')
-
-            owm.save(DataSource.__module__)
-            owm.save(DT.__module__)
             main_ctx = owm.default_context
             main_ctx.add_import(ctx)
             main_ctx.add_import(DataSource.definition_context)
             main_ctx.save_imports()
             ctx.save()
-            conn.mapper.save()
 
     owm_project.make_module('tests')
     modpath = p('tests', 'test_modules')
@@ -331,7 +322,7 @@ def test_source_list(owm_project, core_bundle):
     owm.config.set('dependencies', json.dumps(deps))
 
     with owm.connect() as conn:
-        with transaction.manager:
+        with conn.transaction_manager:
             # Create data sources
             ctx = conn(Context)(ident='http://example.org/context')
             ctx(LFDS)(
@@ -360,7 +351,7 @@ def test_source_list_kinds(owm_project, core_bundle):
     deps = [{'id': 'openworm/owmeta-core', 'version': 1}]
     owm.config.set('dependencies', json.dumps(deps))
     with owm.connect() as conn:
-        with transaction.manager:
+        with conn.transaction_manager:
             # Create data sources
             defctx = conn(Context)(ident=owm_project.default_context_id)
             defctx.add_import(BASE_CONTEXT)
@@ -379,14 +370,14 @@ def test_source_list_kinds(owm_project, core_bundle):
 
 def test_source_derivs(owm_project):
     owm = owm_project.owm()
-    with owm.connect():
+    with owm.connect() as conn:
         DS = owm.default_context(DataSource)
         ds0 = DS(key='ds0')
         ds1 = DS(key='ds1')
         ds2 = DS(key='ds2')
         ds1.source(ds0)
         ds2.source(ds1)
-        with transaction.manager:
+        with conn.transaction_manager:
             owm.default_context.save()
 
     derivs = owm_project.sh(f'owm source derivs {ds0.identifier}')
@@ -401,7 +392,7 @@ def test_source_show(owm_project):
         ds0 = DS(key='ds0')
         owm.default_context.add_import(DataSource.definition_context)
         conn.mapper.process_class(DataSource)
-        with transaction.manager:
+        with conn.transaction_manager:
             owm.default_context.save()
             owm.default_context.save_imports(transitive=False)
             conn(DataSource.definition_context).save()
@@ -420,7 +411,7 @@ def test_source_rm_srcs_and_transformations(owm_project):
         ds0.transformation(tf1)
         owm.default_context.add_import(DataSource.definition_context)
         conn.mapper.process_class(DataSource)
-        with transaction.manager:
+        with conn.transaction_manager:
             owm.default_context.save()
             owm.default_context.save_imports(transitive=False)
             conn(DataSource.definition_context).save()
@@ -441,7 +432,7 @@ def test_source_rm_translations(owm_project):
         ds0.translation(tl1)
         owm.default_context.add_import(DataSource.definition_context)
         conn.mapper.process_class(DataSource)
-        with transaction.manager:
+        with conn.transaction_manager:
             owm.default_context.save()
             owm.default_context.save_imports(transitive=False)
             conn(DataSource.definition_context).save()
@@ -504,12 +495,48 @@ def test_save_class_resolve_class(owm_project):
                 TestDataSource.definition_context) is not None
 
 
+def test_save_class_binds_class_namespace(owm_project):
+    from .test_modules.owmclitest03_monkey import Monkey
+    owm_project.make_module('tests')
+    owm_project.copy('tests/test_modules', 'tests/test_modules')
+    print(owm_project.sh('owm save tests.test_modules.owmclitest03_monkey'))
+    owm = owm_project.owm()
+    with owm.connect() as conn:
+        expected = ('Monkey', URIRef(Monkey.rdf_namespace))
+        for binding in conn.conf['rdf.namespace_manager'].namespaces():
+            if binding == expected:
+                break
+        else: # no break
+            assert False, f"Expected {expected} to be among namespace bindings"
+
+
+def test_save_class_with_project_dependencies_binds_class_namespace(owm_project,
+        test_bundle):
+    from .test_modules.owmclitest03_monkey import Monkey
+    owm0 = owm_project.owm(non_interactive=True)
+    owm0.config.set('dependencies', json.dumps([{
+        'id': test_bundle.descriptor.id,
+        'version': test_bundle.descriptor.version}]))
+
+    owm_project.make_module('tests')
+    owm_project.copy('tests/test_modules', 'tests/test_modules')
+    print(owm_project.sh('owm save tests.test_modules.owmclitest03_monkey'))
+    owm = owm_project.owm()
+    with owm.connect() as conn:
+        expected = ('Monkey', URIRef(Monkey.rdf_namespace))
+        for binding in conn.conf['rdf.namespace_manager'].namespaces():
+            if binding == expected:
+                break
+        else: # no break
+            assert False, f"Expected {expected} to be among namespace bindings"
+
+
 def test_contexts_list_imports(owm_project):
     owm = owm_project.owm()
     ctx1_id = 'http://example.org/context#ctx1'
     ctx2_id = 'http://example.org/context#ctx2'
     with owm.connect() as conn:
-        with transaction.manager:
+        with conn.transaction_manager:
             # Create data sources
             ctx1 = conn(Context)(ident=ctx1_id)
             ctx2 = conn(Context)(ident=ctx2_id)
@@ -524,7 +551,7 @@ def test_contexts_rm_import_not_listed(owm_project):
     ctx1_id = 'http://example.org/context#ctx1'
     ctx2_id = 'http://example.org/context#ctx2'
     with owm.connect() as conn:
-        with transaction.manager:
+        with conn.transaction_manager:
             # Create data sources
             ctx1 = conn(Context)(ident=ctx1_id)
             ctx2 = conn(Context)(ident=ctx2_id)
@@ -542,7 +569,7 @@ def test_contexts_add_import(owm_project):
 
     owm_project.sh(f'owm contexts add-import {ctx1_id} {ctx2_id}')
     with owm.connect() as conn:
-        with transaction.manager:
+        with conn.transaction_manager:
             # Create data sources
             ctx1 = conn(Context)(ident=ctx1_id)
             assert URIRef(ctx2_id) in [x.identifier for x in ctx1.stored.imports]
@@ -551,7 +578,7 @@ def test_contexts_add_import(owm_project):
 def test_rm_context_removes_all_1(owm_project):
     owm = owm_project.owm()
     pred = URIRef('http://example.org/p')
-    with owm.connect() as conn:
+    with owm.connect() as conn, conn.transaction_manager:
         g = conn.rdf.graph(URIRef('http://example.org/ctx1'))
         for i in range(5):
             g.add((URIRef(f'http://example.org/s{i}'),
@@ -565,7 +592,7 @@ def test_rm_context_removes_all_1(owm_project):
 def test_rm_context_removes_all_2(owm_project):
     owm = owm_project.owm()
     pred = URIRef('http://example.org/p')
-    with owm.connect() as conn:
+    with owm.connect() as conn, conn.transaction_manager:
         g = conn.rdf.graph(URIRef('http://example.org/ctx1'))
         for i in range(5):
             g.add((URIRef(f'http://example.org/s{i}'),
@@ -586,11 +613,10 @@ def test_rm_context_removes_all_2(owm_project):
 def test_contexts_list(owm_project):
     owm = owm_project.owm()
     ctx1_id = 'http://example.org/context#ctx1'
-    with owm.connect() as conn:
-        with transaction.manager:
-            # Create data sources
-            conn.rdf.get_context(URIRef(ctx1_id)).add(
-                    (EX.s, EX.p, EX.o))
+    with owm.connect() as conn, conn.transaction_manager:
+        # Create data sources
+        conn.rdf.get_context(URIRef(ctx1_id)).add(
+                (EX.s, EX.p, EX.o))
 
     output = owm_project.sh('owm contexts list').strip()
     assert output.split('\n') == [ctx1_id]
@@ -600,7 +626,7 @@ def test_contexts_list_include_default(owm_project):
     owm = owm_project.owm()
     ctx1_id = 'http://example.org/context#ctx1'
     with owm.connect() as conn:
-        with transaction.manager:
+        with conn.transaction_manager:
             # Create data sources
             conn.rdf.get_context(URIRef(ctx1_id)).add(
                     (EX.s, EX.p, EX.o))
@@ -615,7 +641,7 @@ def test_contexts_list_include_deps(tmp_path, owm_project):
     ctxb_id = 'http://example.org/context_b'
 
     owm = owm_project.owm()
-    with owm.connect() as conn, transaction.manager:
+    with owm.connect() as conn, conn.transaction_manager:
         conn.rdf.get_context(URIRef(ctxa_id)).add(
                 (EX.s0, EX.p, EX.o))
 
@@ -634,7 +660,7 @@ def test_contexts_list_include_deps(tmp_path, owm_project):
     owm1.init(default_context_id=default_ctxid)
     owm1.config.set('dependencies', json.dumps([{'id': descr_a.id, 'version': descr_a.version}]))
 
-    with owm1.connect() as conn, transaction.manager:
+    with owm1.connect() as conn, conn.transaction_manager:
         conn.rdf.get_context(URIRef(ctxb_id)).add(
                 (EX.s1, EX.p, EX.o))
 
@@ -663,7 +689,7 @@ def test_subclass_across_bundles(tmp_path, owm_project):
         class_context = ctxc_id
 
     owm = owm_project.owm()
-    with owm.connect() as conn:
+    with owm.connect() as conn, conn.transaction_manager:
         actx = conn(A.definition_context)
         conn.mapper.process_class(A)
         actx.save()
@@ -714,7 +740,7 @@ def test_subclass_across_bundles(tmp_path, owm_project):
     owm1.config.set('dependencies', json.dumps([{'id': descr_c.id, 'version': descr_c.version}]))
 
     owm2 = owm_project.owm(non_interactive=True)
-    with owm2.connect() as conn1:
+    with owm2.connect() as conn1, conn1.transaction_manager:
         defctx = conn1(Context)(default_ctxid)
         defctx.add_import(cctx)
         c = defctx(C)(key="c")
@@ -731,7 +757,7 @@ def write_descriptor(descr, path):
 
 
 def test_namespace_list(owm_project):
-    with owm_project.owm().connect() as conn:
+    with owm_project.owm().connect() as conn, conn.transaction_manager:
         conn.rdf.namespace_manager.bind('test_namespace', EX)
 
     namespaces = owm_project.sh('owm namespace list')
@@ -795,13 +821,44 @@ def test_declare_unknown_class_2(owm_project):
 
 def test_regendb(owm_project):
     owm = owm_project.owm()
-    with owm.connect() as conn, transaction.manager:
+    with owm.connect() as conn, conn.transaction_manager:
         conn.rdf.add((EX.s, EX.p, EX.o))
     owm_project.sh('owm commit -m "commit 1"')
-    with owm.connect() as conn, transaction.manager:
+    with owm.connect() as conn, conn.transaction_manager:
         conn.rdf.add((EX.s, EX.p, EX.o1))
     owm_project.sh('owm regendb')
 
-    with owm.connect(read_only=True) as conn, transaction.manager:
+    with owm.connect(read_only=True) as conn, conn.transaction_manager:
         assert (EX.s, EX.p, EX.o) in conn.rdf
         assert (EX.s, EX.p, EX.o1) not in conn.rdf
+
+
+def test_say_with_ns(owm_project):
+    owm_project.sh('owm namespace bind ex http://example.org/')
+    owm_project.sh('owm say ex:a rdf:type rdfs:Class', stderr=PIPE)
+
+
+def test_bind_fails_for_read_only(owm_project):
+    with owm_project.owm().connect(read_only=True) as conn:
+        with raises(ReadOnlyError):
+            with conn.transaction_manager:
+                conn.conf[NAMESPACE_MANAGER_KEY].bind('ex', URIRef('http://example.org/'))
+
+
+def test_commit_namespaces(owm_project):
+    pre, uri = 'ex', 'http://example.org/'
+    owm_project.sh(f'owm namespace bind {pre} {uri}')
+    owm_project.sh('owm commit -m "commit 1"')
+    owm_project.sh('owm regendb')
+    with owm_project.owm().connect() as conn:
+        nm = conn.conf['rdf.namespace_manager']
+        assert (pre, URIRef(uri)) in list(nm.namespaces())
+
+
+def test_regendb_clears_namespaces(owm_project):
+    pre, uri = 'ex', 'http://example.org/'
+    owm_project.sh(f'owm namespace bind {pre} {uri}')
+    owm_project.sh('owm regendb')
+    with owm_project.owm().connect() as conn:
+        nm = conn.conf['rdf.namespace_manager']
+        assert (pre, uri) not in list(nm.namespaces())

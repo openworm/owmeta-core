@@ -602,7 +602,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
     An object which can be mapped to an RDF graph
 
     Attributes
-    -----------
+    ----------
     rdf_type : rdflib.term.URIRef
         The RDF type URI for objects of this type
     rdf_namespace : rdflib.namespace.Namespace

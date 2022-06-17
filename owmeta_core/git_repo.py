@@ -1,8 +1,16 @@
+from os.path import exists
+import logging
+
 from git import Repo
 
 
-class GitRepoProvider(object):
+L = logging.getLogger(__name__)
 
+
+class GitRepoProvider:
+    '''
+    Provides a project repository for `~.command.OWM` backed by a Git repository
+    '''
     def __init__(self):
         self._repo = None
         self.base = None
@@ -17,9 +25,12 @@ class GitRepoProvider(object):
     def remove(self, files, recursive=False):
         self.repo().index.remove(files, r=recursive)
 
-    def reset(self):
+    def reset(self, *paths):
         from git.refs.head import HEAD
-        HEAD(self.repo()).reset(working_tree=True)
+        repo = self.repo()
+        HEAD(repo).reset(paths=paths)
+        paths = [p for p in paths if exists(p)]
+        repo.index.checkout(paths=paths, force=True)
 
     def commit(self, msg):
         self.repo().index.commit(msg)
@@ -30,18 +41,42 @@ class GitRepoProvider(object):
         return self._repo
 
     def clone(self, url, base, progress=None, **kwargs):
+        '''
+        Parameters
+        ----------
+        url : str
+            URL to clone from
+        base : str
+            Directory to clone into
+        progress : `tqdm.tqdm`-like
+            Must support a `progress.update` method accepting the amount to add to total
+            progress (see https://tqdm.github.io/docs/tqdm/#update)
+        '''
+        # Techincally, url and base can be "path-like", but we don't make it part of the
+        # formal interface by documenting that
         if progress is not None:
-            progress = _CloneProgress(progress)
+            try:
+                progress = _CloneProgress(progress)
+            except TypeError:
+                L.warning("Progress reporter does not have the necessary interface for "
+                " reporting clone progress", exc_info=True)
         Repo.clone_from(url, base, progress=progress, **kwargs)
 
-    @property
-    def is_dirty(self):
-        return self.repo().is_dirty()
+    def is_dirty(self, path=None):
+        return self.repo().is_dirty(path=path)
 
 
 class _CloneProgress(object):
 
     def __init__(self, progress_reporter):
+        try:
+            updater = progress_reporter.update
+        except AttributeError:
+            raise TypeError("Progress reporter must have an 'update' method")
+        else:
+            if not callable(updater):
+                raise TypeError("Progress reporter 'update' attribute does not appear to"
+                        " be callable")
         self.pr = progress_reporter
         try:
             self.pr.unit = 'objects'
