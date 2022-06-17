@@ -647,7 +647,6 @@ class DataTransformer(six.with_metaclass(DataTransformerType, DataObject)):
                 res_list = [res]
             else:
                 res_list = res
-
             for ent in res_list:
                 ent.after_transform()
                 ent.context.save_context()

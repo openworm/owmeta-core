@@ -26,8 +26,8 @@ for the name of the file underlying the Source. Here's how it my be declared::
     >>> owm.save('owmeta_core.data_trans.local_file_ds')
     <...>
 
-    >>> with owm.connect().transaction() as conn:
-    ...     owm.default_context(LFDS)(
+    >>> with owm.connect().transaction() as conn, owm.default_context as defctx:
+    ...     defctx(LFDS)(
     ...         ident=ex.lsd_wiki, file_name='LakeStreetDive.wiki')
     LocalFileDataSource(ident=rdflib.term.URIRef('http://example.org/lsd_wiki'))
 
@@ -43,16 +43,14 @@ created. Translating a Source can be done with the `OWM.translate` method::
 
 
     >>> from examples.datasource.translator import WikipediaText, ExtractWikipediaTables
-    >>> OWM().save('examples.datasource.translator')
-    <...>
     >>> trans_id = OWM().translator.create(ExtractWikipediaTables.rdf_type)
     >>> OWM().declare(
     ...     'examples.datasource.translator:WikipediaText',
     ...     [('page', 'Lake Street Dive'), ('section', 8)],
     ...     id=ex.lsd_wiki_web)
     >>> results = OWM().translate(trans_id, data_sources=(ex.lsd_wiki_web,))
-    >>> list(results)
-
+    >>> results_list = list(results)
+    >>> OWM().source.show(results_list[0].identifier)
 
 Displaying attributes
 ---------------------

@@ -341,6 +341,18 @@ class Context(six.with_metaclass(ContextMeta,
     save = save_context
     ''' Alias to save_context '''
 
+    def __enter__(self):
+        '''
+        Returns this object to act as a context manager.
+
+        When the context manager exits normally, `save_context` is called
+        '''
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type is None:
+            self.save_context()
+
     @property
     def triples_saved(self):
         '''

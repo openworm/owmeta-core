@@ -2177,7 +2177,6 @@ class OWM:
                 raise ConfigMissingException(DEFAULT_CONTEXT_KEY)
 
         if self._cached_default_context is not None:
-            print("using cached default context")
             cached_id = self._cached_default_context.identifier
             current_id = URIRef(context)
             if current_id == cached_id:
