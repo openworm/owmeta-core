@@ -1064,11 +1064,10 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         if cls.context is not None:
             context = cls.context
 
-        if rdf_type is None:
-            return oid(identifier_or_rdf_type, context=context)
-        else:
+        if rdf_type is not None:
             rdf_type = URIRef(rdf_type)
-            return oid(identifier_or_rdf_type, rdf_type, context=context)
+
+        return oid(identifier_or_rdf_type, rdf_type, context, BaseDataObject)
 
     def decontextualize(self):
         if self.context is None:
@@ -1184,7 +1183,8 @@ class _Resolver(RDFTypeResolver):
             cls.instance = cls(
                 BaseDataObject.rdf_type,
                 get_most_specific_rdf_type,
-                oid,
+                lambda *args, **kwargs: oid(
+                    *args, base_type=BaseDataObject, **kwargs),
                 deserialize_rdflib_term)
         return cls.instance
 

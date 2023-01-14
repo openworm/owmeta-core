@@ -1,6 +1,24 @@
-from __future__ import print_function
-import wrapt
+import abc
+import types
 from weakref import WeakValueDictionary
+
+import wrapt
+
+
+class AbstractBaseContextualizable(abc.ABC):
+    '''
+    Abstract base class for contextualizables
+
+    Any class with an attribute `contextualize` with a Function value is recognized as a
+    subclass
+    '''
+    @classmethod
+    def __subclasshook__(cls, subclassP):
+        contextualize = getattr(subclassP, 'contextualize', None)
+        if contextualize is not None:
+            return isinstance(contextualize, types.FunctionType) or isinstance(contextualize, types.MethodType)
+        else:
+            return NotImplemented
 
 
 class BaseContextualizable(object):
@@ -72,6 +90,9 @@ class BaseContextualizable(object):
             the contextualized object
         '''
         return self
+
+
+AbstractBaseContextualizable.register(BaseContextualizable)
 
 
 class Contextualizable(BaseContextualizable):
@@ -327,6 +348,9 @@ class ContextualizableClass(type):
         res = _H(self.__name__, (self,), dict(class_context=self.definition_context, **kwargs))
         res.__module__ = self.__module__
         return res
+
+
+AbstractBaseContextualizable.register(ContextualizableClass)
 
 
 def contextualized_new(ccls):

@@ -30,6 +30,8 @@ def load_base(graph, idents, target_type, context, resolver):
         Limits the scope of the query to statements within or entailed by this context
     idents : list of rdflib.term.URIRef
         A list of identifiers to convert into objects
+    resolver : .rdf_type_resolver.RDFTypeResolver
+        Handles some of the mappings
     '''
 
     L.debug("load_base: graph %s target_type %s context %s resolver %s",
@@ -53,7 +55,7 @@ def load_base(graph, idents, target_type, context, resolver):
     hit = False
     for ident, types in grouped_types.items():
         hit = True
-        the_type = get_most_specific_rdf_type(graph, types, base=target_type)
+        the_type = resolver.type_resolver(graph, types, base=target_type)
         if the_type is None:
             raise Exception(f'Could not recover a type for {ident}')
         yield resolver.id2ob(ident, the_type, context)
@@ -116,6 +118,10 @@ def get_most_specific_rdf_type(graph, types, base=None):
         The types to query
     base : rdflib.term.URIRef
         The "base" type
+
+    See Also
+    --------
+    RDFTypeResolver
     '''
     if len(types) == 1 and (not base or (base,) == tuple(types)):
         return tuple(types)[0]
@@ -180,7 +186,7 @@ def _gmsrt_helper(graph, start, base=None):
     return res
 
 
-def oid(identifier_or_rdf_type=None, rdf_type=None, context=None, base_type=None):
+def oid(identifier_or_rdf_type, rdf_type, context, base_type=None):
     """
     Create an object from its rdf type
 
@@ -223,11 +229,7 @@ def oid(identifier_or_rdf_type=None, rdf_type=None, context=None, base_type=None
                 break
 
     if cls is None:
-        if base_type is None:
-            from .dataobject import BaseDataObject
-            cls = BaseDataObject
-        else:
-            cls = base_type
+        cls = base_type
 
     # if its our class name, then make our own object
     # if there's a part after that, that's the property name

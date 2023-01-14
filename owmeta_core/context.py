@@ -11,7 +11,7 @@ from .data import DataUser
 
 from .context_common import CONTEXT_IMPORTS
 from .context_store import ContextStore, RDFContextStore
-from .contextualize import (BaseContextualizable,
+from .contextualize import (AbstractBaseContextualizable,
                             Contextualizable,
                             ContextualizableClass,
                             ContextualizingProxy,
@@ -55,7 +55,7 @@ class ModuleProxy(wrapt.ObjectProxy):
             return o
         else:
             o = super(ModuleProxy, self).__getattr__(name)
-            if isinstance(o, (BaseContextualizable, ContextualizableClass)):
+            if isinstance(o, AbstractBaseContextualizable):
                 o = o.contextualize(self._self_ctx)
                 self._self_overrides[name] = o
             return o
@@ -196,7 +196,7 @@ class Context(six.with_metaclass(ContextMeta,
 
         Parameters
         ----------
-        stmt : tuple
+        stmt : owmeta_core.statement.Statement
             Statement to add
         '''
         if self.identifier != stmt.context.identifier:
@@ -451,12 +451,8 @@ class Context(six.with_metaclass(ContextMeta,
             return ModuleProxy(self, o)
         elif isinstance(o, dict):
             return ContextContextManager(self, o)
-        elif isinstance(o, BaseContextualizable):
+        elif isinstance(o, AbstractBaseContextualizable):
             return o.contextualize(self)
-        elif isinstance(o, ContextualizableClass):
-            # Yes, you can call contextualize on a class and it'll do the right
-            # thing, but let's keep it simple here, okay?
-            return o.contextualize_class(self)
         else:
             return o
 
@@ -751,7 +747,7 @@ class ContextContextManager(object):
         if o is not None:
             return o
         o = self._backing_dict[key]
-        if isinstance(o, (BaseContextualizable, ContextualizableClass)):
+        if isinstance(o, AbstractBaseContextualizable):
             o = o.contextualize(self._ctx)
             self._overrides[key] = o
         return o
