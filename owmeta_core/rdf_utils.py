@@ -280,8 +280,8 @@ class ContextSubsetStore(Store):
     def prefix(self, uri):
         return self.__store.prefix(uri)
 
-    def bind(self, prefix, namespace):
-        return self.__store.bind(prefix, namespace)
+    def bind(self, prefix, namespace, override=True):
+        return self.__store.bind(prefix, namespace, override=override)
 
     def namespaces(self):
         for x in self.__store.namespaces():

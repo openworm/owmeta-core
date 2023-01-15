@@ -256,11 +256,13 @@ class Context(six.with_metaclass(ContextMeta,
         transitive : bool, optional
             If `True`, call imported imported contexts to save their imports as well
         '''
-        if not context:
+        if context is None:
             ctx_key = self.conf[IMPORTS_CONTEXT_KEY]
-            context = Context(ident=ctx_key, conf=self.conf)
-        self.declare_imports(context, transitive)
-        context.save_context(*args, **kwargs)
+            imports_context = Context(ident=ctx_key, conf=self.conf)
+        else:
+            imports_context = context
+        self.declare_imports(imports_context, transitive)
+        imports_context.save_context(*args, **kwargs)
 
     def declare_imports(self, context=None, transitive=False):
         '''

@@ -44,29 +44,27 @@ def load_base(graph, idents, target_type, context, resolver):
     # We don't use a subclassof ZOM layer for this query since we are going to get the
     # "most specific" type, which will have to be one declared explicitly
     L.debug("querying %s types in %s", idents, graph)
+    ids_missing_types = set(idents)
     for ident, _, rdf_type in graph.triples_choices((list(idents),
                                                      rdflib.RDF['type'],
                                                      None)):
         t = grouped_types.get(ident, None)
         if t is None:
+            ids_missing_types.remove(ident)
             grouped_types[ident] = set([rdf_type])
         else:
             t.add(rdf_type)
 
-    hit = False
+    for ident in ids_missing_types:
+        raise MissingRDFTypeException(f'Could not recover a type declaration for {ident}')
+
     for ident, types in grouped_types.items():
-        hit = True
         the_type = resolver.type_resolver(graph, types, base=target_type)
         if the_type is None:
-            raise Exception(f'Could not recover a type for {ident}')
+            raise MissingRDFTypeException(
+                    f'The type resolver could not recover a type for {ident}'
+                    f' from {types} constained to {target_type}')
         yield resolver.id2ob(ident, the_type, context)
-
-    if not hit:
-        for ident in idents:
-            the_type = None
-            if target_type:
-                the_type = target_type
-            yield resolver.id2ob(ident, the_type, context)
 
 
 def load_terms(graph, start, target_type):
@@ -264,3 +262,9 @@ def _superclass_iter(graph, start):
             break
         yield new_border
         border = new_border
+
+
+class MissingRDFTypeException(Exception):
+    '''
+    Raised when we were looking for an RDF type couldn't find one
+    '''
