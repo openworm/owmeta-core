@@ -14,7 +14,7 @@ class RDFTypeResolver:
             identifier, and the "base" type sought, which constrains the result to be a
             sub-type of the base, and returns a single identifier for a type that
             `id2object_translator` can translate into an object
-        id2object_translator : callable : (:class:`rdflib.term.URIRef`, :class:`rdflib.term.URIRef`) -> object
+        id2object_translator : callable : (rdflib.term.URIRef, rdflib.term.URIRef, owmeta_core.context.Context) -> object
             This callable (e.g., function) receives an identifier for an object
             and an identifier for the object's type and returns an object
             corresponding to the identifier and type

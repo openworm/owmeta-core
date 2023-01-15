@@ -24,12 +24,13 @@ def load_base(graph, idents, target_type, context, resolver):
     ----------
     graph : rdflib.graph.Graph
         The graph to query from
-    target_type : rdflib.term.URIRef
-        URI of the target type. Any result will be a sub-class of this type
-    context : .context.Context
-        Limits the scope of the query to statements within or entailed by this context
     idents : list of rdflib.term.URIRef
         A list of identifiers to convert into objects
+    target_type : rdflib.term.URIRef
+        URI of the target type. Any result will be a sub-class of this type
+    context : object
+        Limits the scope of the query to statements within or entailed by this context.
+        Notionally, it's a owmeta_core.context.Context instance
     resolver : .rdf_type_resolver.RDFTypeResolver
         Handles some of the mappings
     '''
