@@ -24,6 +24,7 @@ from owmeta_core.dataobject import (DataObject,
                                     RegistryEntry,
                                     Module)
 from owmeta_core.context import Context, IMPORTS_CONTEXT_KEY
+from owmeta_core.context_common import CONTEXT_IMPORTS
 from owmeta_core.mapper import CLASS_REGISTRY_CONTEXT_KEY
 from owmeta_core.rdf_query_util import get_most_specific_rdf_type
 from owmeta_core.utils import FCN
@@ -302,6 +303,15 @@ class ClassRegistryTest(_DataTest):
         ctx = g.get_context(self.context.identifier)
         self.TestConfig['rdf.graph'] = g
         self.TestConfig[CLASS_REGISTRY_CONTEXT_KEY] = crctx
+
+        # Ensures necessary type info for class registry lookups
+        # Typically, DataObject class registry entry declaration adds the necessary
+        # import
+        imctx = g.get_context(self.TestConfig[IMPORTS_CONTEXT_KEY])
+        imctx.add((crctx.identifier, CONTEXT_IMPORTS,
+                   PythonModule.definition_context.identifier))
+        PythonModule.definition_context.save(g)
+
         trips = [(ident, rdftype, tdo),
                  (tdo, sc, DataObject.rdf_type)]
         for tr in trips:
@@ -370,6 +380,7 @@ class ClassRegistryTest(_DataTest):
         mod = import_module('tests.DataObjectTest')
         self.mapper.declare_python_class_registry_entry(A)
         self.mapper.save()
+        PythonModule.definition_context.save(self.config['rdf.graph'])
 
         mod.__yarom_mapped_classes__ = (A,)
 
@@ -391,6 +402,7 @@ class ClassRegistryTest(_DataTest):
         mod = import_module('tests.DataObjectTest')
         self.mapper.declare_python_class_registry_entry(A)
         self.mapper.save()
+        PythonModule.definition_context.save(self.config['rdf.graph'])
 
         mod.__yarom_mapped_classes__ = (A, A)
 
@@ -422,9 +434,16 @@ class ClassRegistryMissingModuleTest(_DataTest):
         re = R.URIRef('http://example.com/re')
         g = R.ConjunctiveGraph()
         crctx = g.get_context(self.mapper.class_registry_context.identifier)
+
         ctx = g.get_context(self.context.identifier)
         self.TestConfig['rdf.graph'] = g
-        self.TestConfig[CLASS_REGISTRY_CONTEXT_KEY] = crctx.identifier
+
+        # Ensures necessary type info for class registry lookups
+        imctx = g.get_context(self.TestConfig[IMPORTS_CONTEXT_KEY])
+        imctx.add((crctx.identifier, CONTEXT_IMPORTS,
+                   PythonModule.definition_context.identifier))
+        PythonModule.definition_context.save(g)
+
         trips = [(ident, rdftype, tdo),
                  (tdo, sc, DataObject.rdf_type)]
         for tr in trips:
@@ -477,6 +496,15 @@ class ClassRegistryMissingClassTest(_DataTest):
         ctx = g.get_context(self.context.identifier)
         self.TestConfig['rdf.graph'] = g
         self.TestConfig[CLASS_REGISTRY_CONTEXT_KEY] = crctx_id
+
+        # Ensures necessary type info for class registry lookups
+        # Typically, DataObject class registry entry declaration adds the necessary
+        # import
+        imctx = g.get_context(self.TestConfig[IMPORTS_CONTEXT_KEY])
+        imctx.add((self.crctx.identifier, CONTEXT_IMPORTS,
+                   PythonModule.definition_context.identifier))
+        PythonModule.definition_context.save(g)
+
         trips = [(ident, rdftype, tdo),
                  (tdo, sc, DataObject.rdf_type)]
         for tr in trips:
@@ -556,11 +584,15 @@ class PythonClassDescriptionResolveClassTest(_DataTest):
         pcddo.name(cname)
         pcddo.module(pmo)
         pcddo1 = ctx(PythonClassDescription)(ident=pcd)
+        ctx.add_import(PythonModule.definition_context)
         self.assertEqual(self.__class__, pcddo1.resolve_class())
 
     def test_stored(self):
         '''
         Test resolving a class when the relevant data are "stored" in a RDFLib graph
+
+        This test is mostly meant to show the minimum set of triples needed to resolve a
+        class from an RDF graph.
         '''
         ctxid = 'http://example.org/test'
         ctx = Context(ident=ctxid, conf=self.TestConfig)
@@ -570,9 +602,12 @@ class PythonClassDescriptionResolveClassTest(_DataTest):
         trips = [(pcd, PythonClassDescription.name.link, R.Literal(cname), ctxid),
                  (pcd, PythonClassDescription.module.link, pm, ctxid),
                  (pm, PythonModule.name.link, R.Literal(mname), ctxid),
-                 (pm, R.RDF.type, PythonModule.rdf_type, ctxid)]
+                 (pm, R.RDF.type, PythonModule.rdf_type, ctxid),
+                 # XXX: This bit would typically be imported from another context
+                 (PythonModule.rdf_type, R.RDFS.subClassOf, Module.rdf_type, ctxid)]
         for t in trips:
             ctx.rdf.add(t)
+
         pcddo = ctx.stored(PythonClassDescription)(ident=pcd)
         self.assertEqual(self.__class__, pcddo.resolve_class())
 

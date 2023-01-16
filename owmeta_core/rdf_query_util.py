@@ -63,7 +63,7 @@ def load_base(graph, idents, target_type, context, resolver):
         if the_type is None:
             raise MissingRDFTypeException(
                     f'The type resolver could not recover a type for {ident}'
-                    f' from {types} constained to {target_type}')
+                    f' from {types} constrained to {target_type}')
         yield resolver.id2ob(ident, the_type, context)
 
 
@@ -139,6 +139,9 @@ def get_most_specific_rdf_type(graph, types, base=None):
 
 
 def _gmsrt_helper(graph, start, base=None):
+    # Finds the most specific (furthest to the left in the chain of subClassOf
+    # relationships), then confirms that the resulting set is a sub-class of the base if
+    # one is given
     res = set(start)
     border = set(start)
     subclasses = {s: {s} for s in start}
@@ -182,6 +185,10 @@ def _gmsrt_helper(graph, start, base=None):
                         in graph.triples_choices((list(border), rdflib.RDFS.subClassOf, None))
                         if o not in seen}
                 seen |= border
+            else: # no break
+                # We never found the base class in super-classes of our result set, so we
+                # have to drop the result set
+                res = set()
     return res
 
 
