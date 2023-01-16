@@ -198,12 +198,12 @@ def oid(identifier_or_rdf_type, rdf_type, context, base_type=None):
 
     Parameters
     ----------
-    identifier_or_rdf_type : :class:`str` or :class:`rdflib.term.URIRef`
+    identifier_or_rdf_type : rdflib.term.URIRef
         If `rdf_type` is provided, then this value is used as the identifier
         for the newly created object. Otherwise, this value will be the
         :attr:`rdf_type` of the object used to determine the Python type and
         the object's identifier will be randomly generated.
-    rdf_type : :class:`str`, :class:`rdflib.term.URIRef`, :const:`False`
+    rdf_type : rdflib.term.URIRef
         If provided, this will be the :attr:`rdf_type` of the newly created
         object.
     context : Context, optional
