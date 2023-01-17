@@ -17,7 +17,7 @@ from owmeta_core.context import Context, IMPORTS_CONTEXT_KEY, DEFAULT_CONTEXT_KE
 from owmeta_core.context_common import CONTEXT_IMPORTS
 from owmeta_core.data import NAMESPACE_MANAGER_KEY
 from owmeta_core.data_trans.local_file_ds import LocalFileDataSource as LFDS
-from owmeta_core.dataobject import DataObject
+from owmeta_core.dataobject import DataObject, RegistryEntry
 from owmeta_core.datasource import DataTranslator, DataSource, Transformation, Translation
 from owmeta_core.bundle import Descriptor
 from owmeta_pytest_plugin import bundle_versions
@@ -124,6 +124,7 @@ def test_translator_list(owm_project):
         conn.mapper.process_class(DT1)
 
         DT1.definition_context.save(conn.rdf)
+        RegistryEntry.definition_context.save(conn.rdf)
         conn.mapper.declare_python_class_registry_entry(DT1, DataTranslator)
         # Create a translator
         ctx(DT1)(ident=expected)
