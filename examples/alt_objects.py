@@ -1,6 +1,6 @@
 '''
 This example demonstrates a way to use alternative objects to DataObject while still using
-Contexts and other facilities for RDF<->object mapping
+Contexts and *some* of the other facilities for RDF<->object mapping.
 '''
 import rdflib as R
 from rdflib.graph import Graph
@@ -92,6 +92,22 @@ _RDF_TYPES = {URIRef(x.rdf_type): x for x in (B, RDFSClass, Resource)}
 
 
 def id2ob(ident, rdf_type, context):
+    '''
+    This gets passed to `~owmeta_core.rdf_type_resolver.RDFTypeResolver` to handle
+    producing objects for a given RDF type and object ID. This function is implemented
+    simply: It just has a static mapping from RDF types to Python classes.
+
+    Parameters
+    ----------
+    ident : rdflib.term.URIRef
+        Identifier of the new object
+    rdf_type : rdflib.term.URIRef
+        RDF type of the object. This function would typically finds a corresponding class
+        for this type
+    context : owmeta_core.context.Context
+        The context in which to resolve the given identifiers to a Python object.
+        Typically, also the context of the returned object.
+    '''
     cls = _RDF_TYPES.get(rdf_type)
     if cls is not None:
         return cls(ident, context=context)
@@ -99,31 +115,32 @@ def id2ob(ident, rdf_type, context):
     raise TypeError(f'No class found for {rdf_type} in {context}')
 
 
-rdf_type_resolver = RDFTypeResolver(Resource.rdf_type,
-                get_most_specific_rdf_type,
-                id2ob,
-                deserialize_rdflib_term)
+if __name__ == '__main__':
+    rdf_type_resolver = RDFTypeResolver(Resource.rdf_type,
+                    get_most_specific_rdf_type,
+                    id2ob,
+                    deserialize_rdflib_term)
 
-ctx1 = Context('http://example.org/ctx1')
+    ctx1 = Context('http://example.org/ctx1')
 
-# We could automate these sub-class declarations, but it would typically require some
-# metaclass stuff that would clutter this short example.
-subClassOf = RDFSSubClassOf(context=ctx1)
-subClassOf(B.rdf_object(context=ctx1), Resource.rdf_object(context=ctx1))
+    # We could automate these sub-class declarations, but it would typically require some
+    # metaclass stuff that would clutter this short example.
+    subClassOf = RDFSSubClassOf(context=ctx1)
+    subClassOf(B.rdf_object(context=ctx1), Resource.rdf_object(context=ctx1))
 
-# Declaring info using our alternative to DataObject
-p1 = P1(context=ctx1)
-a1 = Resource('http://example.org/ob/a1', context=ctx1)
-b1 = B('http://example.org/ob/b1', context=ctx1)
-p1(a1, b1)
+    # Declaring info using our alternative to DataObject
+    p1 = P1(context=ctx1)
+    a1 = Resource('http://example.org/ob/a1', context=ctx1)
+    b1 = B('http://example.org/ob/b1', context=ctx1)
+    p1(a1, b1)
 
-ctx1.save(g := Graph())
-print(g.serialize())
+    ctx1.save(g := Graph())
+    print(g.serialize())
 
-# Here we load objects back from the graph.
-#
-# We left out a query to produce the two URIRefs below, but we could have done queries any
-# way we want
-for m in load_base(g, [URIRef('http://example.org/ob/a1'), URIRef('http://example.org/ob/b1')],
-                   Resource.rdf_type, ctx1, rdf_type_resolver):
-    print(m)
+    # Here we load objects back from the graph.
+    #
+    # We left out a query to produce the two URIRefs below, but we could have done queries any
+    # way we want
+    for m in load_base(g, [URIRef('http://example.org/ob/a1'), URIRef('http://example.org/ob/b1')],
+                       Resource.rdf_type, ctx1, rdf_type_resolver):
+        print(m)
