@@ -1550,10 +1550,11 @@ class Installer(object):
                 contexts.append(URIRef(ctx))
         for c in descriptor.empties:
             contexts.append(URIRef(c))
+        if self.class_registry_ctx:
+            contexts.append(URIRef(self.class_registry_ctx))
         ctxgraph = imports_ctxg.triples_choices((contexts, CONTEXT_IMPORTS, None))
         if self.class_registry_ctx:
             cr_ctxid = URIRef(fmt_bundle_class_registry_ctx_id(descriptor.id, descriptor.version))
-            contexts.append(cr_ctxid)
             old_ctxgraph = ctxgraph
 
             def replace_cr_ctxid():
