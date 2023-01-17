@@ -395,7 +395,7 @@ def test_deploy_sftp(owm_project_with_customizations, custom_bundle):
             assert 'PASSED' in output
 
 
-def test_load_from_class_registry_from_conjunctive(custom_bundle):
+def test_load_from_class_registry_from_conjunctive_graph(custom_bundle):
     '''
     Test that we can load from the class registry for un-imported classes
     '''
@@ -422,6 +422,8 @@ def test_load_from_class_registry_from_conjunctive(custom_bundle):
     d.includes.add(make_include_func(data_ctxid))
     d.includes.add(make_include_func(defctxid))
 
+    # Test that, with the class registry declared in the bundle, we can load a Person even
+    # though we asked for a superclass and haven't loaded the Person class before.
     with custom_bundle(d, graph=g, class_registry_ctx=class_registry_ctxid) as testbun, \
             Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
 
@@ -432,12 +434,14 @@ def test_load_from_class_registry_from_conjunctive(custom_bundle):
         else: # no break
             pytest.fail('Expected an object')
 
+    # Test that, WITHOUT the class registry declared in the bundle, we CANNOT load a
+    # Person
     with custom_bundle(d, graph=g) as testbun, \
             Bundle('test', bundles_directory=testbun.bundles_directory) as bnd:
 
         bctx = bnd(Context)().stored
         for m in bctx(DataObject)().load():
-            assert type(m).__name__ != 'Person'
+            assert type(m).__name__ != 'Person'  # note the negation
             break
         else: # no break
             pytest.fail('Expected an object')
@@ -445,7 +449,8 @@ def test_load_from_class_registry_from_conjunctive(custom_bundle):
 
 def test_dependency_class_registry(custom_bundle):
     '''
-    Test that we can load from the class registry for un-imported classes
+    Test that we can load from the class registry for un-imported classes declared from a
+    dependency
     '''
     from owmeta_core.dataobject import DataObject
 
