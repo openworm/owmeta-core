@@ -478,8 +478,10 @@ class Context(six.with_metaclass(ContextMeta,
         -------
         rdflib.graph.ConjunctiveGraph
         '''
-        return ConjunctiveGraph(identifier=self.identifier,
+        res = ConjunctiveGraph(identifier=self.identifier,
                                 store=RDFContextStore(self, include_imports=False))
+        res.namespace_manager = self.rdf.namespace_manager
+        return res
 
     def load_graph_from_configured_store(self):
         '''
@@ -490,8 +492,10 @@ class Context(six.with_metaclass(ContextMeta,
         -------
         rdflib.graph.ConjunctiveGraph
         '''
-        return ConjunctiveGraph(identifier=self.identifier,
+        res = ConjunctiveGraph(identifier=self.identifier,
                 store=RDFContextStore(self, imports_graph=self.imports_graph()))
+        res.namespace_manager = self.rdf.namespace_manager
+        return res
 
     def imports_graph(self):
         context_imports_graph = None

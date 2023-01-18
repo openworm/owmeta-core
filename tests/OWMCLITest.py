@@ -145,10 +145,14 @@ def test_translator_list(owm_project):
 
 @bundle_versions('core_bundle', [1, 2])
 def test_translator_list_kinds(owm_project, core_bundle):
+    # XXX: 2023/01/16 This one is failing because the default NamespaceManager init tries
+    # to bind namespaces but OWMTranslator.list_kinds doesn't create a transaction. We
+    # don't actually want the NamespaceManager to bind namespaces though -- we probably
+    # want to load the NS manager empty of namespaces.
     owm_project.fetch(core_bundle)
     owm = owm_project.owm()
     # TODO: Fix this so we use the correct version of the core bundle
-    deps = [{'id': 'openworm/owmeta-core', 'version': 1}]
+    deps = [{'id': core_bundle.id, 'version': core_bundle.version}]
     owm.config.set('dependencies', json.dumps(deps))
 
     with owm.connect() as conn, conn.transaction_manager:

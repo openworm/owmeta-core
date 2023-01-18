@@ -111,7 +111,9 @@ class AggregateStore(Store):
             for ns in store.namespaces():
                 yield ns
 
-    def bind(self, prefix, namespace):
+    def bind(self, prefix, namespace, override=True):
+        if not override and prefix in self.__bound_ns.get:
+            return
         self.__bound_ns[prefix] = namespace
         self.__bound_pref[namespace] = prefix
 

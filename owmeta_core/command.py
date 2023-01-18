@@ -2221,9 +2221,11 @@ class OWM:
     def own_rdf(self):
         has_dependencies = self._conf('dependencies', None)
         if has_dependencies:
-            return _Dataset(
+            res = _Dataset(
                     self.rdf.store.stores[0],
                     default_union=True)
+            res.namespace_manager = self.namespace_manager
+            return res
         else:
             return self._conf('rdf.graph')
 
