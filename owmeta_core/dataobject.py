@@ -1298,6 +1298,7 @@ class RDFProperty(BaseDataObject):
 
 RDFSClass.init_rdf_type_object()
 BaseDataObject.init_rdf_type_object()
+RDFSClass.rdf_type_object.rdfs_subclassof_property.set(BaseDataObject.rdf_type_object)
 DataObject.init_rdf_type_object()
 RDFProperty.init_rdf_type_object()
 
