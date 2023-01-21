@@ -1473,7 +1473,11 @@ class PythonClassDescription(ClassDescription):
     name = DatatypeProperty(
             __doc__='Local name of the class (i.e., relative to the module name)')
 
-    key_properties = (name, 'module')
+    module = ObjectProperty(value_type=PythonModule,
+            __doc__='The module the class belongs to',
+            subproperty_of=ClassDescription.module)
+
+    key_properties = (name, module)
 
     @classmethod
     def from_class(cls, other_cls):
