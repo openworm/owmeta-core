@@ -1,0 +1,3 @@
+<http://data.openworm.org/bundle/generated_class_registry_ctx?bundle_id=openworm/owmeta-core&bundle_version=2> <http://schema.openworm.org/2020/07/Context/imports> <http://schema.openworm.org/2020/07> .
+<http://schema.openworm.org/2020/07> <http://schema.openworm.org/2020/07/Context/imports> <http://www.w3.org/2000/01/rdf-schema> .
+<http://www.w3.org/2000/01/rdf-schema> <http://schema.openworm.org/2020/07/Context/imports> <http://www.w3.org/1999/02/22-rdf-syntax-ns> .
