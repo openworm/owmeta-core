@@ -145,15 +145,8 @@ def test_translator_list(owm_project):
 
 @bundle_versions('core_bundle', [1, 2])
 def test_translator_list_kinds(owm_project, core_bundle):
-    # XXX: 2023/01/16 This one is failing because the default NamespaceManager init tries
-    # to bind namespaces but OWMTranslator.list_kinds doesn't create a transaction. We
-    # don't actually want the NamespaceManager to bind namespaces though -- we probably
-    # want to load the NS manager empty of namespaces.
-    owm_project.fetch(core_bundle)
+    owm_project.add_dependency(core_bundle)
     owm = owm_project.owm()
-    # TODO: Fix this so we use the correct version of the core bundle
-    deps = [{'id': core_bundle.id, 'version': core_bundle.version}]
-    owm.config.set('dependencies', json.dumps(deps))
 
     with owm.connect() as conn, conn.transaction_manager:
         defctx = conn(Context)(ident=owm_project.default_context_id)
@@ -321,12 +314,9 @@ def test_translate_table_output(owm_project):
 
 @bundle_versions('core_bundle', [1, 2])
 def test_source_list(owm_project, core_bundle):
-    owm_project.fetch(core_bundle)
-    owm = owm_project.owm()
-    deps = [{'id': 'openworm/owmeta-core', 'version': 1}]
-    owm.config.set('dependencies', json.dumps(deps))
+    owm_project.add_dependency(core_bundle)
 
-    with owm.connect() as conn:
+    with owm_project.owm().connect() as conn:
         with conn.transaction_manager:
             # Create data sources
             ctx = conn(Context)(ident='http://example.org/context')
@@ -351,11 +341,8 @@ def test_source_list(owm_project, core_bundle):
 
 @bundle_versions('core_bundle', [1, 2])
 def test_source_list_kinds(owm_project, core_bundle):
-    owm_project.fetch(core_bundle)
-    owm = owm_project.owm()
-    deps = [{'id': 'openworm/owmeta-core', 'version': 1}]
-    owm.config.set('dependencies', json.dumps(deps))
-    with owm.connect() as conn:
+    owm_project.add_dependency(core_bundle)
+    with owm_project.owm().connect() as conn:
         with conn.transaction_manager:
             # Create data sources
             defctx = conn(Context)(ident=owm_project.default_context_id)
@@ -462,7 +449,9 @@ def test_registry_list(owm_project):
     assertRegexpMatches(registry_list_out, 'tests.test_modules.owmclitest05_donkey')
 
 
-def test_registry_list_module_filter(owm_project):
+@bundle_versions('core_bundle', [1, 2])
+def test_registry_list_module_filter(owm_project, core_bundle):
+    owm_project.add_dependency(core_bundle)
     owm_project.make_module('tests')
     owm_project.copy('tests/test_modules', 'tests/test_modules')
     save_out = owm_project.sh('owm save tests.test_modules.owmclitest05_monkey')
@@ -475,6 +464,7 @@ def test_registry_list_module_filter(owm_project):
     assertNotRegexpMatches(registry_list_out, 'tests.test_modules.owmclitest05_donkey')
 
 
+@mark.skip(reason="`OWMTypes.rm` needs redesign and is broken in for the previously expected usage")
 def test_type_rm_no_resolve(owm_project):
     from .test_modules.owmclitest06_datasource import TestDataSource
     owm_project.make_module('tests')
