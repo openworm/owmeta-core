@@ -141,8 +141,8 @@ def test_install_class_registry_load(owm_project, core_bundle):
     description: A person in a bundle
     includes: ["{owm_project.default_context_id}", "{Person.definition_context.identifier}"]
     dependencies:
-        - id: openworm/owmeta-core
-          version: 1
+        - id: {core_bundle.id}
+          version: {core_bundle.version}
     '''
     print(descriptor)
     add_bundle(owm_project, descriptor)
