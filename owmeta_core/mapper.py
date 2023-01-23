@@ -1,4 +1,3 @@
-from __future__ import print_function
 import importlib as IM
 import logging
 
@@ -296,7 +295,15 @@ class Mapper(Configurable):
 
             # Fall-back class resolution
             class_name = cd_l.name()
+            if class_name is None:
+                L.warning('_resolve_class: Could not find a class name attached to'
+                          ' %s', cd_l)
+                continue
             moddo = cd_l.module()
+            if moddo is None:
+                L.warning('_resolve_class: Could not find a module attached to'
+                          ' %s with name %s', cd_l, class_name)
+                continue
             mod = moddo.resolve_module()
             L.warning('_resolve_class: Did not find class %s in %s', class_name, mod.__name__)
             ymc = getattr(mod, '__yarom_mapped_classes__', None)

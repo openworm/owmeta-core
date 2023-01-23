@@ -1,4 +1,3 @@
-from __future__ import print_function
 import logging
 
 import rdflib
@@ -44,8 +43,9 @@ def load_base(graph, idents, target_type, context, resolver):
     # We don't use a subclassof ZOM layer for this query since we are going to get the
     # "most specific" type, which will have to be one declared explicitly
     L.debug("querying %s types in %s", idents, graph)
+    idents = list(idents)
     ids_missing_types = set(idents)
-    for ident, _, rdf_type in graph.triples_choices((list(idents),
+    for ident, _, rdf_type in graph.triples_choices((idents,
                                                      rdflib.RDF['type'],
                                                      None)):
         t = grouped_types.get(ident, None)
@@ -54,9 +54,9 @@ def load_base(graph, idents, target_type, context, resolver):
             grouped_types[ident] = set([rdf_type])
         else:
             t.add(rdf_type)
-
-    for ident in ids_missing_types:
-        raise MissingRDFTypeException(f'Could not recover a type declaration for {ident}')
+    if ids_missing_types:
+        raise MissingRDFTypeException('Could not recover a type declaration for'
+                                      f' {ids_missing_types}')
 
     for ident, types in grouped_types.items():
         the_type = resolver.type_resolver(graph, types, base=target_type)

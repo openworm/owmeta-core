@@ -9,7 +9,7 @@ preferred to the lower-level interfaces for stability.
 '''
 from __future__ import print_function, absolute_import
 import sys
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import os
 from os.path import (exists,
         abspath,
@@ -2102,10 +2102,11 @@ class OWM:
                         with open(os.devnull, 'w') as nullout:
                             sys.stdout = nullout
                             sys.stderr = nullout
-                            return wrap_data_object_result(transform(
-                                    transformer_obj,
-                                    data_sources=source_objs,
-                                    named_data_sources=named_data_source_objs))
+                            output = transform(transformer_obj,
+                                               data_sources=source_objs,
+                                               named_data_sources=named_data_source_objs)
+                            return wrap_data_object_result(srcctx(output),
+                                                           connection_ctx_mgr=self.connect())
                     finally:
                         sys.stdout = old_stdout
                         sys.stderr = old_stderr
@@ -3036,7 +3037,10 @@ class ConfigMissingException(GenericUserError):
         self.key = key
 
 
-def wrap_data_object_result(result, props=None, namespace_manager=None, shorten_urls=False):
+def wrap_data_object_result(result, props=None, namespace_manager=None, shorten_urls=False, connection_ctx_mgr=None):
+    if connection_ctx_mgr is None:
+        connection_ctx_mgr = nullcontext()
+
     def format_id(r):
         if not shorten_urls or not namespace_manager:
             return r.identifier
@@ -3061,7 +3065,10 @@ def wrap_data_object_result(result, props=None, namespace_manager=None, shorten_
 
     props = None
     if isinstance(result, DataObject):
-        iterable = (result,)
+        def _f():
+            with connection_ctx_mgr:
+                yield result
+        iterable = _f()
         if props is None:
             props = tuple(x.linkName for x in result.properties)
     else:
@@ -3072,7 +3079,12 @@ def wrap_data_object_result(result, props=None, namespace_manager=None, shorten_
                 props |= set(x.link_name for x in r.properties)
                 props |= set(x.link_name for x in type(r)._property_classes.values())
             props = tuple(sorted(props))
-            iterable = do_list
+
+            def _f():
+                with connection_ctx_mgr:
+                    for s in do_list:
+                        yield s
+            iterable = _f()
         else:
             iterable = result
 

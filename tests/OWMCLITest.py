@@ -143,7 +143,7 @@ def test_translator_list(owm_project):
     )
 
 
-@bundle_versions('core_bundle', [1, 2])
+@bundle_versions('core_bundle', [2])
 def test_translator_list_kinds(owm_project, core_bundle):
     owm_project.add_dependency(core_bundle)
     owm = owm_project.owm()
@@ -157,7 +157,9 @@ def test_translator_list_kinds(owm_project, core_bundle):
     assert set(output) == set(['<http://schema.openworm.org/2020/07/CSVDataTranslator>'])
 
 
-def test_translator_show(owm_project):
+@bundle_versions('core_bundle', [2])
+def test_translator_show(owm_project, core_bundle):
+    owm_project.add_dependency(core_bundle)
     trans_id = URIRef('http://example.org/trans1')
     with owm_project.owm().connect() as conn, conn.transaction_manager:
         # Create data Translator
@@ -179,7 +181,9 @@ def test_translator_show(owm_project):
     assert str(dt1) == owm_project.sh(f'owm translator show {trans_id}').strip()
 
 
-def test_translator_create(owm_project):
+@bundle_versions('core_bundle', [1, 2])
+def test_translator_create(owm_project, core_bundle):
+    owm_project.add_dependency(core_bundle)
     with owm_project.owm().connect() as conn, conn.transaction_manager:
         conn.mapper.process_class(DT1)
 
@@ -193,7 +197,9 @@ def test_translator_create(owm_project):
         assert (rdflib.URIRef(ident), rdflib.RDF.type, DT1.rdf_type) in conn.rdf
 
 
-def test_translator_rm(owm_project):
+@bundle_versions('core_bundle', [1, 2])
+def test_translator_rm(owm_project, core_bundle):
+    owm_project.add_dependency(core_bundle)
     trans_id = URIRef('http://example.org/trans1')
     with owm_project.owm().connect() as conn, conn.transaction_manager:
         # Create data Translator
@@ -292,6 +298,7 @@ def test_translate_table_output(owm_project):
         with conn.transaction_manager:
             # Create data sources
             ctx = conn(Context)(ident=EX.context)
+            ctx.add_import(DataSource.definition_context)
             insrc = ctx(DataSource)(ident=EX['in'])
 
             ctx(DT)(ident='http://example.org/trans1')
@@ -312,7 +319,7 @@ def test_translate_table_output(owm_project):
     assert re.search(rf'{EX.out} *{EX["in"]} *{LABEL!r}', out_ds)
 
 
-@bundle_versions('core_bundle', [1, 2])
+@bundle_versions('core_bundle', [2])
 def test_source_list(owm_project, core_bundle):
     owm_project.add_dependency(core_bundle)
 
@@ -339,7 +346,7 @@ def test_source_list(owm_project, core_bundle):
             'http://example.org/lfds +\'DSFile\' +\'hello, world\'')
 
 
-@bundle_versions('core_bundle', [1, 2])
+@bundle_versions('core_bundle', [2])
 def test_source_list_kinds(owm_project, core_bundle):
     owm_project.add_dependency(core_bundle)
     with owm_project.owm().connect() as conn:
@@ -435,7 +442,9 @@ def test_source_rm_translations(owm_project):
         assert [] == list(conn.rdf.triples((tl1.identifier, None, None)))
 
 
-def test_registry_list(owm_project):
+@bundle_versions('core_bundle', [1, 2])
+def test_registry_list(owm_project, core_bundle):
+    owm_project.add_dependency(core_bundle)
     owm_project.make_module('tests')
     owm_project.copy('tests/test_modules', 'tests/test_modules')
     save_out = owm_project.sh('owm save tests.test_modules.owmclitest05_monkey')
@@ -478,7 +487,9 @@ def test_type_rm_no_resolve(owm_project):
                 TestDataSource.definition_context) is None
 
 
-def test_save_class_resolve_class(owm_project):
+@bundle_versions('core_bundle', [1, 2])
+def test_save_class_resolve_class(owm_project, core_bundle):
+    owm_project.add_dependency(core_bundle)
     from .test_modules.owmclitest06_datasource import TestDataSource
     owm_project.make_module('tests')
     owm_project.copy('tests/test_modules', 'tests/test_modules')
