@@ -301,9 +301,17 @@ class Mapper(Configurable):
                 continue
             moddo = cd_l.module()
             if moddo is None:
-                L.warning('_resolve_class: Could not find a module attached to'
-                          ' %s with name %s', cd_l, class_name)
-                continue
+                # Try loading the module using the more generic ClassDescription:module
+                # relationship instead. It's acceptable as long as the type is
+                # PythonModule
+                L.warning('_resolve_class: Could not find a module attached via'
+                          ' PythonClassDescription:module to %s for the class named %s.'
+                          ' Trying ClassDescription:module instead...', cd_l, class_name)
+                moddo = ClassDescription.module(cd_l)()
+                if not isinstance(moddo, PythonModule):
+                    L.warning('_resolve_class: Could not find a module attached to'
+                              ' %s for the class named %s', cd_l, class_name)
+                    continue
             mod = moddo.resolve_module()
             L.warning('_resolve_class: Did not find class %s in %s', class_name, mod.__name__)
             ymc = getattr(mod, '__yarom_mapped_classes__', None)
