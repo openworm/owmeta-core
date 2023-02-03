@@ -459,8 +459,8 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
                 attr = getattr(self, info.name)
                 attr_vals = FormatUtil.collect_values(attr, False)
                 if attr_vals:
-                    print(f', {info.display_name}=', end='', file=sio)
-                    vals = {}
+                    print(f', {info.name}=', end='', file=sio)
+                    vals = []
                     for val in sorted(attr_vals):
                         if isinstance(val, (DataSource, GenericTranslation)):
                             valstr = str(val)
@@ -470,8 +470,10 @@ class DataSource(six.with_metaclass(DataSourceType, DataObject)):
                             valstr = repr(val)
                         else:
                             valstr = str(val)
-                        vals.add(valstr)
-                    print(vals, end='', file=sio)
+                        vals.append(valstr)
+                    print('[', end='', file=sio)
+                    print(', '.join(vals), end='', file=sio)
+                    print(']', end='', file=sio)
             print(')', end='', file=sio)
             return sio.getvalue()
         except AttributeError:
@@ -547,7 +549,21 @@ class GenericTranslation(Translation):
         return self.make_identifier(data)
 
     def __str__(self):
-        return self.format_str(False)
+        sio = six.StringIO()
+        print(f'{self.__class__.__name__}({self.idl}, ', end='', file=sio)
+        sources_field_name = 'sources='
+        print(sources_field_name, end='', file=sio)
+
+        attr = self.source
+        attr_vals = FormatUtil.collect_values(attr, False)
+
+        if attr_vals:
+            print(', '.join(str(x) for x in sorted(attr_vals)), end='', file=sio)
+
+        translator = self.translator.onedef()
+        if translator is not None:
+            print(f'translator={translator}', end='', file=sio)
+        return sio.getvalue()
 
     def format_str(self, stored):
         sio = six.StringIO()
