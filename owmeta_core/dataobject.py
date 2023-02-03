@@ -785,7 +785,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         k = self.idl
         if self.namespace_manager is not None:
             k = self.namespace_manager.normalizeUri(k)
-        return '{}({})'.format(self.__class__.__name__, k)
+        return f'{self.__class__.__name__}({k})'
 
     def __setattr__(self, name, val):
         if isinstance(val, _partial_property):
