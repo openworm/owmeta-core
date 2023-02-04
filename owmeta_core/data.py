@@ -12,6 +12,9 @@ from rdflib.events import Event
 from rdflib.namespace import RDF, NamespaceManager
 import transaction
 from transaction.interfaces import NoTransaction
+from zc.lockfile import LockError
+import ZODB
+from ZODB.FileStorage import FileStorage
 
 from .utils import grouper, retrieve_provider
 from .configure import Configurable, Configuration, ConfigValue
@@ -415,7 +418,7 @@ class Data(Configuration):
     def init(self):
         """ Open the configured database """
         self._init_rdf_graph()
-        L.debug("opening %s", self.source, stack_info=True)
+        L.debug("opening %s", self.source)
         try:
             self.source.open()
         except OpenFailError as e:
@@ -642,9 +645,6 @@ class ZODBSource(RDFSource):
         self.conf['rdf.store'] = "ZODB"
 
     def open(self):
-        import ZODB
-        from ZODB.FileStorage import FileStorage
-        from zc.lockfile import LockError
         self.path = self.conf['rdf.store_conf']
         openstr = os.path.abspath(self.path)
 
@@ -667,9 +667,9 @@ class ZODBSource(RDFSource):
             else:
                 L.error("Lock file contents: %s", lockfile_contents)
 
-            L.exception('Found database "{}" is locked when trying to open it. '
-                    'The PID of this process: {}'.format(openstr, os.getpid()), exc_info=True)
-            raise DatabaseConflict('Database ' + openstr + ' locked')
+            L.exception('Found database "%s" is locked when trying to open it. '
+                    'The PID of this process: %s', openstr, os.getpid(), exc_info=True)
+            raise DatabaseConflict(f'Database {openstr} locked')
 
         tm = self.conf[TRANSACTION_MANAGER_KEY]
         self.zdb = ZODB.DB(fs, cache_size=1600)
