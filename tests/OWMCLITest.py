@@ -274,13 +274,10 @@ def test_translate_data_source_loader(owm_project, lfds_with_file):
     owm_project.make_module('tests')
     owm_project.copy('tests/test_modules', 'tests/test_modules')
 
-    owm_1 = owm_project.owm()
-    out_ds = next(owm_1.translate('http://example.org/trans1', data_sources=(lfds_with_file.ident,)))
-    ds_id = out_ds.identifier
-    #out_ds = owm_project.sh(f'owm --full-trace translate http://example.org/trans1 {lfds_with_file.ident}').strip()
+    ds_id = owm_project.sh(f'owm --full-trace translate http://example.org/trans1 {lfds_with_file.ident}').strip()
     with owm_project.owm().connect() as conn:
         ctx = conn.owm.default_context.stored
-        print('ds_id', repr(out_ds), 'default_context', ctx)
+        print('ds_id', ds_id, 'default_context', ctx)
         for loaded in ctx(DataSource)(ident=ds_id).load():
             break
         else: # no break
