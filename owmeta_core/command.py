@@ -1741,7 +1741,7 @@ class OWM:
         conn = ProjectConnection(self, self._owm_connection, self._connections,
                 expect_cleanup=expect_cleanup)
         self._connections.add(conn)
-        L.debug("CONNECTED %s", id(conn))
+        L.debug("CONNECTED %s (%s open connections)", conn, len(self._connections))
         return conn
 
     @property
@@ -1870,10 +1870,10 @@ class OWM:
 
         if self._owm_connection is not None:
             if len(self._connections) == 0:
+                L.debug("DISCONNECTING %s", self._owm_connection)
                 self._owm_connection.disconnect()
                 self._dat = None
                 self._owm_connection = None
-                L.debug("DISCONNECTED")
             elif len(self._connections) > 0:
                 warnings.warn('Attempted to close OWM connection prematurely:'
                         f' still have {len(self._connections)} connection(s) ', ResourceWarning, stacklevel=2)
@@ -2105,11 +2105,20 @@ class OWM:
                             output = transform(transformer_obj,
                                                data_sources=source_objs,
                                                named_data_sources=named_data_source_objs)
-                            return wrap_data_object_result(srcctx(output),
-                                                           connection_ctx_mgr=self.connect())
+                            self._default_ctx.save()
                     finally:
                         sys.stdout = old_stdout
                         sys.stderr = old_stderr
+
+                conn2 = self.connect()
+
+                @contextmanager
+                def connmgr():
+                    with conn2, conn2.transaction_manager:
+                        yield conn2
+
+                return wrap_data_object_result(conn2(self._default_ctx).stored(output),
+                                               connection_ctx_mgr=connmgr())
             except Exception as e:
                 raise GenericUserError(f'Unable to complete translation: {e}') from e
 
@@ -2574,6 +2583,7 @@ class ProjectConnection(object):
             warnings.warn('Unexpected cleanup by resource manager', ResourceWarning, source=self)
         try:
             self._connections.remove(self)
+            L.debug("DISCONNECTED %s (%s open connections)", self, len(self._connections))
             if len(self._connections) == 0:
                 self.owm.disconnect()
             self._connected = False

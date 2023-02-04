@@ -274,14 +274,17 @@ def test_translate_data_source_loader(owm_project, lfds_with_file):
     owm_project.make_module('tests')
     owm_project.copy('tests/test_modules', 'tests/test_modules')
 
-    out_ds = owm_project.sh(f'owm --full-trace translate http://example.org/trans1 {lfds_with_file.ident}').strip()
+    owm_1 = owm_project.owm()
+    out_ds = next(owm_1.translate('http://example.org/trans1', data_sources=(lfds_with_file.ident,)))
+    ds_id = out_ds.identifier
+    #out_ds = owm_project.sh(f'owm --full-trace translate http://example.org/trans1 {lfds_with_file.ident}').strip()
     with owm_project.owm().connect() as conn:
         ctx = conn.owm.default_context.stored
         print('ds_id', repr(out_ds), 'default_context', ctx)
-        for loaded in ctx(DataSource)(ident=out_ds).load():
+        for loaded in ctx(DataSource)(ident=ds_id).load():
             break
         else: # no break
-            raise Exception(f'Failed to load datasource for {out_ds}')
+            raise Exception(f'Failed to load datasource for {ds_id}')
 
         with open(loaded.full_path()) as f:
             assertRegexpMatches(f.read(), rf'^{lfds_with_file.file_contents}$')
@@ -314,7 +317,7 @@ def test_translate_table_output(owm_project):
     owm_project.writefile(p(modpath, 'owmclitest07_translator.py'))
     out_ds = owm_project.sh(
             'owm --full-trace -o table --columns ID,source,rdfs_label'
-            f' translate {DT.translator_identifier} {insrc.identifier}').strip()
+            f' --log-level=DEBUG translate {DT.translator_identifier} {insrc.identifier}').strip()
     print(out_ds)
     assert re.search(rf'{EX.out} *{EX["in"]} *{LABEL!r}', out_ds)
 

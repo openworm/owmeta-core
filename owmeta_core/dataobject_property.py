@@ -326,7 +326,8 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
         if hdf is not None:
             return hdf
         for x in self._v:
-            if x.context == self.context and x.object.defined:
+            if (x.object.defined
+                    and getattr(x.context, 'identifier', None) == getattr(self.context, 'identifier', None)):
                 self._hdf[self.context] = True
                 return True
         return False
@@ -363,7 +364,8 @@ class Property(with_metaclass(ContextMappedPropertyClass, DataUser, Contextualiz
         The "defined" values set on this property in the current context
         '''
         return tuple(x.object for x in self._v
-                     if x.object.defined and x.context == self.context)
+                     if x.object.defined and
+                     getattr(x.context, 'identifier', None) == getattr(self.context, 'identifier', None))
 
     @property
     def values(self):
