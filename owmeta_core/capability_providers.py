@@ -28,9 +28,18 @@ class WorkingDirectoryProvider(FilePathProvider):
     `.data_trans.local_file_ds.LocalFileDataSource` instances.
     '''
 
-    def __init__(self, **kwargs):
+    def __init__(self, cwd=None, **kwargs):
+        '''
+        Parameters
+        ----------
+        cwd : str or pathlib.Path, optional
+            The working directory to use. The default is what `os.getcwd` returns
+        '''
         super().__init__(**kwargs)
-        self.cwd = getcwd()
+        if cwd is not None:
+            self.cwd = cwd
+        else:
+            self.cwd = getcwd()
 
     def provides_to(self, obj, cap):
         from .data_trans.local_file_ds import LocalFileDataSource
