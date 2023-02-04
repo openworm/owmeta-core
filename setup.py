@@ -27,7 +27,7 @@ def excludes(base):
     return res
 
 
-rdflib_sqlalchemy_dep = 'rdflib-sqlalchemy~=0.4.0.dev0',
+rdflib_sqlalchemy_dep = 'rdflib-sqlalchemy~=0.5.4',
 setup(
     name='owmeta-core',
     zip_safe=False,
