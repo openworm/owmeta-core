@@ -12,6 +12,9 @@ from rdflib.events import Event
 from rdflib.namespace import RDF, NamespaceManager
 import transaction
 from transaction.interfaces import NoTransaction
+from zc.lockfile import LockError
+import ZODB
+from ZODB.FileStorage import FileStorage
 
 from .utils import grouper, retrieve_provider
 from .configure import Configurable, Configuration, ConfigValue
@@ -109,6 +112,13 @@ class _Dataset(Dataset):
             yield c
         if not default:
             yield self._graph(DATASET_DEFAULT_GRAPH_ID)
+
+    def quads(self, quad):
+        for s, p, o, c in super(Dataset, self).quads(quad):
+            if c == self.default_context:
+                yield s, p, o, None
+            else:
+                yield s, p, o, c
 
 
 class DataUserUnconnected(Exception):
@@ -635,9 +645,6 @@ class ZODBSource(RDFSource):
         self.conf['rdf.store'] = "ZODB"
 
     def open(self):
-        import ZODB
-        from ZODB.FileStorage import FileStorage
-        from zc.lockfile import LockError
         self.path = self.conf['rdf.store_conf']
         openstr = os.path.abspath(self.path)
 
@@ -647,9 +654,22 @@ class ZODBSource(RDFSource):
             L.exception("Failed to create a FileStorage")
             raise ZODBSourceOpenFailError(openstr)
         except LockError:
-            L.exception('Found database "{}" is locked when trying to open it. '
-                    'The PID of this process: {}'.format(openstr, os.getpid()), exc_info=True)
-            raise DatabaseConflict('Database ' + openstr + ' locked')
+            # LockError doesn't give us the lock file name directly and I'm not going to
+            # try parsing it out of the error message, but it contains useful info like
+            # the process ID holding the lock, so we try to grab that for the user
+            lockfile_name = f'{openstr}.lock'
+            try:
+                lockfile = open(lockfile_name, 'r')
+                with lockfile:
+                    lockfile_contents = lockfile.read()
+            except Exception:
+                L.debug("Unable to read lockfile")
+            else:
+                L.error("Lock file contents: %s", lockfile_contents)
+
+            L.exception('Found database "%s" is locked when trying to open it. '
+                    'The PID of this process: %s', openstr, os.getpid(), exc_info=True)
+            raise DatabaseConflict(f'Database {openstr} locked')
 
         tm = self.conf[TRANSACTION_MANAGER_KEY]
         self.zdb = ZODB.DB(fs, cache_size=1600)

@@ -1,3 +1,4 @@
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix ns10: <http://schema.openworm.org/2020/07/RegistryEntry/> .
 @prefix ns11: <http://schema.openworm.org/2020/07/RegistryEntry/> .
 @prefix ns7: <http://schema.openworm.org/2020/07/ClassDescription/> .
@@ -14,3 +15,6 @@
 
 <http://schema.openworm.org/2020/07/PythonModule#tests.test_modules.owmbundletest01> a <http://schema.openworm.org/2020/07/PythonModule> ;
     ns9:name "tests.test_modules.owmbundletest01" .
+
+# We're being lazy: normally, this statement would be imported
+<http://schema.openworm.org/2020/07/PythonModule> rdfs:subClassOf <http://schema.openworm.org/2020/07/Module> .

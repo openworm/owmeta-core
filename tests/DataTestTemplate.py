@@ -5,7 +5,7 @@ import unittest
 import subprocess
 import tempfile
 
-from owmeta_core.context import Context
+from owmeta_core.context import Context, IMPORTS_CONTEXT_KEY
 from owmeta_core.data import Data
 from owmeta_core.mapper import CLASS_REGISTRY_CONTEXT_KEY
 
@@ -33,6 +33,7 @@ class _DataTest(unittest.TestCase):
         td = '__tempdir__'
         z = self.TestConfig['rdf.store_conf']
         self.TestConfig[CLASS_REGISTRY_CONTEXT_KEY] = 'http://example.org/class_registry'
+        self.TestConfig[IMPORTS_CONTEXT_KEY] = 'http://example.org/imports'
         if z.startswith(td):
             x = z[len(td):]
             h = tempfile.mkdtemp()

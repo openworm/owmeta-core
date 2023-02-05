@@ -16,6 +16,7 @@ Contents:
    api/modules
    userdocs
    devdocs
+   examples/index
 
 
 Issues

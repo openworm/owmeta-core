@@ -1,4 +1,3 @@
-from __future__ import print_function
 import logging
 
 import rdflib
@@ -24,12 +23,15 @@ def load_base(graph, idents, target_type, context, resolver):
     ----------
     graph : rdflib.graph.Graph
         The graph to query from
-    target_type : rdflib.term.URIRef
-        URI of the target type. Any result will be a sub-class of this type
-    context : .context.Context
-        Limits the scope of the query to statements within or entailed by this context
     idents : list of rdflib.term.URIRef
         A list of identifiers to convert into objects
+    target_type : rdflib.term.URIRef
+        URI of the target type. Any result will be a sub-class of this type
+    context : object
+        Limits the scope of the query to statements within or entailed by this context.
+        Notionally, it's a owmeta_core.context.Context instance
+    resolver : .rdf_type_resolver.RDFTypeResolver
+        Handles some of the mappings
     '''
 
     L.debug("load_base: graph %s target_type %s context %s resolver %s",
@@ -41,29 +43,28 @@ def load_base(graph, idents, target_type, context, resolver):
     # We don't use a subclassof ZOM layer for this query since we are going to get the
     # "most specific" type, which will have to be one declared explicitly
     L.debug("querying %s types in %s", idents, graph)
-    for ident, _, rdf_type in graph.triples_choices((list(idents),
+    idents = list(idents)
+    ids_missing_types = set(idents)
+    for ident, _, rdf_type in graph.triples_choices((idents,
                                                      rdflib.RDF['type'],
                                                      None)):
         t = grouped_types.get(ident, None)
         if t is None:
+            ids_missing_types.remove(ident)
             grouped_types[ident] = set([rdf_type])
         else:
             t.add(rdf_type)
+    if ids_missing_types:
+        raise MissingRDFTypeException('Could not recover a type declaration for'
+                                      f' {ids_missing_types}')
 
-    hit = False
     for ident, types in grouped_types.items():
-        hit = True
-        the_type = get_most_specific_rdf_type(graph, types, base=target_type)
+        the_type = resolver.type_resolver(graph, types, base=target_type)
         if the_type is None:
-            raise Exception(f'Could not recover a type for {ident}')
+            raise MissingRDFTypeException(
+                    f'The type resolver could not recover a type for {ident}'
+                    f' from {types} constrained to {target_type}')
         yield resolver.id2ob(ident, the_type, context)
-
-    if not hit:
-        for ident in idents:
-            the_type = None
-            if target_type:
-                the_type = target_type
-            yield resolver.id2ob(ident, the_type, context)
 
 
 def load_terms(graph, start, target_type):
@@ -116,6 +117,10 @@ def get_most_specific_rdf_type(graph, types, base=None):
         The types to query
     base : rdflib.term.URIRef
         The "base" type
+
+    See Also
+    --------
+    RDFTypeResolver
     '''
     if len(types) == 1 and (not base or (base,) == tuple(types)):
         return tuple(types)[0]
@@ -134,6 +139,9 @@ def get_most_specific_rdf_type(graph, types, base=None):
 
 
 def _gmsrt_helper(graph, start, base=None):
+    # Finds the most specific (furthest to the left in the chain of subClassOf
+    # relationships), then confirms that the resulting set is a sub-class of the base if
+    # one is given
     res = set(start)
     border = set(start)
     subclasses = {s: {s} for s in start}
@@ -177,21 +185,25 @@ def _gmsrt_helper(graph, start, base=None):
                         in graph.triples_choices((list(border), rdflib.RDFS.subClassOf, None))
                         if o not in seen}
                 seen |= border
+            else: # no break
+                # We never found the base class in super-classes of our result set, so we
+                # have to drop the result set
+                res = set()
     return res
 
 
-def oid(identifier_or_rdf_type=None, rdf_type=None, context=None, base_type=None):
+def oid(identifier_or_rdf_type, rdf_type, context, base_type=None):
     """
     Create an object from its rdf type
 
     Parameters
     ----------
-    identifier_or_rdf_type : :class:`str` or :class:`rdflib.term.URIRef`
+    identifier_or_rdf_type : rdflib.term.URIRef
         If `rdf_type` is provided, then this value is used as the identifier
         for the newly created object. Otherwise, this value will be the
         :attr:`rdf_type` of the object used to determine the Python type and
         the object's identifier will be randomly generated.
-    rdf_type : :class:`str`, :class:`rdflib.term.URIRef`, :const:`False`
+    rdf_type : rdflib.term.URIRef
         If provided, this will be the :attr:`rdf_type` of the newly created
         object.
     context : Context, optional
@@ -223,11 +235,7 @@ def oid(identifier_or_rdf_type=None, rdf_type=None, context=None, base_type=None
                 break
 
     if cls is None:
-        if base_type is None:
-            from .dataobject import BaseDataObject
-            cls = BaseDataObject
-        else:
-            cls = base_type
+        cls = base_type
 
     # if its our class name, then make our own object
     # if there's a part after that, that's the property name
@@ -261,3 +269,9 @@ def _superclass_iter(graph, start):
             break
         yield new_border
         border = new_border
+
+
+class MissingRDFTypeException(Exception):
+    '''
+    Raised when we were looking for an RDF type couldn't find one
+    '''

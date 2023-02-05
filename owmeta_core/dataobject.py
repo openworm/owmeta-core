@@ -785,7 +785,7 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         k = self.idl
         if self.namespace_manager is not None:
             k = self.namespace_manager.normalizeUri(k)
-        return '{}({})'.format(self.__class__.__name__, k)
+        return f'{self.__class__.__name__}({k})'
 
     def __setattr__(self, name, val):
         if isinstance(val, _partial_property):
@@ -1064,11 +1064,10 @@ class BaseDataObject(six.with_metaclass(ContextMappedClass,
         if cls.context is not None:
             context = cls.context
 
-        if rdf_type is None:
-            return oid(identifier_or_rdf_type, context=context)
-        else:
+        if rdf_type is not None:
             rdf_type = URIRef(rdf_type)
-            return oid(identifier_or_rdf_type, rdf_type, context=context)
+
+        return oid(identifier_or_rdf_type, rdf_type, context, BaseDataObject)
 
     def decontextualize(self):
         if self.context is None:
@@ -1184,7 +1183,8 @@ class _Resolver(RDFTypeResolver):
             cls.instance = cls(
                 BaseDataObject.rdf_type,
                 get_most_specific_rdf_type,
-                oid,
+                lambda *args, **kwargs: oid(
+                    *args, base_type=BaseDataObject, **kwargs),
                 deserialize_rdflib_term)
         return cls.instance
 
@@ -1298,6 +1298,7 @@ class RDFProperty(BaseDataObject):
 
 RDFSClass.init_rdf_type_object()
 BaseDataObject.init_rdf_type_object()
+RDFSClass.rdf_type_object.rdfs_subclassof_property.set(BaseDataObject.rdf_type_object)
 DataObject.init_rdf_type_object()
 RDFProperty.init_rdf_type_object()
 
@@ -1472,7 +1473,11 @@ class PythonClassDescription(ClassDescription):
     name = DatatypeProperty(
             __doc__='Local name of the class (i.e., relative to the module name)')
 
-    key_properties = (name, 'module')
+    module = ObjectProperty(value_type=PythonModule,
+            __doc__='The module the class belongs to',
+            subproperty_of=ClassDescription.module)
+
+    key_properties = (name, module)
 
     @classmethod
     def from_class(cls, other_cls):

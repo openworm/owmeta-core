@@ -7,6 +7,7 @@ from rdflib.namespace import RDF
 
 from owmeta_core.collections import (Bag, Seq, Alt, List, ContainerMembershipProperty,
                                      ContainerValueConflict)
+from owmeta_core.context import IMPORTS_CONTEXT_KEY
 
 from .DataTestTemplate import _DataTest
 from .TestUtilities import captured_logging
@@ -200,6 +201,11 @@ class ListLoadDataObjectSequencesTest(_DataTest):
                "Ernest Barnes",
                "W. W. Rouse Ball"]
         self.ctx.List.from_sequence(lst, "http://example.org/conway_academic_lineage")
+
+        self.context.add_import(List.definition_context)
+        self.context.save_imports()
+        List.definition_context.save(self.config['rdf.graph'])
+
         self.context.save()
 
         cut = self.context.stored(List)(ident="http://example.org/conway_academic_lineage")
@@ -226,6 +232,10 @@ class ListLoadDataObjectSequencesTest(_DataTest):
         b.rest(d)
         d.rest(nil)
         self.context.save()
+
+        self.context.add_import(List.definition_context)
+        self.context.save_imports()
+        List.definition_context.save(self.config['rdf.graph'])
 
         for t in self.context.rdf:
             print(' '.join(x.n3() for x in t))

@@ -9,7 +9,7 @@ preferred to the lower-level interfaces for stability.
 '''
 from __future__ import print_function, absolute_import
 import sys
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import os
 from os.path import (exists,
         abspath,
@@ -1741,7 +1741,7 @@ class OWM:
         conn = ProjectConnection(self, self._owm_connection, self._connections,
                 expect_cleanup=expect_cleanup)
         self._connections.add(conn)
-        L.debug("CONNECTED %s", id(conn))
+        L.debug("CONNECTED %s (%s open connections)", conn, len(self._connections))
         return conn
 
     @property
@@ -1870,10 +1870,10 @@ class OWM:
 
         if self._owm_connection is not None:
             if len(self._connections) == 0:
+                L.debug("DISCONNECTING %s", self._owm_connection)
                 self._owm_connection.disconnect()
                 self._dat = None
                 self._owm_connection = None
-                L.debug("DISCONNECTED")
             elif len(self._connections) > 0:
                 warnings.warn('Attempted to close OWM connection prematurely:'
                         f' still have {len(self._connections)} connection(s) ', ResourceWarning, stacklevel=2)
@@ -2102,13 +2102,23 @@ class OWM:
                         with open(os.devnull, 'w') as nullout:
                             sys.stdout = nullout
                             sys.stderr = nullout
-                            return wrap_data_object_result(transform(
-                                    transformer_obj,
-                                    data_sources=source_objs,
-                                    named_data_sources=named_data_source_objs))
+                            output = transform(transformer_obj,
+                                               data_sources=source_objs,
+                                               named_data_sources=named_data_source_objs)
+                            self._default_ctx.save()
                     finally:
                         sys.stdout = old_stdout
                         sys.stderr = old_stderr
+
+                conn2 = self.connect()
+
+                @contextmanager
+                def connmgr():
+                    with conn2, conn2.transaction_manager:
+                        yield conn2
+
+                return wrap_data_object_result(conn2(self._default_ctx).stored(output),
+                                               connection_ctx_mgr=connmgr())
             except Exception as e:
                 raise GenericUserError(f'Unable to complete translation: {e}') from e
 
@@ -2221,9 +2231,11 @@ class OWM:
     def own_rdf(self):
         has_dependencies = self._conf('dependencies', None)
         if has_dependencies:
-            return _Dataset(
+            res = _Dataset(
                     self.rdf.store.stores[0],
                     default_union=True)
+            res.namespace_manager = self.namespace_manager
+            return res
         else:
             return self._conf('rdf.graph')
 
@@ -2571,6 +2583,7 @@ class ProjectConnection(object):
             warnings.warn('Unexpected cleanup by resource manager', ResourceWarning, source=self)
         try:
             self._connections.remove(self)
+            L.debug("DISCONNECTED %s (%s open connections)", self, len(self._connections))
             if len(self._connections) == 0:
                 self.owm.disconnect()
             self._connected = False
@@ -3034,7 +3047,10 @@ class ConfigMissingException(GenericUserError):
         self.key = key
 
 
-def wrap_data_object_result(result, props=None, namespace_manager=None, shorten_urls=False):
+def wrap_data_object_result(result, props=None, namespace_manager=None, shorten_urls=False, connection_ctx_mgr=None):
+    if connection_ctx_mgr is None:
+        connection_ctx_mgr = nullcontext()
+
     def format_id(r):
         if not shorten_urls or not namespace_manager:
             return r.identifier
@@ -3059,7 +3075,10 @@ def wrap_data_object_result(result, props=None, namespace_manager=None, shorten_
 
     props = None
     if isinstance(result, DataObject):
-        iterable = (result,)
+        def _f():
+            with connection_ctx_mgr:
+                yield result
+        iterable = _f()
         if props is None:
             props = tuple(x.linkName for x in result.properties)
     else:
@@ -3070,7 +3089,12 @@ def wrap_data_object_result(result, props=None, namespace_manager=None, shorten_
                 props |= set(x.link_name for x in r.properties)
                 props |= set(x.link_name for x in type(r)._property_classes.values())
             props = tuple(sorted(props))
-            iterable = do_list
+
+            def _f():
+                with connection_ctx_mgr:
+                    for s in do_list:
+                        yield s
+            iterable = _f()
         else:
             iterable = result
 

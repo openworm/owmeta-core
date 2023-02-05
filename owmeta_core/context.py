@@ -11,7 +11,7 @@ from .data import DataUser
 
 from .context_common import CONTEXT_IMPORTS
 from .context_store import ContextStore, RDFContextStore
-from .contextualize import (BaseContextualizable,
+from .contextualize import (AbstractBaseContextualizable,
                             Contextualizable,
                             ContextualizableClass,
                             ContextualizingProxy,
@@ -55,7 +55,7 @@ class ModuleProxy(wrapt.ObjectProxy):
             return o
         else:
             o = super(ModuleProxy, self).__getattr__(name)
-            if isinstance(o, (BaseContextualizable, ContextualizableClass)):
+            if isinstance(o, AbstractBaseContextualizable):
                 o = o.contextualize(self._self_ctx)
                 self._self_overrides[name] = o
             return o
@@ -196,7 +196,7 @@ class Context(six.with_metaclass(ContextMeta,
 
         Parameters
         ----------
-        stmt : tuple
+        stmt : owmeta_core.statement.Statement
             Statement to add
         '''
         if self.identifier != stmt.context.identifier:
@@ -256,11 +256,13 @@ class Context(six.with_metaclass(ContextMeta,
         transitive : bool, optional
             If `True`, call imported imported contexts to save their imports as well
         '''
-        if not context:
+        if context is None:
             ctx_key = self.conf[IMPORTS_CONTEXT_KEY]
-            context = Context(ident=ctx_key, conf=self.conf)
-        self.declare_imports(context, transitive)
-        context.save_context(*args, **kwargs)
+            imports_context = Context(ident=ctx_key, conf=self.conf)
+        else:
+            imports_context = context
+        self.declare_imports(imports_context, transitive)
+        imports_context.save_context(*args, **kwargs)
 
     def declare_imports(self, context=None, transitive=False):
         '''
@@ -451,12 +453,8 @@ class Context(six.with_metaclass(ContextMeta,
             return ModuleProxy(self, o)
         elif isinstance(o, dict):
             return ContextContextManager(self, o)
-        elif isinstance(o, BaseContextualizable):
+        elif isinstance(o, AbstractBaseContextualizable):
             return o.contextualize(self)
-        elif isinstance(o, ContextualizableClass):
-            # Yes, you can call contextualize on a class and it'll do the right
-            # thing, but let's keep it simple here, okay?
-            return o.contextualize_class(self)
         else:
             return o
 
@@ -480,8 +478,10 @@ class Context(six.with_metaclass(ContextMeta,
         -------
         rdflib.graph.ConjunctiveGraph
         '''
-        return ConjunctiveGraph(identifier=self.identifier,
+        res = ConjunctiveGraph(identifier=self.identifier,
                                 store=RDFContextStore(self, include_imports=False))
+        res.namespace_manager = self.rdf.namespace_manager
+        return res
 
     def load_graph_from_configured_store(self):
         '''
@@ -492,8 +492,10 @@ class Context(six.with_metaclass(ContextMeta,
         -------
         rdflib.graph.ConjunctiveGraph
         '''
-        return ConjunctiveGraph(identifier=self.identifier,
+        res = ConjunctiveGraph(identifier=self.identifier,
                 store=RDFContextStore(self, imports_graph=self.imports_graph()))
+        res.namespace_manager = self.rdf.namespace_manager
+        return res
 
     def imports_graph(self):
         context_imports_graph = None
@@ -751,7 +753,7 @@ class ContextContextManager(object):
         if o is not None:
             return o
         o = self._backing_dict[key]
-        if isinstance(o, (BaseContextualizable, ContextualizableClass)):
+        if isinstance(o, AbstractBaseContextualizable):
             o = o.contextualize(self._ctx)
             self._overrides[key] = o
         return o

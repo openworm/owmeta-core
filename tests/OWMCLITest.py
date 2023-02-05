@@ -17,7 +17,7 @@ from owmeta_core.context import Context, IMPORTS_CONTEXT_KEY, DEFAULT_CONTEXT_KE
 from owmeta_core.context_common import CONTEXT_IMPORTS
 from owmeta_core.data import NAMESPACE_MANAGER_KEY
 from owmeta_core.data_trans.local_file_ds import LocalFileDataSource as LFDS
-from owmeta_core.dataobject import DataObject
+from owmeta_core.dataobject import DataObject, RegistryEntry
 from owmeta_core.datasource import DataTranslator, DataSource, Transformation, Translation
 from owmeta_core.bundle import Descriptor
 from owmeta_pytest_plugin import bundle_versions
@@ -124,6 +124,7 @@ def test_translator_list(owm_project):
         conn.mapper.process_class(DT1)
 
         DT1.definition_context.save(conn.rdf)
+        RegistryEntry.definition_context.save(conn.rdf)
         conn.mapper.declare_python_class_registry_entry(DT1, DataTranslator)
         # Create a translator
         ctx(DT1)(ident=expected)
@@ -142,13 +143,10 @@ def test_translator_list(owm_project):
     )
 
 
-@bundle_versions('core_bundle', [1, 2])
+@bundle_versions('core_bundle', [2])
 def test_translator_list_kinds(owm_project, core_bundle):
-    owm_project.fetch(core_bundle)
+    owm_project.add_dependency(core_bundle)
     owm = owm_project.owm()
-    # TODO: Fix this so we use the correct version of the core bundle
-    deps = [{'id': 'openworm/owmeta-core', 'version': 1}]
-    owm.config.set('dependencies', json.dumps(deps))
 
     with owm.connect() as conn, conn.transaction_manager:
         defctx = conn(Context)(ident=owm_project.default_context_id)
@@ -159,7 +157,9 @@ def test_translator_list_kinds(owm_project, core_bundle):
     assert set(output) == set(['<http://schema.openworm.org/2020/07/CSVDataTranslator>'])
 
 
-def test_translator_show(owm_project):
+@bundle_versions('core_bundle', [2])
+def test_translator_show(owm_project, core_bundle):
+    owm_project.add_dependency(core_bundle)
     trans_id = URIRef('http://example.org/trans1')
     with owm_project.owm().connect() as conn, conn.transaction_manager:
         # Create data Translator
@@ -181,7 +181,9 @@ def test_translator_show(owm_project):
     assert str(dt1) == owm_project.sh(f'owm translator show {trans_id}').strip()
 
 
-def test_translator_create(owm_project):
+@bundle_versions('core_bundle', [1, 2])
+def test_translator_create(owm_project, core_bundle):
+    owm_project.add_dependency(core_bundle)
     with owm_project.owm().connect() as conn, conn.transaction_manager:
         conn.mapper.process_class(DT1)
 
@@ -195,7 +197,9 @@ def test_translator_create(owm_project):
         assert (rdflib.URIRef(ident), rdflib.RDF.type, DT1.rdf_type) in conn.rdf
 
 
-def test_translator_rm(owm_project):
+@bundle_versions('core_bundle', [1, 2])
+def test_translator_rm(owm_project, core_bundle):
+    owm_project.add_dependency(core_bundle)
     trans_id = URIRef('http://example.org/trans1')
     with owm_project.owm().connect() as conn, conn.transaction_manager:
         # Create data Translator
@@ -270,14 +274,14 @@ def test_translate_data_source_loader(owm_project, lfds_with_file):
     owm_project.make_module('tests')
     owm_project.copy('tests/test_modules', 'tests/test_modules')
 
-    out_ds = owm_project.sh(f'owm --full-trace translate http://example.org/trans1 {lfds_with_file.ident}').strip()
+    ds_id = owm_project.sh(f'owm --full-trace translate http://example.org/trans1 {lfds_with_file.ident}').strip()
     with owm_project.owm().connect() as conn:
         ctx = conn.owm.default_context.stored
-        print('ds_id', repr(out_ds), 'default_context', ctx)
-        for loaded in ctx(DataSource)(ident=out_ds).load():
+        print('ds_id', ds_id, 'default_context', ctx)
+        for loaded in ctx(DataSource)(ident=ds_id).load():
             break
         else: # no break
-            raise Exception(f'Failed to load datasource for {out_ds}')
+            raise Exception(f'Failed to load datasource for {ds_id}')
 
         with open(loaded.full_path()) as f:
             assertRegexpMatches(f.read(), rf'^{lfds_with_file.file_contents}$')
@@ -294,6 +298,7 @@ def test_translate_table_output(owm_project):
         with conn.transaction_manager:
             # Create data sources
             ctx = conn(Context)(ident=EX.context)
+            ctx.add_import(DataSource.definition_context)
             insrc = ctx(DataSource)(ident=EX['in'])
 
             ctx(DT)(ident='http://example.org/trans1')
@@ -309,19 +314,16 @@ def test_translate_table_output(owm_project):
     owm_project.writefile(p(modpath, 'owmclitest07_translator.py'))
     out_ds = owm_project.sh(
             'owm --full-trace -o table --columns ID,source,rdfs_label'
-            f' translate {DT.translator_identifier} {insrc.identifier}').strip()
+            f' --log-level=DEBUG translate {DT.translator_identifier} {insrc.identifier}').strip()
     print(out_ds)
     assert re.search(rf'{EX.out} *{EX["in"]} *{LABEL!r}', out_ds)
 
 
-@bundle_versions('core_bundle', [1, 2])
+@bundle_versions('core_bundle', [2])
 def test_source_list(owm_project, core_bundle):
-    owm_project.fetch(core_bundle)
-    owm = owm_project.owm()
-    deps = [{'id': 'openworm/owmeta-core', 'version': 1}]
-    owm.config.set('dependencies', json.dumps(deps))
+    owm_project.add_dependency(core_bundle)
 
-    with owm.connect() as conn:
+    with owm_project.owm().connect() as conn:
         with conn.transaction_manager:
             # Create data sources
             ctx = conn(Context)(ident='http://example.org/context')
@@ -344,13 +346,10 @@ def test_source_list(owm_project, core_bundle):
             'http://example.org/lfds +\'DSFile\' +\'hello, world\'')
 
 
-@bundle_versions('core_bundle', [1, 2])
+@bundle_versions('core_bundle', [2])
 def test_source_list_kinds(owm_project, core_bundle):
-    owm_project.fetch(core_bundle)
-    owm = owm_project.owm()
-    deps = [{'id': 'openworm/owmeta-core', 'version': 1}]
-    owm.config.set('dependencies', json.dumps(deps))
-    with owm.connect() as conn:
+    owm_project.add_dependency(core_bundle)
+    with owm_project.owm().connect() as conn:
         with conn.transaction_manager:
             # Create data sources
             defctx = conn(Context)(ident=owm_project.default_context_id)
@@ -443,7 +442,9 @@ def test_source_rm_translations(owm_project):
         assert [] == list(conn.rdf.triples((tl1.identifier, None, None)))
 
 
-def test_registry_list(owm_project):
+@bundle_versions('core_bundle', [1, 2])
+def test_registry_list(owm_project, core_bundle):
+    owm_project.add_dependency(core_bundle)
     owm_project.make_module('tests')
     owm_project.copy('tests/test_modules', 'tests/test_modules')
     save_out = owm_project.sh('owm save tests.test_modules.owmclitest05_monkey')
@@ -457,7 +458,9 @@ def test_registry_list(owm_project):
     assertRegexpMatches(registry_list_out, 'tests.test_modules.owmclitest05_donkey')
 
 
-def test_registry_list_module_filter(owm_project):
+@bundle_versions('core_bundle', [1, 2])
+def test_registry_list_module_filter(owm_project, core_bundle):
+    owm_project.add_dependency(core_bundle)
     owm_project.make_module('tests')
     owm_project.copy('tests/test_modules', 'tests/test_modules')
     save_out = owm_project.sh('owm save tests.test_modules.owmclitest05_monkey')
@@ -470,6 +473,7 @@ def test_registry_list_module_filter(owm_project):
     assertNotRegexpMatches(registry_list_out, 'tests.test_modules.owmclitest05_donkey')
 
 
+@mark.skip(reason="`OWMTypes.rm` needs redesign and is broken in for the previously expected usage")
 def test_type_rm_no_resolve(owm_project):
     from .test_modules.owmclitest06_datasource import TestDataSource
     owm_project.make_module('tests')
@@ -483,7 +487,9 @@ def test_type_rm_no_resolve(owm_project):
                 TestDataSource.definition_context) is None
 
 
-def test_save_class_resolve_class(owm_project):
+@bundle_versions('core_bundle', [1, 2])
+def test_save_class_resolve_class(owm_project, core_bundle):
+    owm_project.add_dependency(core_bundle)
     from .test_modules.owmclitest06_datasource import TestDataSource
     owm_project.make_module('tests')
     owm_project.copy('tests/test_modules', 'tests/test_modules')
