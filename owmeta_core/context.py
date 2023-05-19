@@ -200,7 +200,8 @@ class Context(six.with_metaclass(ContextMeta,
             Statement to add
         '''
         if self.identifier != stmt.context.identifier:
-            raise ValueError("Cannot add statements from a different context")
+            raise ValueError(
+                    f"Cannot add statements from a different context: {self.identifier!r} != {stmt.context.identifier!r}")
         self._graph = None
         self._statements.append(stmt)
         self._change_counter += 1

@@ -259,8 +259,8 @@ class OWMTest(BaseTest):
     def test_save_default_context(self):
         a = 'http://example.org/mdc'
         self._init_conf({DEFAULT_CONTEXT_KEY: a})
-        with patch('importlib.import_module'):
-            with patch('owmeta_core.command.Context') as ctxc:
+        with patch('owmeta_core.command.Context') as ctxc:
+            with patch('importlib.import_module'):
                 self.cut.save('tests.command_test_module')
                 ctxc.contextualize().assert_called_with(ident=a)
                 ctxc.contextualize()().save_context.assert_called()
@@ -410,8 +410,8 @@ class OWMTest(BaseTest):
         k = URIRef('http://example.org/created_context')
         v = URIRef('http://example.org/unknown_context')
         self._init_conf({DEFAULT_CONTEXT_KEY: a})
-        with patch('importlib.import_module') as im:
-            with patch('owmeta_core.command.Context') as ctxc:
+        with patch('owmeta_core.command.Context') as ctxc:
+            with patch('importlib.import_module') as im:
 
                 default_context = Mock()
                 default_context.identifier = URIRef(a)
@@ -482,8 +482,8 @@ class OWMTest(BaseTest):
         b = 'http://example.org/smoo'
         c = []
         self._init_conf({DEFAULT_CONTEXT_KEY: a})
-        with patch('importlib.import_module') as im, \
-                patch('owmeta_core.command.Context'):
+        with patch('owmeta_core.command.Context'), \
+            patch('importlib.import_module') as im:
             def f(ns):
                 c.append(ns.new_context(b))
 
