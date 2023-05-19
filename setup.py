@@ -43,7 +43,7 @@ setup(
         'termcolor~=1.1.0',
         'tqdm~=4.23',
         'transaction>=1.4.4',
-        'urllib3',
+        'urllib3==1.26.15', # https://github.com/ionrock/cachecontrol/issues/292#issuecomment-1535373382
         'wrapt~=1.11.1',
         'zc.lockfile',
         'zodb>=4.1.0',
