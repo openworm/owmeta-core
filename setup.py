@@ -37,7 +37,7 @@ setup(
         'Pint',
         'pow-store-zodb>=0.2.0.dev0',
         'pyyaml',
-        'rdflib>=4.1.2,!=6.0.0',
+        'rdflib>=4.1.2,<6.0.0',
         'requests',
         'six~=1.10',
         'termcolor~=1.1.0',
