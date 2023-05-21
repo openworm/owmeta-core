@@ -23,6 +23,7 @@ from owmeta_core.bundle import Descriptor
 from owmeta_pytest_plugin import bundle_versions
 
 from .test_modules.owmclitest01 import DT2
+from .test_modules.owmclitest02 import DT1
 from .TestUtilities import assertRegexpMatches, assertNotRegexpMatches
 
 pytestmark = mark.owm_cli_test
@@ -109,14 +110,6 @@ def test_save_imports(owm_project):
                 URIRef('http://example.org/ungulate/giraffe')) in trips
 
 
-class DT1(DataTranslator):
-    class_context = 'http://example.org/context'
-    translator_identifier = URIRef('http://example.org/trans1')
-
-    def translate(self, source):
-        pass
-
-
 def test_translator_list(owm_project):
     expected = URIRef('http://example.org/trans1')
     with owm_project.owm().connect() as conn, conn.transaction_manager:
@@ -159,6 +152,9 @@ def test_translator_list_kinds(owm_project, core_bundle):
 
 @bundle_versions('core_bundle', [2])
 def test_translator_show(owm_project, core_bundle):
+    owm_project.make_module(p('tests', 'test_modules'))
+    owm_project.writefile(p('tests', 'test_modules', 'owmclitest02.py'))
+
     owm_project.add_dependency(core_bundle)
     trans_id = URIRef('http://example.org/trans1')
     with owm_project.owm().connect() as conn, conn.transaction_manager:

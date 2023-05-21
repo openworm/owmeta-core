@@ -1437,8 +1437,9 @@ class PythonModule(Module):
             raise ModuleResolutionFailed(f'No module name for {self}')
         try:
             return IM.import_module(modname)
-        except ImportError:
-            raise ModuleResolutionFailed(f'Could not import module named {modname}')
+        except ImportError as e:
+            raise ModuleResolutionFailed(
+                    f'Could not import module named {modname}') from e
 
 
 class PIPInstall(ModuleAccessor):
