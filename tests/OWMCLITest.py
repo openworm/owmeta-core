@@ -152,8 +152,9 @@ def test_translator_list_kinds(owm_project, core_bundle):
 
 @bundle_versions('core_bundle', [2])
 def test_translator_show(owm_project, core_bundle):
-    owm_project.make_module(p('tests', 'test_modules'))
-    owm_project.writefile(p('tests', 'test_modules', 'owmclitest02.py'))
+    modpath = p('tests', 'test_modules')
+    owm_project.make_module(modpath)
+    owm_project.writefile(p(modpath, 'owmclitest02.py'))
 
     owm_project.add_dependency(core_bundle)
     trans_id = URIRef('http://example.org/trans1')
@@ -179,6 +180,10 @@ def test_translator_show(owm_project, core_bundle):
 
 @bundle_versions('core_bundle', [1, 2])
 def test_translator_create(owm_project, core_bundle):
+    modpath = p('tests', 'test_modules')
+    owm_project.make_module(modpath)
+    owm_project.writefile(p(modpath, 'owmclitest02.py'))
+
     owm_project.add_dependency(core_bundle)
     with owm_project.owm().connect() as conn, conn.transaction_manager:
         conn.mapper.process_class(DT1)
