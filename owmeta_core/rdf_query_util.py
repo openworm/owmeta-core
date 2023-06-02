@@ -55,15 +55,17 @@ def load_base(graph, idents, target_type, context, resolver):
         else:
             t.add(rdf_type)
     if ids_missing_types:
-        raise MissingRDFTypeException('Could not recover a type declaration for'
-                                      f' {ids_missing_types}')
+        L.debug('Could not recover type declarations for %r. Defaulting to %s',
+                ids_missing_types, rdflib.RDFS.Resource)
+        for ident in ids_missing_types:
+            grouped_types[ident] = set([rdflib.RDFS.Resource])
 
     for ident, types in grouped_types.items():
         the_type = resolver.type_resolver(graph, types, base=target_type)
         if the_type is None:
             raise MissingRDFTypeException(
-                    f'The type resolver could not recover a type for {ident}'
-                    f' from {types} constrained to {target_type}')
+                    f'The type resolver could not recover an RDF type for {ident}'
+                    f' from {types} in {graph} constrained to sub-classes of {target_type}')
         yield resolver.id2ob(ident, the_type, context)
 
 
