@@ -44,3 +44,4 @@ docs/api
 
 # owm clone'd databases
 .owm/
+/owmeta_core.egg-info

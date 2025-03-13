@@ -19,3 +19,5 @@ EXTRAS="${EXTRAS:+$EXTRAS,}sftp"
 pip install -e ".[${EXTRAS}]"
 pip install -r test-requirements.txt
 pip install --upgrade coveralls
+
+pip list
