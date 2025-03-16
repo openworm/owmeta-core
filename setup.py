@@ -47,6 +47,7 @@ setup(
         'wrapt',
         'zc.lockfile',
         'zodb>=4.1.0',
+        'setuptools',
         'importlib_metadata ; python_version<="3.7"',
     ],
     extras_require={

@@ -71,7 +71,7 @@ class DataObjectTest(_DataTest):
         ctx.resolve_class.assert_called()
 
     def test_repr(self):
-        self.assertRegexpMatches(repr(DataObject(ident="http://example.com")),
+        self.assertRegex(repr(DataObject(ident="http://example.com")),
                                  r"DataObject\(ident=rdflib\.term\.URIRef\("
                                  r"u?[\"']http://example.com[\"']\)\)")
 
@@ -136,7 +136,7 @@ class DataObjectTest(_DataTest):
     def test_context_setter(self):
         a = DataObject()
         a.context = 42
-        self.assertEquals(a.context, 42)
+        self.assertEqual(a.context, 42)
 
     def test_dataobject_property_that_generate_partial_property(self):
         for property_classmethod in DATAOBJECT_PROPERTIES:
@@ -155,7 +155,7 @@ class DataObjectTest(_DataTest):
             def identifier(self):
                 return R.URIRef('http://example.org/idid')
 
-        self.assertEquals(A.query().identifier, R.URIRef('http://example.org/idid'))
+        self.assertEqual(A.query().identifier, R.URIRef('http://example.org/idid'))
 
     def test_query_identifier_augment(self):
         class A(DataObject):
@@ -184,19 +184,19 @@ class DataObjectTest(_DataTest):
         class A(DataObject):
             pass
 
-        self.assertEquals(A.__name__, A.query.__name__)
+        self.assertEqual(A.__name__, A.query.__name__)
 
     def test_query_module(self):
         class A(DataObject):
             pass
 
-        self.assertEquals(A.__module__, A.query.__module__)
+        self.assertEqual(A.__module__, A.query.__module__)
 
     def test_query_rdf_type(self):
         class A(DataObject):
             pass
 
-        self.assertEquals(A.rdf_type, A.query.rdf_type)
+        self.assertEqual(A.rdf_type, A.query.rdf_type)
 
     def test_query_py_type(self):
         class A(DataObject):
@@ -353,9 +353,9 @@ class ClassRegistryTest(_DataTest):
         with captured_logging() as logs:
             self.mapper.declare_python_class_registry_entry(A)
             log = logs.getvalue()
-            self.assertRegexpMatches(log, 'registry')
-            self.assertRegexpMatches(log, 'tests.DataObjectTest')
-            self.assertRegexpMatches(log, r'\bA\b')
+            self.assertRegex(log, 'registry')
+            self.assertRegex(log, 'tests.DataObjectTest')
+            self.assertRegex(log, r'\bA\b')
 
     def test_registry_in_yarom_mapped_class(self):
         class A(DataObject):
@@ -367,7 +367,7 @@ class ClassRegistryTest(_DataTest):
             try:
                 self.mapper.process_class(A)
                 log = logs.getvalue()
-                self.assertNotRegexpMatches(log, 'registry')
+                self.assertNotRegex(log, 'registry')
             finally:
                 delattr(mod, '__yarom_mapped_classes__')
 
@@ -411,7 +411,7 @@ class ClassRegistryTest(_DataTest):
             try:
                 self.mapper.resolve_class(A.rdf_type, A.context)
                 # then
-                self.assertRegexpMatches(logs.getvalue(), r'More than one.*__yarom_mapped_classes__')
+                self.assertRegex(logs.getvalue(), r'More than one.*__yarom_mapped_classes__')
             finally:
                 delattr(mod, '__yarom_mapped_classes__')
 
@@ -468,7 +468,7 @@ class ClassRegistryMissingModuleTest(_DataTest):
     def test_warns(self):
         with captured_logging() as logs:
             list(self.context.stored(DataObject)(ident=self.ident).load())
-            self.assertRegexpMatches(logs.getvalue(),
+            self.assertRegex(logs.getvalue(),
                     re.compile(r'Did not find module.*fakerandom\.module\.does\.not\.exist', re.DOTALL))
 
 
@@ -529,14 +529,14 @@ class ClassRegistryMissingClassTest(_DataTest):
     def test_warns(self):
         with captured_logging() as logs:
             list(self.context.stored(DataObject)(ident=self.ident).load())
-            self.assertRegexpMatches(logs.getvalue(),
+            self.assertRegex(logs.getvalue(),
                     re.compile(r'Did not find class NotTDO in tests.tmod.tdo$',
                         flags=re.MULTILINE))
 
     def test_warns_ymc(self):
         with captured_logging() as logs:
             list(self.context.stored(DataObject)(ident=self.ident).load())
-            self.assertRegexpMatches(logs.getvalue(),
+            self.assertRegex(logs.getvalue(),
                     r'Did not find class NotTDO in tests.tmod.tdo.__yarom_mapped_classes__')
 
     def test_failover(self):
@@ -759,7 +759,7 @@ class KeyPropertiesTest(_DataTest):
         self.assertFalse(a.defined)
 
     def test_error_non_property_pthunk(self):
-        with self.assertRaisesRegexp(Exception, r'\bcookie\b'):
+        with self.assertRaisesRegex(Exception, r'\bcookie\b'):
             class B(DataObject):
                 a = DatatypeProperty()
                 key_properties = (a, DatatypeProperty(name="cookie"))
@@ -768,7 +768,7 @@ class KeyPropertiesTest(_DataTest):
         class A(DataObject):
             cookie = DatatypeProperty()
 
-        with self.assertRaisesRegexp(Exception, r'cookie'):
+        with self.assertRaisesRegex(Exception, r'cookie'):
             class B(DataObject):
                 prop = DatatypeProperty()
                 key_properties = (prop, A.cookie)
@@ -793,7 +793,7 @@ class KeyPropertiesTest(_DataTest):
         o1 = A()
         o2 = A(ident='http://example.org/o2')
         o1.a(o2)
-        with self.assertRaisesRegexp(Exception, r'\bnot_an_attr\b'):
+        with self.assertRaisesRegex(Exception, r'\bnot_an_attr\b'):
             o1.defined
 
 

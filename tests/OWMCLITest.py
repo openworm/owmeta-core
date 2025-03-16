@@ -24,7 +24,7 @@ from owmeta_pytest_plugin import bundle_versions
 
 from .test_modules.owmclitest01 import DT2
 from .test_modules.owmclitest02 import DT1
-from .TestUtilities import assertRegexpMatches, assertNotRegexpMatches
+from .TestUtilities import assertRegex, assertNotRegex
 
 pytestmark = mark.owm_cli_test
 
@@ -43,7 +43,7 @@ def test_save_diff(owm_project):
     owm_project.writefile(p(modpath, 'monkey.py'),
             'tests/test_modules/owmclitest03_monkey.py')
     print(owm_project.sh('owm save test_module.command_test_save'))
-    assertRegexpMatches(owm_project.sh('owm diff'), r'<[^>]+>')
+    assertRegex(owm_project.sh('owm diff'), r'<[^>]+>')
 
 
 def test_no_write_dependency_on_commit(custom_bundle, owm_project):
@@ -80,7 +80,7 @@ def test_save_classes(owm_project):
     owm_project.writefile(p(modpath, 'monkey.py'),
             'tests/test_modules/owmclitest03_monkey.py')
     print(owm_project.sh('owm save test_module.monkey'))
-    assertRegexpMatches(owm_project.sh('owm diff'), r'<[^>]+>')
+    assertRegex(owm_project.sh('owm diff'), r'<[^>]+>')
 
 
 def test_diff_new_context_named(owm_project):
@@ -90,7 +90,7 @@ def test_diff_new_context_named(owm_project):
     owm_project.writefile(p(modpath, 'monkey.py'),
             'tests/test_modules/owmclitest03_monkey.py')
     owm_project.sh('owm save test_module.monkey')
-    assertRegexpMatches(owm_project.sh('owm diff'), r'b http://example.org/primate/monkey')
+    assertRegex(owm_project.sh('owm diff'), r'b http://example.org/primate/monkey')
 
 
 def test_save_imports(owm_project):
@@ -130,7 +130,7 @@ def test_translator_list(owm_project):
         conn.mapper.save()
 
     # List translators
-    assertRegexpMatches(
+    assertRegex(
         owm_project.sh('owm -o table translator list'),
         re.compile(expected.n3(), flags=re.MULTILINE)
     )
@@ -285,7 +285,7 @@ def test_translate_data_source_loader(owm_project, lfds_with_file):
             raise Exception(f'Failed to load datasource for {ds_id}')
 
         with open(loaded.full_path()) as f:
-            assertRegexpMatches(f.read(), rf'^{lfds_with_file.file_contents}$')
+            assertRegex(f.read(), rf'^{lfds_with_file.file_contents}$')
 
 
 def test_translate_table_output(owm_project):
@@ -343,7 +343,7 @@ def test_source_list(owm_project, core_bundle):
             ctx.save()
             conn.mapper.save()
 
-    assertRegexpMatches(owm_project.sh('owm -o table --columns ID,file_name,rdfs_comment source list'),
+    assertRegex(owm_project.sh('owm -o table --columns ID,file_name,rdfs_comment source list'),
             'http://example.org/lfds +\'DSFile\' +\'hello, world\'')
 
 
@@ -455,8 +455,8 @@ def test_registry_list(owm_project, core_bundle):
     print("DONKEY")
     print(save_out)
     registry_list_out = owm_project.sh('owm -o json registry list')
-    assertRegexpMatches(registry_list_out, 'tests.test_modules.owmclitest05_monkey')
-    assertRegexpMatches(registry_list_out, 'tests.test_modules.owmclitest05_donkey')
+    assertRegex(registry_list_out, 'tests.test_modules.owmclitest05_monkey')
+    assertRegex(registry_list_out, 'tests.test_modules.owmclitest05_donkey')
 
 
 @bundle_versions('core_bundle', [1, 2])
@@ -471,7 +471,7 @@ def test_registry_list_module_filter(owm_project, core_bundle):
     print("DONKEY")
     print(save_out)
     registry_list_out = owm_project.sh('owm -o json registry list --module tests.test_modules.owmclitest05_monkey')
-    assertNotRegexpMatches(registry_list_out, 'tests.test_modules.owmclitest05_donkey')
+    assertNotRegex(registry_list_out, 'tests.test_modules.owmclitest05_donkey')
 
 
 @mark.skip(reason="`OWMTypes.rm` needs redesign and is broken in for the previously expected usage")
@@ -791,7 +791,7 @@ def test_declare_unknown_property_class_1(owm_project):
     with raises(CalledProcessError) as e:
         owm_project.sh(f'owm declare owmeta_core.dataobject:DataObject {cname}=123 --id="{EX.duck}"',
                 stderr=PIPE)
-    assertRegexpMatches(e.value.stderr.decode('utf-8'), cname)
+    assertRegex(e.value.stderr.decode('utf-8'), cname)
 
 
 def test_declare_unknown_property_class_2(owm_project):
@@ -799,7 +799,7 @@ def test_declare_unknown_property_class_2(owm_project):
     with raises(CalledProcessError) as e:
         owm_project.sh(f'owm declare owmeta_core.dataobject:DataObject {cname}=123 --id="{EX.duck}"',
                 stderr=PIPE)
-    assertRegexpMatches(e.value.stderr.decode('utf-8'), cname)
+    assertRegex(e.value.stderr.decode('utf-8'), cname)
 
 
 def test_declare_unknown_attribute(owm_project):
@@ -807,7 +807,7 @@ def test_declare_unknown_attribute(owm_project):
     with raises(CalledProcessError) as e:
         owm_project.sh(f'owm declare owmeta_core.dataobject:DataObject {pname}=123 --id="{EX.horse}"',
                 stderr=PIPE)
-    assertRegexpMatches(e.value.stderr.decode('utf-8'), pname)
+    assertRegex(e.value.stderr.decode('utf-8'), pname)
 
 
 def test_declare_unknown_class_1(owm_project):
@@ -815,7 +815,7 @@ def test_declare_unknown_class_1(owm_project):
     with raises(CalledProcessError) as e:
         owm_project.sh(f'owm declare {cname} rdfs_label="Hello, world" --id="{EX.monkey}"',
                 stderr=PIPE)
-    assertRegexpMatches(e.value.stderr.decode('utf-8'), cname)
+    assertRegex(e.value.stderr.decode('utf-8'), cname)
 
 
 def test_declare_unknown_class_2(owm_project):
@@ -823,7 +823,7 @@ def test_declare_unknown_class_2(owm_project):
     with raises(CalledProcessError) as e:
         owm_project.sh(f'owm declare {cname} rdfs_label="Hello, world" --id="{EX.monkey}"',
                 stderr=PIPE)
-    assertRegexpMatches(e.value.stderr.decode('utf-8'), cname)
+    assertRegex(e.value.stderr.decode('utf-8'), cname)
 
 
 def test_regendb(owm_project):
