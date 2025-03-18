@@ -113,14 +113,14 @@ def captured_logging():
         out.close()
 
 
-def assertRegexpMatches(text, pattern):
+def assertRegex(text, pattern):
     if isinstance(pattern, string_types):
         pattern = re.compile(pattern)
     if not pattern.search(text):
         raise AssertionError('Could not find {} in:\n{}'.format(pattern, text))
 
 
-def assertNotRegexpMatches(text, pattern):
+def assertNotRegex(text, pattern):
     if isinstance(pattern, string_types):
         pattern = re.compile(pattern)
     if pattern.search(text):

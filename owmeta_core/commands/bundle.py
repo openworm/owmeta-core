@@ -279,6 +279,9 @@ class OWMBundle(object):
     remote = SubCommand(OWMBundleRemote)
     cache = SubCommand(OWMBundleCache)
 
+    bundles_directory = IVar(value_type=str,
+                             doc='Override the default bundle directory')
+
     def __init__(self, parent):
         self._parent = parent
         self._loaders = []
@@ -313,7 +316,7 @@ class OWMBundle(object):
                 f' for this bundle at {e.directory}')
 
     def _bundles_directory(self):
-        return p(self._parent.userdir, 'bundles')
+        return self.bundles_directory or p(self._parent.userdir, 'bundles')
 
     def _user_remotes_directory(self):
         return p(self._parent.userdir, 'remotes')

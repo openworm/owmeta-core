@@ -32,7 +32,7 @@ class RDFLibTest(unittest.TestCase):
             logger.removeHandler(stream_handler)
         v = out.getvalue()
         out.close()
-        self.assertRegexpMatches(str(v), r".*some random string.*")
+        self.assertRegex(str(v), r".*some random string.*")
 
     def test_BNode_equality1(self):
         a = rdflib.BNode("some random string")

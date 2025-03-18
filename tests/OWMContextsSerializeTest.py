@@ -4,7 +4,7 @@ import subprocess
 import pytest
 from pytest import mark
 from rdflib.term import URIRef
-from .TestUtilities import assertRegexpMatches
+from .TestUtilities import assertRegex
 
 pytestmark = mark.owm_cli_test
 
@@ -73,7 +73,7 @@ def test_serialize_whole_graph_with_context_error(owm_project):
     with pytest.raises(subprocess.CalledProcessError) as raised:
         owm_project.sh('owm contexts serialize -f n3 --whole-graph'
                 ' http://example.org/context', stderr=subprocess.STDOUT)
-    assertRegexpMatches(raised.value.output.decode('UTF-8'),
+    assertRegex(raised.value.output.decode('UTF-8'),
             r'whole.graph.*context|context.*whole.graph')
 
 

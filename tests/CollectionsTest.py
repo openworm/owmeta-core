@@ -385,7 +385,7 @@ class ListLoadDataObjectSequencesImproperTerminationTest(_DataTest):
         query = self.context.stored(List)(key='a')
         with captured_logging() as logs:
             list(query.load_sequences())
-            self.assertRegexpMatches(logs.getvalue(), r'not properly terminated')
+            self.assertRegex(logs.getvalue(), r'not properly terminated')
 
     def test_nil_sequences_empty(self):
         assert list(self.context.stored(List).nil.load_sequences()) == [[]]
@@ -393,4 +393,4 @@ class ListLoadDataObjectSequencesImproperTerminationTest(_DataTest):
     def test_nil_sequences_not_improperly_terminated(self):
         with captured_logging() as logs:
             list(self.context.stored(List).nil.load_sequences())
-            self.assertNotRegexpMatches(logs.getvalue(), r'not properly terminated')
+            self.assertNotRegex(logs.getvalue(), r'not properly terminated')

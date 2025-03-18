@@ -17,7 +17,7 @@ class PropertyTest(_DataTest):
 
     def test_values_property(self):
         p = CustomProperty()
-        self.assertEquals(p.values, [])
+        self.assertEqual(p.values, [])
 
     def test_call_without_arg(self):
         t = T()
@@ -29,7 +29,7 @@ class PropertyTest(_DataTest):
         t = T()
         self.assertIsNone(t())
         n = t(42)
-        self.assertEquals(n.b, 42)
+        self.assertEqual(n.b, 42)
 
 
 class T(CustomProperty):

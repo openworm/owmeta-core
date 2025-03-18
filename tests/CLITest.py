@@ -190,7 +190,7 @@ class CLITableOutputModeTest(CLIOutputModeTest):
                 return iterable()
             self.ccw().main.side_effect = main
             PCLI.main()
-            self.assertRegexpMatches(so.getvalue(), 'Value')
+            self.assertRegex(so.getvalue(), 'Value')
 
     def test_no_headers_or_columns_row_value(self):
         with noexit(), stdout() as so:
@@ -204,7 +204,7 @@ class CLITableOutputModeTest(CLIOutputModeTest):
                 return iterable()
             self.ccw().main.side_effect = main
             PCLI.main()
-            self.assertRegexpMatches(so.getvalue(), 'blah')
+            self.assertRegex(so.getvalue(), 'blah')
 
     def test_with_header_row(self):
         with noexit(), stdout() as so:
@@ -231,7 +231,7 @@ class CLITableOutputModeTest(CLIOutputModeTest):
                 return Iterable()
             self.ccw().main.side_effect = main
             PCLI.main()
-            self.assertRegexpMatches(so.getvalue(), 'blah')
+            self.assertRegex(so.getvalue(), 'blah')
 
     def test_with_header_name(self):
         with noexit(), stdout() as so:
@@ -258,7 +258,7 @@ class CLITableOutputModeTest(CLIOutputModeTest):
                 return Iterable()
             self.ccw().main.side_effect = main
             PCLI.main()
-            self.assertRegexpMatches(so.getvalue(), 'FIELD')
+            self.assertRegex(so.getvalue(), 'FIELD')
 
     def test_with_header_and_columns_accessor(self):
         with noexit(), stdout() as so:
@@ -286,7 +286,7 @@ class CLITableOutputModeTest(CLIOutputModeTest):
                 return Iterable()
             self.ccw().main.side_effect = main
             PCLI.main()
-            self.assertRegexpMatches(so.getvalue(), re.compile('^b *$', flags=re.MULTILINE))
+            self.assertRegex(so.getvalue(), re.compile('^b *$', flags=re.MULTILINE))
 
 
 def test_existing_hints_preserved():

@@ -64,7 +64,7 @@ class ContextTest(_DataTest):
     def test_save_context_no_graph(self):
         ctx = Context()
         with patch('owmeta_core.data.ALLOW_UNCONNECTED_DATA_USERS', False):
-            with self.assertRaisesRegexp(Exception, r'graph'):
+            with self.assertRaisesRegex(Exception, r'graph'):
                 ctx.save_context()
 
     def test_imports_no_imports_graph_in_stored(self):

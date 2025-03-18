@@ -81,7 +81,7 @@ def test_sftp_remote_add_password():
 
 
 def test_sftp_remote_add_rsa_identity(genkey):
-    self, keyfile = genkey(RSAKey, 512)
+    self, keyfile = genkey(RSAKey, 1024)
     sftp_remote(self, identity=keyfile)
 
     assert isinstance(self._url_config.identity, RSAKey)
@@ -227,7 +227,7 @@ def genkey_func(tempdir, keytype, *args, **kwargs):
     else:
         if keytype is RSAKey and not args and 'bits' not in kwargs:
             args = list(args)
-            args.append(512)
+            args.append(1024)
         with open(keyfile, 'w') as f:
             key = keytype.generate(*args, **kwargs)
             key.write_private_key(f)

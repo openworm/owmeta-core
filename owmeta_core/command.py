@@ -65,6 +65,7 @@ from .capability_providers import (TransactionalDataSourceDirProvider,
                                    WorkingDirectoryProvider,
                                    SimpleTemporaryDirectoryProvider)
 from .utils import FCN, retrieve_provider, PROVIDER_PATH_RE
+from .rdf_query_util import MissingRDFTypeException
 from .rdf_utils import ContextSubsetStore, BatchAddGraph
 
 
@@ -2676,7 +2677,14 @@ class _ProjectMapper(Mapper):
                 if not bnd.manifest_data.get(CLASS_REGISTRY_CONTEXT_KEY, None):
                     continue
                 with bnd:
-                    resolved_class = bnd.connection.mapper.resolve_class(rdf_type, context)
+                    try:
+                        resolved_class = bnd.connection.mapper.resolve_class(rdf_type, context)
+                    except MissingRDFTypeException:
+                        L.warning("Got a missing RDF type while attempting to resolve a"
+                                  " class from %s from %s with imports %s", bnd, context,
+                                  list(context.transitive_imports()), exc_info=True)
+                        raise
+
                     if resolved_class:
                         self._resolved_classes[(rdf_type, context.identifier)] = resolved_class
                         return resolved_class

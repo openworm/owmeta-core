@@ -494,14 +494,14 @@ class OWMTest(BaseTest):
     def test_save_no_such_attr(self):
         self._init_conf({DEFAULT_CONTEXT_KEY: 'http://example.org/mdc'})
         with patch('importlib.import_module') as im:
-            with self.assertRaisesRegexp(AttributeError, r'\btest\b'):
+            with self.assertRaisesRegex(AttributeError, r'\btest\b'):
                 im.return_value = Mock(spec=[])
                 self.cut.save('tests', 'test')
 
     def test_save_no_such_attr_yarom_mapped_classes_1(self):
         self._init_conf({DEFAULT_CONTEXT_KEY: 'http://example.org/mdc'})
         with patch('importlib.import_module') as im:
-            with self.assertRaisesRegexp(AttributeError, r'\btest\b'):
+            with self.assertRaisesRegex(AttributeError, r'\btest\b'):
                 module = Mock(spec=['__yarom_mapped_classes__'])
                 module.__yarom_mapped_classes__ = [MagicMock()]
                 im.return_value = module
@@ -510,7 +510,7 @@ class OWMTest(BaseTest):
     def test_save_no_such_attr_yarom_mapped_classes_2(self):
         self._init_conf({DEFAULT_CONTEXT_KEY: 'http://example.org/mdc'})
         with patch('importlib.import_module') as im:
-            with self.assertRaisesRegexp(AttributeError, r'\b' + DEFAULT_SAVE_CALLABLE_NAME + r'\b'):
+            with self.assertRaisesRegex(AttributeError, r'\b' + DEFAULT_SAVE_CALLABLE_NAME + r'\b'):
                 module = Mock(spec=['__yarom_mapped_classes__'])
                 module.__yarom_mapped_classes__ = [MagicMock()]
                 im.return_value = module
@@ -604,7 +604,7 @@ class OWMTranslateTest(BaseTest):
 
         translator = 'http://example.org/translator'
         imports_context_ident = 'http://example.org/imports'
-        with self.assertRaisesRegexp(GenericUserError, re.escape(translator)):
+        with self.assertRaisesRegex(GenericUserError, re.escape(translator)):
             self.cut.translate(translator, imports_context_ident)
 
     def test_translate_unknown_source_message(self):
@@ -616,7 +616,7 @@ class OWMTranslateTest(BaseTest):
         translator = 'http://example.org/translator'
         source = 'http://example.org/source'
         imports_context_ident = 'http://example.org/imports'
-        with self.assertRaisesRegexp(GenericUserError, re.escape(source)):
+        with self.assertRaisesRegex(GenericUserError, re.escape(source)):
             self.cut.translate(translator, imports_context_ident, data_sources=(source,))
 
     def test_translate_unknown_named_source_message(self):
@@ -628,7 +628,7 @@ class OWMTranslateTest(BaseTest):
         translator = 'http://example.org/translator'
         source = 'http://example.org/source'
         imports_context_ident = 'http://example.org/imports'
-        with self.assertRaisesRegexp(GenericUserError, f'{re.escape(source)}.*key'):
+        with self.assertRaisesRegex(GenericUserError, f'{re.escape(source)}.*key'):
             self.cut.translate(translator, imports_context_ident, named_data_sources={'key': source})
 
     # Test saving a translator ensures the input and output types are saved source is saved
@@ -971,7 +971,7 @@ class OWMDSDLoaderNoIndex(unittest.TestCase):
 
     def test_no_index_load_failed(self):
         cut = OWMDirDataSourceDirLoader(self.testdir)
-        with self.assertRaisesRegexp(LoadFailed, re.escape(self.testdir)):
+        with self.assertRaisesRegex(LoadFailed, re.escape(self.testdir)):
             cut.load(Mock())
 
 

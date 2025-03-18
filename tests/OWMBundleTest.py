@@ -16,7 +16,7 @@ from owmeta_core.command import DEFAULT_OWM_DIR as OD, OWM
 from owmeta_core.bundle import DependencyDescriptor, Descriptor, Bundle, make_include_func
 from owmeta_pytest_plugin import bundle_versions
 
-from .TestUtilities import assertRegexpMatches, assertNotRegexpMatches
+from .TestUtilities import assertRegex, assertNotRegex
 
 
 pytestmark = mark.owm_cli_test
@@ -27,7 +27,7 @@ def test_load(owm_project):
     target_bundle = p(owm_project.testdir, 'bundle.tar.xz')
     shutil.copyfile(owm_bundle, target_bundle)
     owm_project.sh('owm bundle load ' + target_bundle)
-    assertRegexpMatches(
+    assertRegex(
         owm_project.sh('owm bundle cache list'),
         r'example/aBundle@23'
     )
@@ -157,7 +157,7 @@ def test_register(owm_project):
     description: I'm a description
     ''')
     owm_project.sh('owm bundle register abundle.yml')
-    assertRegexpMatches(
+    assertRegex(
         owm_project.sh('owm bundle list'),
         r'abundle - I\'m a description'
     )
@@ -171,7 +171,7 @@ def test_list_descriptor_removed(owm_project):
     ''')
     owm_project.sh('owm bundle register abundle.yml',
             'rm abundle.yml')
-    assertRegexpMatches(
+    assertRegex(
         owm_project.sh('owm bundle list'),
         r"abundle - ERROR: Cannot read bundle descriptor at 'abundle.yml'"
     )
@@ -185,7 +185,7 @@ def test_list_descriptor_moved(owm_project):
     ''')
     owm_project.sh('owm bundle register abundle.yml',
             'mv abundle.yml bundle.yml')
-    assertRegexpMatches(
+    assertRegex(
         owm_project.sh('owm bundle list'),
         r"abundle - ERROR: Cannot read bundle descriptor at 'abundle.yml'"
     )
@@ -200,7 +200,7 @@ def test_reregister(owm_project):
     owm_project.sh('owm bundle register abundle.yml',
             'mv abundle.yml bundle.yml',
             'owm bundle register bundle.yml')
-    assertRegexpMatches(
+    assertRegex(
         owm_project.sh('owm bundle list'),
         r"abundle - I'm a description"
     )
@@ -219,7 +219,7 @@ def test_reregister_new_id(owm_project):
     description: I'm a description
     ''')
     owm_project.sh('owm bundle register abundle.yml')
-    assertNotRegexpMatches(
+    assertNotRegex(
         owm_project.sh('owm bundle list'),
         r"abundle"
     )
@@ -234,7 +234,7 @@ def test_cache_list(shell_helper):
     makedirs(bundle_dir)
     with open(p(bundle_dir, 'manifest'), 'w') as mf:
         mf.write('{"version": 1, "id": "test/main"}')
-    assertRegexpMatches(
+    assertRegex(
         shell_helper.sh('owm bundle cache list'),
         r'test/main@1'
     )
@@ -264,7 +264,7 @@ def test_cache_list_multiple_versions(shell_helper):
         mf.write('{"version": 1, "id": "test/main"}')
     with open(p(bundle_dir2, 'manifest'), 'w') as mf:
         mf.write('{"version": 2, "id": "test/main"}')
-    assertRegexpMatches(
+    assertRegex(
         shell_helper.sh('owm bundle cache list'),
         r'test/main@2\ntest/main@1'
     )
@@ -284,11 +284,11 @@ def test_cache_list_different_bundles(shell_helper):
         mf.write('{"version": 1, "id": "test/main"}')
     with open(p(bundle_dir2, 'manifest'), 'w') as mf:
         mf.write('{"version": 1, "id": "test/secondary"}')
-    assertRegexpMatches(
+    assertRegex(
         shell_helper.sh('owm bundle cache list'),
         r'test/main@1'
     )
-    assertRegexpMatches(
+    assertRegex(
         shell_helper.sh('owm bundle cache list'),
         r'test/secondary@1'
     )
@@ -308,11 +308,11 @@ def test_cache_list_version_check(shell_helper):
         mf.write('{"version": 1, "id": "test/main"}')
     with open(p(bundle_dir2, 'manifest'), 'w') as mf:
         mf.write('{"version": 1, "id": "test/secondary"}')
-    assertRegexpMatches(
+    assertRegex(
         shell_helper.sh('owm bundle cache list'),
         r'test/main@1'
     )
-    assertNotRegexpMatches(
+    assertNotRegex(
         shell_helper.sh('owm bundle cache list'),
         r'test/secondary@1'
     )
@@ -333,7 +333,7 @@ def test_cache_list_version_check_warning(shell_helper):
     with open(p(bundle_dir2, 'manifest'), 'w') as mf:
         mf.write('{"version": 1, "id": "test/secondary"}')
     output = shell_helper.sh('owm bundle cache list', stderr=subprocess.STDOUT)
-    assertRegexpMatches(output, r'manifest.*match')
+    assertRegex(output, r'manifest.*match')
 
 
 def test_cache_list_description(shell_helper):
@@ -345,7 +345,7 @@ def test_cache_list_description(shell_helper):
     makedirs(bundle_dir1)
     with open(p(bundle_dir1, 'manifest'), 'w') as mf:
         mf.write('{"version": 1, "id": "test/main", "description": "Waka waka"}')
-    assertRegexpMatches(
+    assertRegex(
         shell_helper.sh('owm bundle cache list'),
         r'Waka waka'
     )
@@ -507,7 +507,7 @@ def test_owm_bundle_update_nonexistent_remote_message(shell_helper):
             stderr=subprocess.STDOUT))
         assert False, "Should have raised CalledProcessError"
     except CalledProcessError as e:
-        assertRegexpMatches(e.output.decode('UTF-8'), r'no remote named "example-remote"')
+        assertRegex(e.output.decode('UTF-8'), r'no remote named "example-remote"')
 
 
 # TODO: Test for bundles with extras that aren't installed

@@ -7,7 +7,6 @@ the index.
 from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import unicode_literals
-import six
 from pkg_resources import Requirement, resource_filename
 import json
 import re
@@ -154,7 +153,7 @@ class Configuration(object):
         c = cls()
         for k in config_dict:
             value = config_dict[k]
-            if isinstance(value, six.string_types):
+            if isinstance(value, str):
                 def matchf(md):
                     match = md.group(1)
                     # Note: We already matched the rest of the string, so
